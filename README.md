@@ -112,15 +112,15 @@ Package root: `com.example.bundlecam`. All files live under `app/src/main/java/c
 
 ### `ui/capture/` — the capture screen
 - `CaptureScreen.kt` — top bar, preview, zoom, shutter, queue strip, overlays (undo toast + saved shimmer).
-- `CaptureViewModel.kt` — state machine (`CaptureUiState`, `BusyState`, `PendingDiscard`), events (`BundleCommitted`), and methods for shutter, commit, discard, undo, delete, reorder, zoom, camera mode, orientation.
+- `CaptureViewModel.kt` — state machine (`CaptureUiState`, `BusyState`, `PendingDiscard`), events (`BundlesCommitted`), and methods for shutter, commit, discard, undo, delete, reorder, zoom, camera mode, divider insert/remove.
 - `CameraPreview.kt` — wraps `PreviewView`, tap-to-focus, pinch-to-zoom, lifecycle rebind.
 - `ShutterButton.kt` — 80dp circle, disabled during capture or camera rebinding.
 - `ZoomControl.kt` — 0.5×/1×/2×/5× chips, filtered by hardware zoom range.
 - `CameraModeToggle.kt` — EXT (CameraX Extensions) vs ZSL (zero-shutter-lag) segmented toggle.
-- `QueueStrip.kt` — two-sided edge-zone swipe to commit / discard. Sophisticated gesture state machine (`GestureState.Idle | Bundling | Discarding`), `VelocityTracker`, haptic edge detection, tide gradient, destination glyph + commit flash that persists through the animation. See the **Gesture model** section below.
+- `QueueStrip.kt` — two-sided edge-zone swipe to commit / discard, plus per-gap `DividerZone` swipe-down-to-insert / swipe-up-to-remove. Gesture state machine (`GestureState.Idle | Bundling | Discarding`), `VelocityTracker`, haptic edge detection, tide gradient, destination glyph + commit flash. Custom `Layout` in `QueueContent` positions thumbnails + 24dp divider hit zones overlapping into neighbors; dividers Z-above thumbnails + Initial-pass consumption arbitrates the overlap.
 - `QueueThumbnail.kt` — vertical drag-to-delete + long-press-then-drag reorder per thumbnail.
 - `UndoToast.kt` — "Discarded N photos · Undo" during the 3-second undo window.
-- `BundleSavedShimmer.kt` — green "Bundle {id} saved" pill triggered by `BundleCommitted` event.
+- `BundleSavedShimmer.kt` — green pill triggered by `BundlesCommitted`: "Bundle {id} saved" for single-bundle commits, "N bundles saved ({first}–{last})" for multi-bundle splits.
 - `CaptureColors.kt` — commit green (`#2E7D32`) + discard amber (`#B26A00`).
 
 ### `ui/setup/` — first-run folder picker

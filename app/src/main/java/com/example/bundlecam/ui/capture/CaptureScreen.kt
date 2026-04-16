@@ -19,7 +19,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -154,113 +156,145 @@ private fun CaptureScreenContent(
         Unit
     }
 
-    Column(
+    var deleteProgress by remember { mutableFloatStateOf(0f) }
+    var deleteHotspotXInRoot by remember { mutableFloatStateOf(0f) }
+    val animatedDeleteProgress by animateFloatAsState(
+        targetValue = deleteProgress,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessHigh,
+        ),
+        label = "delete-glow",
+    )
+
+    Box(
         modifier = modifier
             .fillMaxSize()
             .background(Color.Black),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(horizontal = 4.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onOpenSettings) {
-                Icon(
-                    imageVector = Icons.Filled.Settings,
-                    contentDescription = "Settings",
-                    tint = Color.White,
-                    modifier = Modifier.rotate(contentRotation),
-                )
-            }
-            Spacer(Modifier.weight(1f))
-            CameraModeToggle(
-                current = cameraMode,
-                onChange = vm::onCameraModeChange,
-            )
-            Spacer(Modifier.weight(1f))
-            IconButton(
-                onClick = handleOpenFolder,
-                enabled = settings.rootUri != null,
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(
-                    imageVector = Icons.Filled.FolderOpen,
-                    contentDescription = "Open output folder",
-                    tint = if (settings.rootUri != null) Color.White else Color.White.copy(alpha = 0.3f),
-                    modifier = Modifier.rotate(contentRotation),
+                IconButton(onClick = onOpenSettings) {
+                    Icon(
+                        imageVector = Icons.Filled.Settings,
+                        contentDescription = "Settings",
+                        tint = Color.White,
+                        modifier = Modifier.rotate(contentRotation),
+                    )
+                }
+                Spacer(Modifier.weight(1f))
+                CameraModeToggle(
+                    current = cameraMode,
+                    onChange = vm::onCameraModeChange,
                 )
+                Spacer(Modifier.weight(1f))
+                IconButton(
+                    onClick = handleOpenFolder,
+                    enabled = settings.rootUri != null,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.FolderOpen,
+                        contentDescription = "Open output folder",
+                        tint = if (settings.rootUri != null) Color.White else Color.White.copy(alpha = 0.3f),
+                        modifier = Modifier.rotate(contentRotation),
+                    )
+                }
             }
-        }
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(3f / 4f),
-        ) {
-            CameraPreview(
-                controller = vm.captureController,
-                mode = cameraMode,
-                onRebindingChange = vm::setRebinding,
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(bottom = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            state.lastError?.let { message ->
-                ActionBanner(
-                    message = message,
-                    actionLabel = "Dismiss",
-                    onAction = vm::clearError,
-                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                )
-            }
-
-            ZoomControl(
-                zoomInfo = zoomInfo,
-                onZoomChange = vm::onZoomChange,
-                contentRotation = contentRotation,
-                modifier = Modifier.padding(bottom = 12.dp),
-            )
-
-            ShutterButton(
-                onClick = handleShutter,
-                enabled = state.busy == BusyState.Idle && !isRebinding,
-            )
-
-            Spacer(Modifier.height(12.dp))
 
             Box(
-                modifier = Modifier.fillMaxWidth(),
-                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(3f / 4f),
             ) {
-                QueueStrip(
-                    queue = state.queue,
-                    onCommit = handleCommit,
-                    onDiscard = handleDiscard,
-                    onDelete = vm::onDeleteOne,
-                    onReorder = vm::onReorder,
-                )
-                UndoToast(
-                    pendingDiscard = state.pendingDiscard,
-                    onUndo = vm::onUndoDiscard,
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
-                BundleSavedShimmer(
-                    events = vm.events,
-                    modifier = Modifier.padding(horizontal = 16.dp),
+                CameraPreview(
+                    controller = vm.captureController,
+                    mode = cameraMode,
+                    onRebindingChange = vm::setRebinding,
+                    modifier = Modifier.fillMaxSize(),
                 )
             }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(bottom = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                state.lastError?.let { message ->
+                    ActionBanner(
+                        message = message,
+                        actionLabel = "Dismiss",
+                        onAction = vm::clearError,
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                }
+
+                ZoomControl(
+                    zoomInfo = zoomInfo,
+                    onZoomChange = vm::onZoomChange,
+                    contentRotation = contentRotation,
+                    modifier = Modifier.padding(bottom = 12.dp),
+                )
+
+                ShutterButton(
+                    onClick = handleShutter,
+                    enabled = state.busy == BusyState.Idle && !isRebinding,
+                )
+
+                Spacer(Modifier.height(12.dp))
+
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    QueueStrip(
+                        queue = state.queue,
+                        dividers = state.dividers,
+                        onCommit = handleCommit,
+                        onDiscard = handleDiscard,
+                        onDelete = vm::onDeleteOne,
+                        onReorder = vm::onReorder,
+                        onInsertDivider = vm::onInsertDivider,
+                        onRemoveDivider = vm::onRemoveDivider,
+                        onDeleteProgress = { progress, xInRoot ->
+                            deleteProgress = progress
+                            if (progress > 0f) deleteHotspotXInRoot = xInRoot
+                        },
+                    )
+                    UndoToast(
+                        pendingDiscard = state.pendingDiscard,
+                        onUndo = vm::onUndoDiscard,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                    BundleSavedShimmer(
+                        events = vm.events,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                }
+            }
+        }
+
+        if (animatedDeleteProgress > 0.01f) {
+            DeleteGlow(
+                progress = animatedDeleteProgress,
+                hotspotXInRoot = deleteHotspotXInRoot,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .fillMaxWidth()
+                    .height(18.dp),
+            )
         }
     }
 }

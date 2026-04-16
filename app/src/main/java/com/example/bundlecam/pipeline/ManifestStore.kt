@@ -49,4 +49,25 @@ class ManifestStore(context: Context) {
             ?.map { it.nameWithoutExtension }
             ?: emptyList()
     }
+
+    // Whether any pending manifest (other than excludeBundleId) references the given session.
+    // Fails closed on decode errors: an unreadable manifest is treated as a live reference
+    // so we don't delete staging a retryable worker still needs.
+    suspend fun isSessionReferenced(sessionId: String, excludeBundleId: String? = null): Boolean =
+        withContext(Dispatchers.IO) {
+            for (bundleId in listPendingIds()) {
+                if (bundleId == excludeBundleId) continue
+                val file = File(dir, "$bundleId.json")
+                if (!file.exists()) continue
+                val decoded = runCatching {
+                    json.decodeFromString(PendingBundle.serializer(), file.readText())
+                }
+                if (decoded.isFailure) {
+                    Log.w(TAG, "Manifest $bundleId unreadable; assuming session $sessionId referenced", decoded.exceptionOrNull())
+                    return@withContext true
+                }
+                if (decoded.getOrNull()?.sessionId == sessionId) return@withContext true
+            }
+            false
+        }
 }

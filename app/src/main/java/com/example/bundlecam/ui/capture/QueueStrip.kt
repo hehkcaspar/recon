@@ -10,6 +10,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -21,11 +23,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.systemGestureExclusion
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -38,16 +42,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
@@ -60,11 +71,20 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
+import kotlin.math.exp
 
 private val CommitGreen = CaptureColors.CommitGreen
 private val DiscardAmber = CaptureColors.DiscardAmber
 private const val EXIT_ANIMATION_MS = 350
 private const val FLASH_DURATION_MS = 220L
+
+internal object QueueMetrics {
+    val ThumbSize = 56.dp
+    val ThumbGap = 6.dp
+    val OuterPadding = 8.dp
+    val DividerHitWidth = 24.dp
+    val SlotSize = ThumbSize + ThumbGap
+}
 
 private sealed class GestureState {
     object Idle : GestureState()
@@ -80,10 +100,14 @@ private data class ExitingSnapshot(
 @Composable
 fun QueueStrip(
     queue: List<StagedPhoto>,
+    dividers: Set<Int>,
     onCommit: () -> Unit,
     onDiscard: () -> Unit,
     onDelete: (String) -> Unit,
     onReorder: (Int, Int) -> Unit,
+    onInsertDivider: (Int) -> Unit,
+    onRemoveDivider: (Int) -> Unit,
+    onDeleteProgress: (progress: Float, hotspotXInRoot: Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val enabled = queue.isNotEmpty()
@@ -161,11 +185,15 @@ fun QueueStrip(
                 if (exiting == null) {
                     QueueTray(
                         queue = queue,
+                        dividers = dividers,
                         gesture = gesture,
                         tideProgress = animatedProgress,
                         tiltDeg = tiltDeg,
                         onDelete = onDelete,
                         onReorder = onReorder,
+                        onInsertDivider = onInsertDivider,
+                        onRemoveDivider = onRemoveDivider,
+                        onDeleteProgress = onDeleteProgress,
                         modifier = Modifier.fillMaxSize(),
                     )
                 } else {
@@ -395,11 +423,15 @@ private fun EdgeZone(
 @Composable
 private fun QueueTray(
     queue: List<StagedPhoto>,
+    dividers: Set<Int>,
     gesture: GestureState,
     tideProgress: Float,
     tiltDeg: Float,
     onDelete: (String) -> Unit,
     onReorder: (Int, Int) -> Unit,
+    onInsertDivider: (Int) -> Unit,
+    onRemoveDivider: (Int) -> Unit,
+    onDeleteProgress: (progress: Float, hotspotXInRoot: Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val direction = when (gesture) {
@@ -453,14 +485,67 @@ private fun QueueTray(
             }
         }
 
-        Row(
+        QueueContent(
+            queue = queue,
+            dividers = dividers,
+            tiltDeg = tiltDeg,
+            onDelete = onDelete,
+            onReorder = onReorder,
+            onInsertDivider = onInsertDivider,
+            onRemoveDivider = onRemoveDivider,
+            onDeleteProgress = onDeleteProgress,
             modifier = Modifier
                 .fillMaxSize()
-                .horizontalScroll(scrollState)
-                .padding(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+                .horizontalScroll(scrollState),
+        )
+    }
+}
+
+@Composable
+private fun QueueContent(
+    queue: List<StagedPhoto>,
+    dividers: Set<Int>,
+    tiltDeg: Float,
+    onDelete: (String) -> Unit,
+    onReorder: (Int, Int) -> Unit,
+    onInsertDivider: (Int) -> Unit,
+    onRemoveDivider: (Int) -> Unit,
+    onDeleteProgress: (progress: Float, hotspotXInRoot: Float) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val density = LocalDensity.current
+    val thumbPx = with(density) { QueueMetrics.ThumbSize.roundToPx() }
+    val baseGapPx = with(density) { QueueMetrics.ThumbGap.roundToPx() }
+    val expandedGapPx = with(density) { QueueMetrics.DividerHitWidth.roundToPx() }
+    val outerPadPx = with(density) { QueueMetrics.OuterPadding.roundToPx() }
+    val dividerWidthPx = with(density) { QueueMetrics.DividerHitWidth.roundToPx() }
+    val extraGapPx = (expandedGapPx - baseGapPx).coerceAtLeast(0)
+
+    val dividerCount = (queue.size - 1).coerceAtLeast(0)
+    // Animated 0..1 expansion per gap: 0 → base 6dp gap, 1 → 24dp gap.
+    // Using key(i) gives each gap a stable Animatable across recompositions.
+    val expansions = List(dividerCount) { i ->
+        key(i) {
+            animateFloatAsState(
+                targetValue = if (dividers.contains(i)) 1f else 0f,
+                animationSpec = tween(durationMillis = 200),
+                label = "divider-expansion",
+            ).value
+        }
+    }
+
+    // Only wrap thumbnails in a tilt layer during the edge-swipe gesture. At rest
+    // an identity graphicsLayer still forces an offscreen compositing pass whose
+    // edge sampling differs from the direct render — that shift is visible as a
+    // ~1px widening when an adjacent gap changes color behind the thumbnail.
+    val thumbnailModifier = if (tiltDeg != 0f) {
+        Modifier.graphicsLayer { rotationZ = tiltDeg }
+    } else {
+        Modifier
+    }
+
+    Layout(
+        content = {
             queue.forEachIndexed { index, photo ->
                 key(photo.id) {
                     QueueThumbnail(
@@ -469,10 +554,118 @@ private fun QueueTray(
                         queueSize = queue.size,
                         onDelete = { onDelete(photo.id) },
                         onReorderTo = { target -> onReorder(index, target) },
-                        modifier = Modifier.graphicsLayer { rotationZ = tiltDeg },
+                        onDeleteProgress = onDeleteProgress,
+                        modifier = thumbnailModifier,
                     )
                 }
             }
+            for (i in 0 until dividerCount) {
+                key("div-$i") {
+                    DividerZone(
+                        hasDivider = dividers.contains(i),
+                        onInsert = { onInsertDivider(i) },
+                        onRemove = { onRemoveDivider(i) },
+                    )
+                }
+            }
+        },
+        modifier = modifier,
+    ) { measurables, constraints ->
+        val thumbCount = queue.size
+        val parentHeight = constraints.maxHeight
+
+        val thumbPlaceables = List(thumbCount) { i ->
+            measurables[i].measure(Constraints.fixed(thumbPx, thumbPx))
+        }
+        val dividerPlaceables = List(dividerCount) { i ->
+            measurables[thumbCount + i].measure(Constraints.fixed(dividerWidthPx, parentHeight))
+        }
+
+        val gapPxByIndex = IntArray(dividerCount) { i ->
+            baseGapPx + (extraGapPx * expansions[i]).toInt()
+        }
+        val totalGapPx = gapPxByIndex.sum()
+
+        val totalWidth = if (thumbCount == 0) {
+            0
+        } else {
+            outerPadPx + thumbCount * thumbPx + totalGapPx + outerPadPx
+        }
+
+        layout(totalWidth, parentHeight) {
+            var cursorX = outerPadPx
+            val thumbY = ((parentHeight - thumbPx) / 2).coerceAtLeast(0)
+            for (i in 0 until thumbCount) {
+                thumbPlaceables[i].place(cursorX, thumbY)
+                cursorX += thumbPx
+                if (i < dividerCount) {
+                    val gap = gapPxByIndex[i]
+                    val gapCenterX = cursorX + gap / 2
+                    dividerPlaceables[i].place(gapCenterX - dividerWidthPx / 2, 0)
+                    cursorX += gap
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DividerZone(
+    hasDivider: Boolean,
+    onInsert: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    val density = LocalDensity.current
+    val thresholdPx = with(density) { 24.dp.toPx() }
+    val slopPx = with(density) { 8.dp.toPx() }
+    val view = LocalView.current
+
+    var dragY by remember { mutableFloatStateOf(0f) }
+    val lineColor = MaterialTheme.colorScheme.primary
+
+    // Sign flips the "active" drag direction: swipe down inserts, swipe up removes.
+    val activeSign = if (hasDivider) -1f else 1f
+    val activeProgress = (dragY * activeSign / thresholdPx).coerceIn(0f, 1f)
+    val rawAlpha = if (hasDivider) 1f - activeProgress else activeProgress
+
+    Box(
+        modifier = Modifier
+            .fillMaxHeight()
+            .width(QueueMetrics.DividerHitWidth)
+            .pointerInput(hasDivider) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(pass = PointerEventPass.Initial)
+                    dragY = 0f
+                    var claimed = false
+                    while (true) {
+                        val event = awaitPointerEvent(pass = PointerEventPass.Initial)
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (change.changedToUp()) {
+                            if (dragY * activeSign >= thresholdPx) {
+                                val haptic = if (hasDivider) HapticFeedbackConstants.CLOCK_TICK
+                                             else HapticFeedbackConstants.CONTEXT_CLICK
+                                view.performHapticFeedback(haptic)
+                                if (hasDivider) onRemove() else onInsert()
+                            }
+                            dragY = 0f
+                            break
+                        }
+                        dragY += change.positionChange().y
+                        if (!claimed && dragY * activeSign >= slopPx) claimed = true
+                        if (claimed) change.consume()
+                    }
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        if (rawAlpha > 0.01f) {
+            Box(
+                modifier = Modifier
+                    .width(2.dp)
+                    .fillMaxHeight(0.75f)
+                    .clip(RoundedCornerShape(1.dp))
+                    .background(lineColor.copy(alpha = rawAlpha)),
+            )
         }
     }
 }
@@ -552,3 +745,55 @@ private fun FlyingQueue(
     }
 }
 
+/**
+ * Red glow at the bottom of the screen. Its upper edge follows a Gaussian curve
+ * `exp(-dx²/2σ²)` peaking under [hotspotXInRoot]. The caller must place this
+ * composable so its local x-origin aligns with root x=0 (fillMaxWidth aligned
+ * to BottomCenter is fine); hotspotXInRoot is then used directly as the peak x.
+ */
+@Composable
+fun DeleteGlow(
+    progress: Float,
+    hotspotXInRoot: Float,
+    modifier: Modifier = Modifier,
+) {
+    // Sigma equal to one thumbnail makes the bell's FWHM ≈ 132dp — wide enough
+    // to read as "this photo" without spilling across neighbours.
+    val sigmaPx = with(LocalDensity.current) { QueueMetrics.ThumbSize.toPx() }
+    val stepPx = with(LocalDensity.current) { 2.dp.toPx() }
+    Spacer(
+        modifier = modifier.drawWithCache {
+            val width = size.width
+            val height = size.height
+            val path = Path().apply {
+                if (width > 0f && height > 0f) {
+                    moveTo(0f, height)
+                    var x = 0f
+                    while (x <= width) {
+                        val dx = x - hotspotXInRoot
+                        val factor = exp(-(dx * dx) / (2f * sigmaPx * sigmaPx))
+                        lineTo(x, height - height * factor)
+                        x += stepPx
+                    }
+                    lineTo(width, height)
+                    close()
+                }
+            }
+            onDrawBehind {
+                drawPath(
+                    path = path,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            CaptureColors.DeleteRed.copy(alpha = progress * MAX_GLOW_ALPHA),
+                        ),
+                        startY = 0f,
+                        endY = height,
+                    ),
+                )
+            }
+        },
+    )
+}
+
+private const val MAX_GLOW_ALPHA = 0.7f

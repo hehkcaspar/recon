@@ -20,6 +20,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
@@ -36,15 +38,17 @@ fun QueueThumbnail(
     queueSize: Int,
     onDelete: () -> Unit,
     onReorderTo: (Int) -> Unit,
+    onDeleteProgress: (progress: Float, hotspotXInRoot: Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var verticalDragY by remember { mutableFloatStateOf(0f) }
     var reorderOffsetX by remember { mutableFloatStateOf(0f) }
     var isReordering by remember { mutableStateOf(false) }
+    var centerXInRoot by remember { mutableFloatStateOf(0f) }
 
     val density = LocalDensity.current
     val deleteThresholdPx = with(density) { 40.dp.toPx() }
-    val slotPx = with(density) { (56.dp + 6.dp).toPx() }
+    val slotPx = with(density) { QueueMetrics.SlotSize.toPx() }
 
     val alpha = if (verticalDragY > 0f) {
         (1f - verticalDragY / (deleteThresholdPx * 2f)).coerceIn(0.3f, 1f)
@@ -52,6 +56,9 @@ fun QueueThumbnail(
 
     Box(
         modifier = modifier
+            .onGloballyPositioned { coords ->
+                centerXInRoot = coords.positionInRoot().x + coords.size.width / 2f
+            }
             .zIndex(if (isReordering) 1f else 0f)
             .graphicsLayer {
                 translationX = reorderOffsetX
@@ -61,7 +68,7 @@ fun QueueThumbnail(
                 scaleX = scale
                 scaleY = scale
             }
-            .size(56.dp)
+            .size(QueueMetrics.ThumbSize)
             .clip(RoundedCornerShape(8.dp))
             .background(Color.DarkGray)
             .semantics {
@@ -85,10 +92,18 @@ fun QueueThumbnail(
                     onDragEnd = {
                         if (verticalDragY > deleteThresholdPx) onDelete()
                         verticalDragY = 0f
+                        onDeleteProgress(0f, centerXInRoot)
                     },
-                    onDragCancel = { verticalDragY = 0f },
+                    onDragCancel = {
+                        verticalDragY = 0f
+                        onDeleteProgress(0f, centerXInRoot)
+                    },
                     onVerticalDrag = { _, delta ->
                         verticalDragY = (verticalDragY + delta).coerceAtLeast(0f)
+                        onDeleteProgress(
+                            (verticalDragY / deleteThresholdPx).coerceIn(0f, 1f),
+                            centerXInRoot,
+                        )
                     },
                 )
             }

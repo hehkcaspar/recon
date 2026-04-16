@@ -118,12 +118,22 @@ class BundleWorker(
             stitchFile.delete()
         }
 
-        runCatching {
-            container.stagingStore.deleteSession(container.stagingStore.sessionFor(manifest.sessionId))
-        }.onFailure { Log.w(TAG, "Failed to delete staging session for ${manifest.bundleId}", it) }
-
         runCatching { container.manifestStore.delete(manifest.bundleId) }
             .onFailure { Log.w(TAG, "Failed to delete manifest for ${manifest.bundleId}", it) }
+
+        // Multi-bundle commits share one staging session. The last worker to finish
+        // deletes it; earlier workers defer to OrphanRecovery.
+        val stillReferenced = container.manifestStore.isSessionReferenced(
+            sessionId = manifest.sessionId,
+            excludeBundleId = manifest.bundleId,
+        )
+        if (!stillReferenced) {
+            runCatching {
+                container.stagingStore.deleteSession(container.stagingStore.sessionFor(manifest.sessionId))
+            }.onFailure { Log.w(TAG, "Failed to delete staging session for ${manifest.bundleId}", it) }
+        } else {
+            Log.i(TAG, "Staging session ${manifest.sessionId} still referenced; deferring delete")
+        }
     }
 
     private fun createForegroundInfo(bundleId: String): ForegroundInfo {

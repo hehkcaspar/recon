@@ -27,30 +27,35 @@ fun BundleSavedShimmer(
     events: Flow<CaptureEvent>,
     modifier: Modifier = Modifier,
 ) {
-    var activeBundleId by remember { mutableStateOf<String?>(null) }
+    var activeIds by remember { mutableStateOf<List<String>?>(null) }
 
     LaunchedEffect(events) {
-        events.filterIsInstance<CaptureEvent.BundleCommitted>().collect { event ->
-            activeBundleId = event.bundleId
-            delay(700)
-            if (activeBundleId == event.bundleId) {
-                activeBundleId = null
+        events.filterIsInstance<CaptureEvent.BundlesCommitted>().collect { event ->
+            if (event.bundleIds.isEmpty()) return@collect
+            activeIds = event.bundleIds
+            delay(900)
+            if (activeIds == event.bundleIds) {
+                activeIds = null
             }
         }
     }
 
-    val bundleId = activeBundleId ?: return
-    ShimmerPill(bundleId = bundleId, modifier = modifier)
+    val ids = activeIds ?: return
+    ShimmerPill(bundleIds = ids, modifier = modifier)
 }
 
 @Composable
-private fun ShimmerPill(bundleId: String, modifier: Modifier = Modifier) {
+private fun ShimmerPill(bundleIds: List<String>, modifier: Modifier = Modifier) {
     val alpha = remember { Animatable(0f) }
-    LaunchedEffect(bundleId) {
+    LaunchedEffect(bundleIds) {
         alpha.snapTo(0f)
         alpha.animateTo(1f, tween(durationMillis = 150))
-        delay(400)
+        delay(600)
         alpha.animateTo(0f, tween(durationMillis = 150))
+    }
+    val label = when (bundleIds.size) {
+        1 -> "Bundle ${bundleIds.first()} saved"
+        else -> "${bundleIds.size} bundles saved (${bundleIds.first()}–${bundleIds.last()})"
     }
     Surface(
         modifier = modifier.graphicsLayer { this.alpha = alpha.value },
@@ -60,7 +65,7 @@ private fun ShimmerPill(bundleId: String, modifier: Modifier = Modifier) {
         tonalElevation = 6.dp,
     ) {
         Text(
-            text = "Bundle $bundleId saved",
+            text = label,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
         )
     }

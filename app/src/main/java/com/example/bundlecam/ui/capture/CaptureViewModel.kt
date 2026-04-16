@@ -53,17 +53,19 @@ data class StagedPhoto(
 
 data class PendingDiscard(
     val items: List<StagedPhoto>,
+    val dividers: Set<Int> = emptySet(),
 )
 
 data class CaptureUiState(
     val queue: List<StagedPhoto> = emptyList(),
+    val dividers: Set<Int> = emptySet(),
     val pendingDiscard: PendingDiscard? = null,
     val busy: BusyState = BusyState.Idle,
     val lastError: String? = null,
 )
 
 sealed class CaptureEvent {
-    data class BundleCommitted(val bundleId: String) : CaptureEvent()
+    data class BundlesCommitted(val bundleIds: List<String>) : CaptureEvent()
 }
 
 class CaptureViewModel(
@@ -181,6 +183,7 @@ class CaptureViewModel(
         if (_uiState.value.busy != BusyState.Idle) return
         val session = currentSession ?: return
         val items = _uiState.value.queue
+        val dividers = _uiState.value.dividers
         if (items.isEmpty()) return
 
         _uiState.update { it.copy(busy = BusyState.Committing) }
@@ -195,33 +198,50 @@ class CaptureViewModel(
                 return@launch
             }
 
+            val segments = partitionByDividers(items, dividers)
+            val manifests = mutableListOf<PendingBundle>()
             try {
-                val bundleId = container.bundleCounterStore.allocate()
-                Log.i(TAG, "Commit allocated bundleId=$bundleId sessionId=${session.id} photos=${items.size}")
-                val manifest = PendingBundle(
-                    bundleId = bundleId,
-                    rootUriString = rootUri.toString(),
-                    stitchQuality = currentSettings.stitchQuality.name,
-                    sessionId = session.id,
-                    orderedPhotos = items.map { photo ->
-                        PendingPhoto(
-                            localPath = photo.localFile.absolutePath,
-                            rotationDegrees = photo.rotationDegrees,
+                val capturedAt = System.currentTimeMillis()
+                for (segment in segments) {
+                    val bundleId = container.bundleCounterStore.allocate()
+                    manifests.add(
+                        PendingBundle(
+                            bundleId = bundleId,
+                            rootUriString = rootUri.toString(),
+                            stitchQuality = currentSettings.stitchQuality.name,
+                            sessionId = session.id,
+                            orderedPhotos = segment.map { photo ->
+                                PendingPhoto(
+                                    localPath = photo.localFile.absolutePath,
+                                    rotationDegrees = photo.rotationDegrees,
+                                )
+                            },
+                            capturedAt = capturedAt,
                         )
-                    },
-                    capturedAt = System.currentTimeMillis(),
-                )
-                container.manifestStore.save(manifest)
-                container.workScheduler.enqueue(bundleId)
+                    )
+                }
+                // Save all manifests first so the commit is atomic from the worker's view:
+                // a mid-loop crash leaves no enqueued workers to misbehave on partial state.
+                for (m in manifests) container.manifestStore.save(m)
+                for (m in manifests) container.workScheduler.enqueue(m.bundleId)
 
+                val bundleIds = manifests.map { it.bundleId }
                 currentSession = null
                 _uiState.update {
-                    it.copy(queue = emptyList(), busy = BusyState.Idle, lastError = null)
+                    it.copy(
+                        queue = emptyList(),
+                        dividers = emptySet(),
+                        busy = BusyState.Idle,
+                        lastError = null,
+                    )
                 }
-                _events.tryEmit(CaptureEvent.BundleCommitted(bundleId))
-                Log.i(TAG, "Enqueued bundle $bundleId (${items.size} photos)")
+                _events.tryEmit(CaptureEvent.BundlesCommitted(bundleIds))
+                Log.i(TAG, "Commit complete: ${bundleIds.size} bundle(s) from ${items.size} photos (session=${session.id})")
             } catch (t: Throwable) {
-                Log.e(TAG, "Enqueue failed", t)
+                Log.e(TAG, "Commit failed", t)
+                // Roll back any manifests we saved before the failure so OrphanRecovery
+                // doesn't resurrect a half-committed state.
+                for (m in manifests) runCatching { container.manifestStore.delete(m.bundleId) }
                 _uiState.update {
                     it.copy(busy = BusyState.Idle, lastError = "Commit failed: ${t.message}")
                 }
@@ -229,15 +249,59 @@ class CaptureViewModel(
         }
     }
 
+    fun onInsertDivider(afterIndex: Int) {
+        if (_uiState.value.busy != BusyState.Idle) return
+        val size = _uiState.value.queue.size
+        if (afterIndex < 0 || afterIndex >= size - 1) return
+        _uiState.update { it.copy(dividers = it.dividers + afterIndex) }
+    }
+
+    fun onRemoveDivider(afterIndex: Int) {
+        if (_uiState.value.busy != BusyState.Idle) return
+        _uiState.update { it.copy(dividers = it.dividers - afterIndex) }
+    }
+
+    private fun partitionByDividers(
+        items: List<StagedPhoto>,
+        dividers: Set<Int>,
+    ): List<List<StagedPhoto>> {
+        if (items.isEmpty()) return emptyList()
+        val cuts = dividers.filter { it in 0 until items.size - 1 }.sorted()
+        if (cuts.isEmpty()) return listOf(items)
+        val out = mutableListOf<List<StagedPhoto>>()
+        var start = 0
+        for (cut in cuts) {
+            out.add(items.subList(start, cut + 1))
+            start = cut + 1
+        }
+        out.add(items.subList(start, items.size))
+        return out
+    }
+
+    private fun remapDividersAfterDelete(dividers: Set<Int>, removedIndex: Int, newSize: Int): Set<Int> {
+        if (dividers.isEmpty() || newSize < 2) return emptySet()
+        val result = mutableSetOf<Int>()
+        for (d in dividers) {
+            val shifted = if (d < removedIndex) d else d - 1
+            if (shifted in 0 until newSize - 1) result.add(shifted)
+        }
+        return result
+    }
+
     fun onDiscardQueue() {
         if (_uiState.value.busy != BusyState.Idle) return
         val session = currentSession ?: return
         val items = _uiState.value.queue
+        val dividers = _uiState.value.dividers
         if (items.isEmpty()) return
 
         pendingDiscardSession = session
         _uiState.update {
-            it.copy(queue = emptyList(), pendingDiscard = PendingDiscard(items))
+            it.copy(
+                queue = emptyList(),
+                dividers = emptySet(),
+                pendingDiscard = PendingDiscard(items, dividers),
+            )
         }
         currentSession = null
 
@@ -260,15 +324,28 @@ class CaptureViewModel(
         discardTimerJob = null
         currentSession = session
         pendingDiscardSession = null
-        _uiState.update { it.copy(queue = pending.items, pendingDiscard = null) }
+        _uiState.update {
+            it.copy(
+                queue = pending.items,
+                dividers = pending.dividers,
+                pendingDiscard = null,
+            )
+        }
     }
 
     fun onDeleteOne(id: String) {
         if (_uiState.value.busy != BusyState.Idle) return
         val items = _uiState.value.queue
-        val target = items.find { it.id == id } ?: return
-        val remaining = items - target
-        _uiState.update { it.copy(queue = remaining) }
+        val targetIndex = items.indexOfFirst { it.id == id }
+        if (targetIndex < 0) return
+        val target = items[targetIndex]
+        val remaining = items.toMutableList().also { it.removeAt(targetIndex) }
+        _uiState.update {
+            it.copy(
+                queue = remaining,
+                dividers = remapDividersAfterDelete(it.dividers, targetIndex, remaining.size),
+            )
+        }
 
         viewModelScope.launch {
             runCatching { container.stagingStore.deleteFile(target.localFile) }
