@@ -126,8 +126,8 @@ fun QueueStrip(
             .height(72.dp),
     ) {
         val thresholdPx = with(density) { (maxWidth / 2).toPx() }
-        // 125.dp/s matches M3 SwipeToDismissBoxDefaults.velocityThreshold.
-        val velocityThresholdPx = with(density) { 125.dp.toPx() }
+        // Tuned below M3's 125.dp/s default so a natural swipe doesn't get cancelled.
+        val velocityThresholdPx = with(density) { 80.dp.toPx() }
 
         val progress = when (val g = gesture) {
             GestureState.Idle -> 0f
@@ -330,7 +330,7 @@ private fun EdgeZone(
                         onDragStart()
                     },
                     onDragEnd = { onDragRelease(velocityTracker.calculateVelocity().x) },
-                    onDragCancel = { onDragRelease(0f) },
+                    onDragCancel = { onDragRelease(velocityTracker.calculateVelocity().x) },
                     onHorizontalDrag = { change, delta ->
                         velocityTracker.addPosition(change.uptimeMillis, change.position)
                         onDrag(delta)
@@ -348,18 +348,23 @@ private fun EdgeZone(
             },
         contentAlignment = Alignment.Center,
     ) {
-        if (isDestination) {
+        val destBgAlpha = maxOf(destinationAlpha, flashAlpha)
+        val destGlyphAlpha = maxOf(
+            if (isDestination) progress.coerceIn(0f, 1f) else 0f,
+            flashAlpha,
+        )
+        if (destBgAlpha > 0f) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .clip(RoundedCornerShape(8.dp))
-                    .background(destinationAccent.copy(alpha = destinationAlpha)),
+                    .background(destinationAccent.copy(alpha = destBgAlpha)),
                 contentAlignment = Alignment.Center,
             ) {
-                if (progress > 0.1f) {
+                if (destGlyphAlpha > 0.1f) {
                     Text(
                         text = destinationGlyph,
-                        color = Color.White.copy(alpha = progress.coerceIn(0f, 1f)),
+                        color = Color.White.copy(alpha = destGlyphAlpha.coerceIn(0f, 1f)),
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
                     )
@@ -382,15 +387,6 @@ private fun EdgeZone(
                     .size(width = handleWidth.dp, height = handleHeight.dp)
                     .clip(RoundedCornerShape(6.dp))
                     .background(barColor),
-            )
-        }
-
-        if (flashAlpha > 0f) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color.White.copy(alpha = flashAlpha)),
             )
         }
     }
