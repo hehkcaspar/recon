@@ -182,7 +182,8 @@ fun QueueStrip(
                     .fillMaxSize()
                     .padding(horizontal = 48.dp),
             ) {
-                if (exiting == null) {
+                val snapshot = exiting
+                if (snapshot == null) {
                     QueueTray(
                         queue = queue,
                         dividers = dividers,
@@ -198,7 +199,7 @@ fun QueueStrip(
                     )
                 } else {
                     FlyingQueue(
-                        snapshot = exiting!!,
+                        snapshot = snapshot,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }

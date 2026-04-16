@@ -169,7 +169,9 @@ class CaptureController(context: Context) {
     }
 
     suspend fun takePicture(): CapturedPhoto {
-        check(!bindMutex.isLocked) { "Camera is rebinding" }
+        // Rebinding is gated at the UI layer via isRebinding; here we rely on the
+        // imageCapture null check below + the CameraX onError callback to surface any
+        // in-flight failure (e.g. the capture use case being unbound mid-flight).
         return suspendCancellableCoroutine { cont ->
             val capture = imageCapture ?: run {
                 cont.resumeWithException(IllegalStateException("ImageCapture not bound"))

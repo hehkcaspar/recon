@@ -29,7 +29,7 @@ class SafStorage(context: Context) {
         src: File,
     ): Uri = withContext(Dispatchers.IO) {
         val dir = resolveTargetDir(rootUri, subPath)
-        writeOne(dir, fileName, src)
+        writeOne(dir, indexExisting(dir), fileName, src)
     }
 
     suspend fun copyLocalFiles(
@@ -38,10 +38,31 @@ class SafStorage(context: Context) {
         entries: List<Pair<String, File>>,
     ): List<Uri> = withContext(Dispatchers.IO) {
         val dir = resolveTargetDir(rootUri, subPath)
-        entries.map { (fileName, src) -> writeOne(dir, fileName, src) }
+        val existing = indexExisting(dir)
+        entries.map { (fileName, src) -> writeOne(dir, existing, fileName, src) }
     }
 
-    private fun writeOne(dir: DocumentFile, fileName: String, src: File): Uri {
+    /**
+     * One `listFiles()` IPC per batch instead of one `findFile()` per entry — findFile
+     * rescans the entire directory on each call, so 50 photos previously meant 50 full
+     * listings. Map is mutated as we overwrite so subsequent entries in the same batch
+     * don't re-find a just-deleted stale file.
+     */
+    private fun indexExisting(dir: DocumentFile): MutableMap<String, DocumentFile> {
+        val map = mutableMapOf<String, DocumentFile>()
+        dir.listFiles().forEach { f -> f.name?.let { map[it] = f } }
+        return map
+    }
+
+    private fun writeOne(
+        dir: DocumentFile,
+        existing: MutableMap<String, DocumentFile>,
+        fileName: String,
+        src: File,
+    ): Uri {
+        // Overwrite any stale file with the same name; DocumentsProvider would otherwise
+        // append " (1)" suffixes, producing duplicates like "{id}-p-01 (1).jpg" on worker retry.
+        existing.remove(fileName)?.delete()
         val file = dir.createFile(StorageLayout.MIME_JPEG, fileName)
             ?: throw IOException("Failed to create file '$fileName'")
         appContext.contentResolver.openOutputStream(file.uri)?.use { out ->

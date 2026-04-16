@@ -31,7 +31,7 @@ fun FolderPickerScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = "BundleCam",
+            text = "Recon",
             style = MaterialTheme.typography.headlineLarge,
         )
         Spacer(Modifier.height(12.dp))

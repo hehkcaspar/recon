@@ -2,6 +2,8 @@
 
 Native Android camera app for capturing **bundles** of photos. Each bundle produces two outputs in parallel: the raw photos (named and ordered) and a single vertically-stitched image. Designed for machinegun-cadence capture — shoot, shoot, swipe, shoot, shoot, swipe — with zero blocking work on the interaction path.
 
+> User-facing display name is **Recon**. Internal package/class identifiers retain `bundlecam` / `BundleCam` to avoid an invasive codebase-wide rename.
+
 For the user-facing product spec and interaction design, see [`bundlecam-mvp-designs.md`](./bundlecam-mvp-designs.md).
 
 ---
@@ -32,7 +34,7 @@ Open in Android Studio for preview and live editing.
 | `CAMERA` | Preview + capture |
 | `ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION` | GPS stamping in EXIF (optional — capture proceeds if denied) |
 | `FOREGROUND_SERVICE` / `FOREGROUND_SERVICE_DATA_SYNC` | Let WorkManager's `SystemForegroundService` run the stitch worker reliably through Doze/backgrounding |
-| `POST_NOTIFICATIONS` | Worker progress notifications (Android 13+) |
+| `POST_NOTIFICATIONS` | Foreground-worker progress notifications on Android 13+ (declared but not requested at runtime — if denied, the worker still runs; only the shade notification is suppressed) |
 
 Output storage uses SAF (Storage Access Framework), not a raw filesystem permission — the user picks a root folder on first launch via `OpenDocumentTree`, and the app persists RW access to that tree.
 
@@ -90,9 +92,9 @@ No DI framework — a plain singleton [`AppContainer`](./app/src/main/java/com/e
 
 **Phase 1 — Shutter (≤100ms, UI thread budget).** CameraX returns a JPEG → write to internal staging (`filesDir/staging/session-{uuid}/p-{k}.jpg`) → stamp EXIF (time, GPS if available, orientation) → decode a small thumbnail → push onto the queue. No SAF writes yet.
 
-**Phase 2 — Commit (≤50ms, UI thread budget).** User swipes the queue. `CaptureViewModel.onCommitBundle` allocates the next daily bundle ID, serializes a [`PendingBundle`](./app/src/main/java/com/example/bundlecam/pipeline/PendingBundle.kt) manifest to disk (so worker input isn't bounded by WorkManager's 10KB `Data` limit), enqueues a per-bundle unique `BundleWorker`, and clears the queue. UI is ready for the next photo.
+**Phase 2 — Commit (single frame).** User swipes the queue. `CaptureViewModel.onCommitBundle` pivots the UI synchronously on Main — nulls `currentSession`, clears `queue` + `dividers` — so the shutter is ready on the very next frame. The actual bookkeeping (allocate bundle IDs, write [`PendingBundle`](./app/src/main/java/com/example/bundlecam/pipeline/PendingBundle.kt) manifests to disk, enqueue `BundleWorker`s) runs in a background coroutine. If the process dies before the manifest is saved, photos are still on staging and `OrphanRecovery` restores the session as a queue on next launch.
 
-**Phase 3 — Worker (seconds–tens of seconds, off the UI thread).** `BundleWorker` loads the manifest, copies raw JPEGs to `bundles/{bundle-id}/` via SAF, runs [`Stitcher`](./app/src/main/java/com/example/bundlecam/pipeline/Stitcher.kt) to produce one vertical JPEG into `stitched/`, stamps per-file EXIF `UserComment`s (`BundleCam:{bundleId}:p{kk}` / `:stitch`), then deletes the staging session and manifest file. A process-wide `Mutex` serializes workers so stitch memory stays bounded.
+**Phase 3 — Worker (seconds–tens of seconds, off the UI thread).** `BundleWorker` loads the manifest, backfills GPS EXIF on any photo lacking it (bounded 2s location refresh — covers first-capture before the location fix has resolved), stamps per-file EXIF `UserComment`s (`BundleCam:{bundleId}:p{kk}` / `:stitch`) in a single open/save, copies raw JPEGs to `bundles/{bundle-id}/` via SAF, runs [`Stitcher`](./app/src/main/java/com/example/bundlecam/pipeline/Stitcher.kt) to produce one vertical JPEG into `stitched/`, then deletes the staging session and manifest file. A process-wide `Mutex` serializes workers so stitch memory stays bounded.
 
 ### Resilience
 
@@ -112,7 +114,9 @@ Package root: `com.example.bundlecam`. All files live under `app/src/main/java/c
 
 ### `ui/capture/` — the capture screen
 - `CaptureScreen.kt` — top bar, preview, zoom, shutter, queue strip, overlays (undo toast + saved shimmer).
-- `CaptureViewModel.kt` — state machine (`CaptureUiState`, `BusyState`, `PendingDiscard`), events (`BundlesCommitted`), and methods for shutter, commit, discard, undo, delete, reorder, zoom, camera mode, divider insert/remove.
+- `CaptureViewModel.kt` — state machine (`CaptureUiState`, `BusyState { Idle, Capturing }`, `PendingDiscard`), events (`BundlesCommitted`), and methods for shutter, commit, discard, undo, delete, reorder, zoom, camera mode, divider insert/remove. The commit pivots UI on Main synchronously; all I/O runs in the background.
+- `DividerOps.kt` — pure functions for queue-divider arithmetic (`partitionByDividers`, `remapDividersAfterDelete`); extracted from the VM so it's unit-testable without Android.
+- `DiscardSlot.kt` — "pending discard" session holder + single-shot undo-window timer. Whoever calls `take()` first owns the session, so a racing Undo tap and the timeout fire can't both act on it.
 - `CameraPreview.kt` — wraps `PreviewView`, tap-to-focus, pinch-to-zoom, lifecycle rebind.
 - `ShutterButton.kt` — 80dp circle, disabled during capture or camera rebinding.
 - `ZoomControl.kt` — 0.5×/1×/2×/5× chips, filtered by hardware zoom range.
@@ -137,10 +141,10 @@ Package root: `com.example.bundlecam`. All files live under `app/src/main/java/c
 ### `data/camera/`
 - `CaptureController.kt` — owns `ProcessCameraProvider` + `ExtensionsManager`, binds `Preview` + `ImageCapture` to lifecycle via a `bindMutex`, exposes `zoomInfo` / `deviceOrientation` as `StateFlow`, runs an `OrientationEventListener` that snaps to cardinal and pushes `targetRotation` into the `ImageCapture` use case for correct EXIF orientation on tilted captures.
 - `BitmapUtils.kt` — `Bitmap.rotateIfNeeded(degrees)` extension (shared by thumbnail decode and stitching).
-- `ThumbnailDecoder.kt` — JPEG → small `ImageBitmap` via `inSampleSize`, rotated to match capture orientation.
+- `ThumbnailDecoder.kt` — JPEG → small `ImageBitmap` via `inSampleSize`, rotated to match capture orientation. Two overloads: one for in-memory bytes (capture-time path), one for a file path (orphan-recovery path, avoids loading the full JPEG into memory).
 
 ### `data/exif/`
-- `ExifWriter.kt` — stamps `DateTimeOriginal`, orientation, Make/Model, and GPS (when available) on staged JPEGs.
+- `ExifWriter.kt` — two entry points: `stamp(...)` at capture time (DateTimeOriginal, orientation, Make/Model, GPS-if-cached); `stampFinalMetadata(file, comment, backfillLocation)` at commit time in one open/save pass (bundle-ID UserComment, plus GPS if the photo doesn't already carry it).
 - `OrientationCodec.kt` — canonical conversions between device degrees, `Surface.ROTATION_*`, and ExifInterface orientation tags.
 
 ### `data/location/`
@@ -151,7 +155,7 @@ Package root: `com.example.bundlecam`. All files live under `app/src/main/java/c
 
 ### `data/storage/`
 - `StagingStore.kt` — internal staging (`filesDir/staging/session-{uuid}/`); per-capture-session folders, per-photo files, session/file delete helpers.
-- `SafStorage.kt` — copy staged files to the user-picked SAF tree, ensures `bundles/` and `stitched/` subtrees exist.
+- `SafStorage.kt` — copy staged files to the user-picked SAF tree, ensures `bundles/` and `stitched/` subtrees exist. Batches one `listFiles()` per call so a 50-photo bundle isn't 50 full directory-listing IPCs; overwrites on name collision so worker retries don't produce `" (1).jpg"` duplicates.
 - `StorageLayout.kt` — canonical naming: bundle IDs (`{date}-s-{0000}`), photo filenames (`-p-{kk}.jpg`), stitched filename (`-stitch.jpg`), EXIF UserComment format.
 - `BundleCounterStore.kt` — per-date monotonic counter via DataStore; `allocate()` returns the next ID and resets on date change.
 
@@ -159,9 +163,9 @@ Package root: `com.example.bundlecam`. All files live under `app/src/main/java/c
 - `PendingBundle.kt` — kotlinx-serializable manifest: `bundleId`, `rootUriString`, `stitchQuality`, `sessionId`, ordered `PendingPhoto` list, `capturedAt`.
 - `ManifestStore.kt` — writes / reads / deletes `filesDir/pending/{bundleId}.json`.
 - `WorkScheduler.kt` — enqueues `BundleWorker` with a per-bundle unique work name (`KEEP` policy), exposes `observeFailures()` that filters stale pre-existing failures, plus `pruneWork()` for orphan recovery.
-- `BundleWorker.kt` — CoroutineWorker; process-wide `Mutex` serializes all workers; reads manifest, copies raw photos to SAF, runs `Stitcher`, writes stitch output, stamps EXIF comments, deletes staging + manifest on success, `retry()` on transient failure.
-- `Stitcher.kt` — computes common width (min source width, clamped by `StitchQuality` ceiling: 1600 / 1800 / MAX px), scales heights proportionally, enforces a 32k-px total-height cap and a 60%-of-heap budget, decodes each source with `inSampleSize` to fit its slot, rotates, draws into a single canvas, compresses JPEG at 70 / 82 / 92.
-- `OrphanRecovery.kt` — runs at `AppContainer` init: prunes terminal WorkInfo; re-enqueues manifests without in-flight work; returns the most-recent orphan staging session (if any) to `CaptureViewModel.init` so the user's in-flight queue comes back.
+- `BundleWorker.kt` — CoroutineWorker; process-wide `Mutex` serializes all workers; reads manifest, refreshes location with a 2s timeout, stamps final EXIF (UserComment + GPS-backfill) in one pass per file, copies raw photos to SAF, runs `Stitcher`, writes stitch output, deletes staging + manifest on success.
+- `Stitcher.kt` — computes common width (min source width, clamped by `StitchQuality` ceiling: 1600 / 1800 / MAX px), scales heights proportionally, enforces a 32k-px total-height cap and a 60%-of-heap budget, decodes each source with `inSampleSize` to fit its slot, rotates, draws into a single canvas, compresses JPEG at 70 / 82 / 92. Layout math is a pure `companion` function (`computeLayout`) so tests can exercise it without any Bitmap allocation.
+- `OrphanRecovery.kt` — runs at `AppContainer` init: prunes terminal WorkInfo; re-enqueues manifests without in-flight work; returns the most-recent orphan staging session (if any) to `CaptureViewModel.init` so the user's in-flight queue comes back; deletes stale older orphan sessions to prevent unbounded disk growth.
 
 ### `di/`
 - `AppContainer.kt` — singleton, constructs all `data/` + `pipeline/` components, provides `configureRoot(uri)` which persists SAF permissions and creates the output subtrees.
@@ -169,6 +173,8 @@ Package root: `com.example.bundlecam`. All files live under `app/src/main/java/c
 ---
 
 ## Key design decisions
+
+**Main-thread commit pivot; bookkeeping runs off-thread** — the commit swipe is gated purely on Main-thread state mutations (null `currentSession`, empty `queue`). Bundle-ID allocation (DataStore), manifest serialization (JSON + file write), and worker enqueue (WorkManager DB insert) all run in a background coroutine after the shutter is already ready. If the process dies between the UI pivot and the manifest save, the staging session still has the photos on disk and `OrphanRecovery` restores them as an uncommitted queue on next launch. Net: shutter re-enables within one frame of the swipe — previously 30–100ms of blocked UI.
 
 **Manifest file indirection (vs WorkManager `Data`)** — a 50-photo bundle's photo paths exceed WorkManager's 10KB `Data` input limit. Instead, the VM writes a `PendingBundle` JSON next to the app's internal files; only the `bundleId` goes through `Data`, and the worker loads the rest from disk. This also makes orphan recovery trivial: if the process dies mid-commit, the manifest persists and is replayed on next launch.
 
@@ -188,9 +194,19 @@ Package root: `com.example.bundlecam`. All files live under `app/src/main/java/c
 
 ---
 
-## Testing notes
+## Testing
 
-The current test files are Android Studio's scaffolding (`ExampleUnitTest.kt`, `ExampleInstrumentedTest.kt`). Real coverage is TODO.
+Pure JVM unit tests under `app/src/test/`:
+
+```bash
+./gradlew test
+```
+
+| Suite | Covers |
+|---|---|
+| `DividerOpsTest` | `partitionByDividers` (empty queue, single item, out-of-range dividers, multi-dividers) and `remapDividersAfterDelete` (index shift, collapse-on-collision, new-size cutoffs) |
+| `OrientationCodecTest` | cardinal round-trips, `snapToCardinal` boundary angles (44/45, 134/135, 224/225, 315/316, 360), `toSurfaceRotation` inverse mapping |
+| `StitcherLayoutTest` | quality-ceiling clamping (LOW/STANDARD/HIGH), height-cap scaling at 32k, heap-budget scaling, aspect preservation, min-height floor |
 
 Manual smoke path for the capture flow:
 1. Launch → folder picker → choose a test folder

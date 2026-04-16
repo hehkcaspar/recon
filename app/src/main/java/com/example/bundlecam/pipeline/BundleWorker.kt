@@ -20,12 +20,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
-import java.io.IOException
 
 private const val TAG = "BundleCam/BundleWorker"
 private const val NOTIFICATION_ID = 2026
 private const val CHANNEL_ID = "bundlecam_pipeline"
+private const val LOCATION_REFRESH_TIMEOUT_MS = 2000L
 
 class BundleWorker(
     context: Context,
@@ -74,12 +75,17 @@ class BundleWorker(
 
         Log.i(TAG, "processManifest bundleId=${manifest.bundleId} photos=${manifest.orderedPhotos.size} quality=$quality")
 
+        // Off the UI thread — give location a bounded wait to resolve so photos captured before
+        // the first location fix still get GPS. Denied / no-signal returns null silently.
+        withTimeoutOrNull(LOCATION_REFRESH_TIMEOUT_MS) { container.locationProvider.refresh() }
+        val backfillLocation = container.locationProvider.getCachedOrNull()
+
         manifest.orderedPhotos.forEachIndexed { index, photo ->
             val file = File(photo.localPath)
-            if (!file.exists()) throw IOException("staged file missing: ${photo.localPath}")
-            container.exifWriter.stampUserComment(
-                file,
-                StorageLayout.photoExifComment(manifest.bundleId, index + 1),
+            container.exifWriter.stampFinalMetadata(
+                file = file,
+                comment = StorageLayout.photoExifComment(manifest.bundleId, index + 1),
+                backfillLocation = backfillLocation,
             )
         }
 
@@ -103,9 +109,9 @@ class BundleWorker(
             }
             stitcher.stitch(sources, quality, stitchFile)
 
-            container.exifWriter.stampUserComment(
-                stitchFile,
-                StorageLayout.stitchExifComment(manifest.bundleId),
+            container.exifWriter.stampFinalMetadata(
+                file = stitchFile,
+                comment = StorageLayout.stitchExifComment(manifest.bundleId),
             )
 
             container.safStorage.copyLocalFile(

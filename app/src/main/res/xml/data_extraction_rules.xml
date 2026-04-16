@@ -1,19 +1,16 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
-   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
--->
+<?xml version="1.0" encoding="utf-8"?>
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <!-- SAF URIs and per-device staging files are device-local; excluding them
+             also excludes orphan recovery state that wouldn't make sense on another device. -->
+        <exclude domain="file" path="staging/" />
+        <exclude domain="file" path="pending/" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" path="settings.preferences_pb" />
+        <exclude domain="sharedpref" path="bundle_counter.preferences_pb" />
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <exclude domain="file" path="staging/" />
+        <exclude domain="file" path="pending/" />
     </device-transfer>
-    -->
 </data-extraction-rules>

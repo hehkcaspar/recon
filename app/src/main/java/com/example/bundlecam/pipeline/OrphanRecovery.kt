@@ -52,9 +52,12 @@ class OrphanRecovery(
         val mostRecent = orphanSessions.maxByOrNull { it.dir.lastModified() }
             ?: return@withContext null
 
-        val olderCount = orphanSessions.size - 1
-        if (olderCount > 0) {
-            Log.i(TAG, "Keeping $olderCount older orphan session(s) on disk; restoring newest")
+        // Older orphans represent queues the user never committed and that aren't the
+        // one we're about to restore. Leaving them on disk forever is a slow leak.
+        val stale = orphanSessions.filter { it.id != mostRecent.id }
+        if (stale.isNotEmpty()) {
+            Log.i(TAG, "Deleting ${stale.size} stale orphan session(s)")
+            stale.forEach { runCatching { stagingStore.deleteSession(it) } }
         }
 
         val files = mostRecent.dir.listFiles { f -> f.extension == "jpg" }
@@ -65,11 +68,9 @@ class OrphanRecovery(
 
         val items = files.map { file ->
             val rotationDegrees = readExifRotation(file)
-            val bytes = file.readBytes()
-            val thumbnail = decodeThumbnail(bytes, rotationDegrees)
             RestoredPhoto(
                 localFile = file,
-                thumbnail = thumbnail,
+                thumbnail = decodeThumbnail(file, rotationDegrees),
                 rotationDegrees = rotationDegrees,
                 capturedAt = file.lastModified(),
             )

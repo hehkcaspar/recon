@@ -32,9 +32,17 @@ class ExifWriter {
         exif.saveAttributes()
     }
 
-    fun stampUserComment(file: File, comment: String) {
+    /**
+     * Single open+save pass used by the worker: writes the bundle-ID UserComment and, if
+     * [backfillLocation] is provided AND the file doesn't already carry GPS, stamps GPS too.
+     * Batching avoids re-parsing + re-writing the whole JPEG twice per photo.
+     */
+    fun stampFinalMetadata(file: File, comment: String, backfillLocation: Location? = null) {
         val exif = ExifInterface(file.absolutePath)
         exif.setAttribute(ExifInterface.TAG_USER_COMMENT, comment)
+        if (backfillLocation != null && exif.latLong == null) {
+            exif.setGpsInfo(backfillLocation)
+        }
         exif.saveAttributes()
     }
 }

@@ -20,6 +20,14 @@ data class StitchSource(
     val rotationDegrees: Int,
 )
 
+internal data class StitchLayout(
+    val commonWidth: Int,
+    val slotHeights: List<Int>,
+) {
+    val totalHeight: Int get() = slotHeights.sum()
+    val plannedBytes: Long get() = commonWidth.toLong() * totalHeight * 4
+}
+
 class Stitcher {
     fun stitch(
         sources: List<StitchSource>,
@@ -28,17 +36,17 @@ class Stitcher {
     ) {
         require(sources.isNotEmpty()) { "No sources to stitch" }
 
-        val (commonWidth, scaledHeights) = computeLayout(sources, quality)
-        val totalHeight = scaledHeights.sum()
-
-        val target = Bitmap.createBitmap(commonWidth, totalHeight, Bitmap.Config.ARGB_8888)
+        val visualDims = sources.map { visualDimensions(it) }
+        val layout = computeLayout(visualDims, quality, availableHeapBudget())
+        val target = Bitmap.createBitmap(layout.commonWidth, layout.totalHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(target)
         val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
 
         var currentY = 0
         sources.forEachIndexed { index, source ->
-            val slotHeight = scaledHeights[index]
-            drawIntoSlot(source, canvas, paint, commonWidth, slotHeight, currentY)
+            val slotHeight = layout.slotHeights[index]
+            val (rawW, rawH) = visualDims[index]
+            drawIntoSlot(source, rawW, rawH, canvas, paint, layout.commonWidth, slotHeight, currentY)
             currentY += slotHeight
         }
 
@@ -48,53 +56,16 @@ class Stitcher {
         target.recycle()
     }
 
-    private fun computeLayout(
-        sources: List<StitchSource>,
-        quality: StitchQuality,
-    ): Pair<Int, List<Int>> {
-        val qualityCeilingPx = when (quality) {
-            StitchQuality.LOW -> 1600
-            StitchQuality.STANDARD -> 1800
-            StitchQuality.HIGH -> Int.MAX_VALUE
-        }
-
-        val visualDims = sources.map { visualDimensions(it) }
-        val minWidth = visualDims.minOf { it.first }
-        var commonWidth = minWidth.coerceAtMost(qualityCeilingPx)
-        var heights = visualDims.map { (w, h) ->
-            (h.toFloat() * commonWidth / w).toInt().coerceAtLeast(1)
-        }
-
-        var totalHeight = heights.sum()
-        if (totalHeight > HEIGHT_CAP_PX) {
-            val scale = HEIGHT_CAP_PX.toFloat() / totalHeight
-            commonWidth = (commonWidth * scale).toInt().coerceAtLeast(1)
-            heights = heights.map { (it * scale).toInt().coerceAtLeast(1) }
-            totalHeight = heights.sum()
-        }
-
-        val plannedBytes = commonWidth.toLong() * totalHeight * 4
-        val heapBudget = (Runtime.getRuntime().maxMemory() * HEAP_BUDGET_FRACTION).toLong()
-        if (plannedBytes > heapBudget) {
-            val scale = sqrt(heapBudget.toDouble() / plannedBytes).toFloat()
-            commonWidth = (commonWidth * scale).toInt().coerceAtLeast(1)
-            heights = heights.map { (it * scale).toInt().coerceAtLeast(1) }
-        }
-
-        return commonWidth to heights
-    }
-
     private fun visualDimensions(source: StitchSource): Pair<Int, Int> {
         val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(source.file.absolutePath, opts)
         return rotatedSize(opts.outWidth, opts.outHeight, source.rotationDegrees)
     }
 
-    private fun rotatedSize(w: Int, h: Int, degrees: Int): Pair<Int, Int> =
-        if (degrees == 90 || degrees == 270) h to w else w to h
-
     private fun drawIntoSlot(
         source: StitchSource,
+        rawW: Int,
+        rawH: Int,
         canvas: Canvas,
         paint: Paint,
         slotWidth: Int,
@@ -102,9 +73,6 @@ class Stitcher {
         topY: Int,
     ) {
         val path = source.file.absolutePath
-        val boundsOpts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeFile(path, boundsOpts)
-        val (rawW, rawH) = rotatedSize(boundsOpts.outWidth, boundsOpts.outHeight, source.rotationDegrees)
 
         var sample = 1
         while (rawW / (sample * 2) >= slotWidth && rawH / (sample * 2) >= slotHeight) {
@@ -128,4 +96,56 @@ class Stitcher {
         StitchQuality.STANDARD -> 82
         StitchQuality.HIGH -> 92
     }
+
+    private fun availableHeapBudget(): Long =
+        (Runtime.getRuntime().maxMemory() * HEAP_BUDGET_FRACTION).toLong()
+
+    companion object {
+        /**
+         * Pure layout math — callable from tests without any Bitmap allocation.
+         * - Clamps common width to the quality ceiling and the narrowest source.
+         * - Scales down to respect [HEIGHT_CAP_PX].
+         * - Scales down further to respect [heapBudget] on total bytes.
+         */
+        internal fun computeLayout(
+            visualDims: List<Pair<Int, Int>>,
+            quality: StitchQuality,
+            heapBudget: Long,
+        ): StitchLayout {
+            require(visualDims.isNotEmpty()) { "No sources to stitch" }
+            require(heapBudget > 0) { "heapBudget must be positive, got $heapBudget" }
+
+            val qualityCeilingPx = when (quality) {
+                StitchQuality.LOW -> 1600
+                StitchQuality.STANDARD -> 1800
+                StitchQuality.HIGH -> Int.MAX_VALUE
+            }
+
+            val minWidth = visualDims.minOf { it.first }
+            var commonWidth = minWidth.coerceAtMost(qualityCeilingPx)
+            var heights = visualDims.map { (w, h) ->
+                (h.toFloat() * commonWidth / w).toInt().coerceAtLeast(1)
+            }
+
+            var totalHeight = heights.sum()
+            if (totalHeight > HEIGHT_CAP_PX) {
+                val scale = HEIGHT_CAP_PX.toFloat() / totalHeight
+                commonWidth = (commonWidth * scale).toInt().coerceAtLeast(1)
+                heights = heights.map { (it * scale).toInt().coerceAtLeast(1) }
+                totalHeight = heights.sum()
+            }
+
+            val plannedBytes = commonWidth.toLong() * totalHeight * 4
+            if (plannedBytes > heapBudget) {
+                val scale = sqrt(heapBudget.toDouble() / plannedBytes).toFloat()
+                commonWidth = (commonWidth * scale).toInt().coerceAtLeast(1)
+                heights = heights.map { (it * scale).toInt().coerceAtLeast(1) }
+            }
+
+            return StitchLayout(commonWidth, heights)
+        }
+    }
 }
+
+private fun rotatedSize(w: Int, h: Int, degrees: Int): Pair<Int, Int> =
+    if (degrees == 90 || degrees == 270) h to w else w to h

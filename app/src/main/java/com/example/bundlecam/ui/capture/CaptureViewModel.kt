@@ -20,8 +20,6 @@ import com.example.bundlecam.di.AppContainer
 import com.example.bundlecam.pipeline.PendingBundle
 import com.example.bundlecam.pipeline.PendingPhoto
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -41,7 +39,7 @@ import java.util.UUID
 private const val TAG = "BundleCam/CaptureVM"
 private const val UNDO_WINDOW_MS = 3000L
 
-enum class BusyState { Idle, Capturing, Committing }
+enum class BusyState { Idle, Capturing }
 
 data class StagedPhoto(
     val id: String,
@@ -94,8 +92,7 @@ class CaptureViewModel(
     val deviceOrientation: StateFlow<Int> = captureController.deviceOrientation
 
     private var currentSession: StagingSession? = null
-    private var pendingDiscardSession: StagingSession? = null
-    private var discardTimerJob: Job? = null
+    private val discardSlot = DiscardSlot(viewModelScope)
 
     init {
         viewModelScope.launch {
@@ -186,19 +183,25 @@ class CaptureViewModel(
         val dividers = _uiState.value.dividers
         if (items.isEmpty()) return
 
-        _uiState.update { it.copy(busy = BusyState.Committing) }
+        val currentSettings = settings.value
+        val rootUri = currentSettings.rootUri
+        if (rootUri == null) {
+            _uiState.update { it.copy(lastError = "No output folder set") }
+            return
+        }
 
+        // Pivot UI synchronously — shutter is ready for the next shot before any bookkeeping
+        // runs. Photos are already durable on staging (written at capture time). If the
+        // background save dies, OrphanRecovery will restore this session as an uncommitted
+        // queue on next launch, and the user can re-swipe.
+        currentSession = null
+        _uiState.update {
+            it.copy(queue = emptyList(), dividers = emptySet(), lastError = null)
+        }
+
+        val stitchQualityName = currentSettings.stitchQuality.name
         viewModelScope.launch {
-            val currentSettings = settings.value
-            val rootUri = currentSettings.rootUri
-            if (rootUri == null) {
-                _uiState.update {
-                    it.copy(busy = BusyState.Idle, lastError = "No output folder set")
-                }
-                return@launch
-            }
-
-            val segments = partitionByDividers(items, dividers)
+            val segments = DividerOps.partitionByDividers(items, dividers)
             val manifests = mutableListOf<PendingBundle>()
             try {
                 val capturedAt = System.currentTimeMillis()
@@ -208,7 +211,7 @@ class CaptureViewModel(
                         PendingBundle(
                             bundleId = bundleId,
                             rootUriString = rootUri.toString(),
-                            stitchQuality = currentSettings.stitchQuality.name,
+                            stitchQuality = stitchQualityName,
                             sessionId = session.id,
                             orderedPhotos = segment.map { photo ->
                                 PendingPhoto(
@@ -226,25 +229,16 @@ class CaptureViewModel(
                 for (m in manifests) container.workScheduler.enqueue(m.bundleId)
 
                 val bundleIds = manifests.map { it.bundleId }
-                currentSession = null
-                _uiState.update {
-                    it.copy(
-                        queue = emptyList(),
-                        dividers = emptySet(),
-                        busy = BusyState.Idle,
-                        lastError = null,
-                    )
-                }
                 _events.tryEmit(CaptureEvent.BundlesCommitted(bundleIds))
                 Log.i(TAG, "Commit complete: ${bundleIds.size} bundle(s) from ${items.size} photos (session=${session.id})")
             } catch (t: Throwable) {
                 Log.e(TAG, "Commit failed", t)
-                // Roll back any manifests we saved before the failure so OrphanRecovery
-                // doesn't resurrect a half-committed state.
+                // Delete any manifests we saved before the failure. Pure orphan = the session
+                // has no manifest references, so OrphanRecovery restores it as a queue on next
+                // launch rather than partially processing it (which would delete photos that
+                // belonged to a not-yet-saved later bundle in a multi-segment commit).
                 for (m in manifests) runCatching { container.manifestStore.delete(m.bundleId) }
-                _uiState.update {
-                    it.copy(busy = BusyState.Idle, lastError = "Commit failed: ${t.message}")
-                }
+                _uiState.update { it.copy(lastError = "Commit failed: ${t.message}") }
             }
         }
     }
@@ -261,33 +255,6 @@ class CaptureViewModel(
         _uiState.update { it.copy(dividers = it.dividers - afterIndex) }
     }
 
-    private fun partitionByDividers(
-        items: List<StagedPhoto>,
-        dividers: Set<Int>,
-    ): List<List<StagedPhoto>> {
-        if (items.isEmpty()) return emptyList()
-        val cuts = dividers.filter { it in 0 until items.size - 1 }.sorted()
-        if (cuts.isEmpty()) return listOf(items)
-        val out = mutableListOf<List<StagedPhoto>>()
-        var start = 0
-        for (cut in cuts) {
-            out.add(items.subList(start, cut + 1))
-            start = cut + 1
-        }
-        out.add(items.subList(start, items.size))
-        return out
-    }
-
-    private fun remapDividersAfterDelete(dividers: Set<Int>, removedIndex: Int, newSize: Int): Set<Int> {
-        if (dividers.isEmpty() || newSize < 2) return emptySet()
-        val result = mutableSetOf<Int>()
-        for (d in dividers) {
-            val shifted = if (d < removedIndex) d else d - 1
-            if (shifted in 0 until newSize - 1) result.add(shifted)
-        }
-        return result
-    }
-
     fun onDiscardQueue() {
         if (_uiState.value.busy != BusyState.Idle) return
         val session = currentSession ?: return
@@ -295,7 +262,6 @@ class CaptureViewModel(
         val dividers = _uiState.value.dividers
         if (items.isEmpty()) return
 
-        pendingDiscardSession = session
         _uiState.update {
             it.copy(
                 queue = emptyList(),
@@ -305,25 +271,16 @@ class CaptureViewModel(
         }
         currentSession = null
 
-        discardTimerJob?.cancel()
-        discardTimerJob = viewModelScope.launch {
-            delay(UNDO_WINDOW_MS)
-            if (pendingDiscardSession?.id != session.id) return@launch
-            // Commit the discard synchronously on Main so a racing Undo tap sees cleared state
-            // before the IO delete starts.
-            pendingDiscardSession = null
+        discardSlot.stash(session, UNDO_WINDOW_MS) { taken ->
             _uiState.update { it.copy(pendingDiscard = null) }
-            runCatching { container.stagingStore.deleteSession(session) }
+            runCatching { container.stagingStore.deleteSession(taken) }
         }
     }
 
     fun onUndoDiscard() {
         val pending = _uiState.value.pendingDiscard ?: return
-        val session = pendingDiscardSession ?: return
-        discardTimerJob?.cancel()
-        discardTimerJob = null
+        val session = discardSlot.take() ?: return
         currentSession = session
-        pendingDiscardSession = null
         _uiState.update {
             it.copy(
                 queue = pending.items,
@@ -343,16 +300,20 @@ class CaptureViewModel(
         _uiState.update {
             it.copy(
                 queue = remaining,
-                dividers = remapDividersAfterDelete(it.dividers, targetIndex, remaining.size),
+                dividers = DividerOps.remapDividersAfterDelete(it.dividers, targetIndex, remaining.size),
             )
         }
 
+        // Decide the session's fate up front (not inside the launched coroutine). Keeps the
+        // mutation visible to any racing onShutter immediately — so it can't latch onto a
+        // session we're about to delete and then write into it.
+        val sessionToDelete = if (remaining.isEmpty()) {
+            currentSession.also { currentSession = null }
+        } else null
+
         viewModelScope.launch {
             runCatching { container.stagingStore.deleteFile(target.localFile) }
-            if (remaining.isEmpty()) {
-                currentSession?.let { runCatching { container.stagingStore.deleteSession(it) } }
-                currentSession = null
-            }
+            sessionToDelete?.let { runCatching { container.stagingStore.deleteSession(it) } }
         }
     }
 
@@ -387,10 +348,7 @@ class CaptureViewModel(
     }
 
     private fun confirmPendingDiscardIfAny() {
-        val session = pendingDiscardSession ?: return
-        discardTimerJob?.cancel()
-        discardTimerJob = null
-        pendingDiscardSession = null
+        val session = discardSlot.take() ?: return
         _uiState.update { it.copy(pendingDiscard = null) }
         viewModelScope.launch(Dispatchers.IO) {
             runCatching { container.stagingStore.deleteSession(session) }
