@@ -1,0 +1,123 @@
+package com.example.bundlecam.ui.capture
+
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
+import kotlin.math.roundToInt
+
+@Composable
+fun QueueThumbnail(
+    item: StagedPhoto,
+    currentIndex: Int,
+    queueSize: Int,
+    onDelete: () -> Unit,
+    onReorderTo: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var verticalDragY by remember { mutableFloatStateOf(0f) }
+    var reorderOffsetX by remember { mutableFloatStateOf(0f) }
+    var isReordering by remember { mutableStateOf(false) }
+
+    val density = LocalDensity.current
+    val deleteThresholdPx = with(density) { 40.dp.toPx() }
+    val slotPx = with(density) { (56.dp + 6.dp).toPx() }
+
+    val alpha = if (verticalDragY > 0f) {
+        (1f - verticalDragY / (deleteThresholdPx * 2f)).coerceIn(0.3f, 1f)
+    } else 1f
+
+    Box(
+        modifier = modifier
+            .zIndex(if (isReordering) 1f else 0f)
+            .graphicsLayer {
+                translationX = reorderOffsetX
+                translationY = verticalDragY.coerceAtLeast(0f)
+                this.alpha = alpha
+                val scale = if (isReordering) 1.1f else 1f
+                scaleX = scale
+                scaleY = scale
+            }
+            .size(56.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color.DarkGray)
+            .semantics {
+                contentDescription = "Photo ${currentIndex + 1} of $queueSize"
+                customActions = buildList {
+                    add(CustomAccessibilityAction("Remove") { onDelete(); true })
+                    if (currentIndex > 0) {
+                        add(CustomAccessibilityAction("Move earlier") {
+                            onReorderTo(currentIndex - 1); true
+                        })
+                    }
+                    if (currentIndex < queueSize - 1) {
+                        add(CustomAccessibilityAction("Move later") {
+                            onReorderTo(currentIndex + 1); true
+                        })
+                    }
+                }
+            }
+            .pointerInput(item.id) {
+                detectVerticalDragGestures(
+                    onDragEnd = {
+                        if (verticalDragY > deleteThresholdPx) onDelete()
+                        verticalDragY = 0f
+                    },
+                    onDragCancel = { verticalDragY = 0f },
+                    onVerticalDrag = { _, delta ->
+                        verticalDragY = (verticalDragY + delta).coerceAtLeast(0f)
+                    },
+                )
+            }
+            .pointerInput(item.id) {
+                detectDragGesturesAfterLongPress(
+                    onDragStart = {
+                        isReordering = true
+                        reorderOffsetX = 0f
+                    },
+                    onDragEnd = {
+                        val shift = (reorderOffsetX / slotPx).roundToInt()
+                        val target = (currentIndex + shift).coerceIn(0, queueSize - 1)
+                        if (target != currentIndex) onReorderTo(target)
+                        isReordering = false
+                        reorderOffsetX = 0f
+                    },
+                    onDragCancel = {
+                        isReordering = false
+                        reorderOffsetX = 0f
+                    },
+                    onDrag = { _, drag -> reorderOffsetX += drag.x },
+                )
+            },
+    ) {
+        Image(
+            bitmap = item.thumbnail,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
