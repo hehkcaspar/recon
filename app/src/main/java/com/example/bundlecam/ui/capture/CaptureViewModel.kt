@@ -12,6 +12,8 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.bundlecam.BundleCamApp
 import com.example.bundlecam.data.camera.CameraMode
 import com.example.bundlecam.data.camera.CaptureController
+import com.example.bundlecam.data.camera.FlashMode
+import com.example.bundlecam.data.camera.LensFacing
 import com.example.bundlecam.data.camera.ZoomInfo
 import com.example.bundlecam.data.camera.decodeThumbnail
 import com.example.bundlecam.data.settings.SettingsState
@@ -82,6 +84,12 @@ class CaptureViewModel(
     private val _cameraMode = MutableStateFlow(CameraMode.ZSL)
     val cameraMode: StateFlow<CameraMode> = _cameraMode.asStateFlow()
 
+    private val _lensFacing = MutableStateFlow(LensFacing.Back)
+    val lensFacing: StateFlow<LensFacing> = _lensFacing.asStateFlow()
+
+    private val _flashMode = MutableStateFlow(FlashMode.Off)
+    val flashMode: StateFlow<FlashMode> = _flashMode.asStateFlow()
+
     private val _isRebinding = MutableStateFlow(false)
     val isRebinding: StateFlow<Boolean> = _isRebinding.asStateFlow()
 
@@ -122,6 +130,10 @@ class CaptureViewModel(
                     it.copy(lastError = "Bundle ${failure.bundleId} failed: ${failure.message}")
                 }
             }
+            .launchIn(viewModelScope)
+
+        _flashMode
+            .onEach { captureController.setFlashMode(it) }
             .launchIn(viewModelScope)
     }
 
@@ -337,6 +349,24 @@ class CaptureViewModel(
 
     fun onCameraModeChange(mode: CameraMode) {
         _cameraMode.value = mode
+    }
+
+    fun onToggleLens() {
+        if (_isRebinding.value) return
+        // Mid-capture lens flip would unbind ImageCapture while takePicture() is still
+        // awaiting, surfacing a spurious "Capture failed" error to the user.
+        if (_uiState.value.busy != BusyState.Idle) return
+        _lensFacing.update { if (it == LensFacing.Back) LensFacing.Front else LensFacing.Back }
+    }
+
+    fun onCycleFlash() {
+        _flashMode.update {
+            when (it) {
+                FlashMode.Off -> FlashMode.Auto
+                FlashMode.Auto -> FlashMode.On
+                FlashMode.On -> FlashMode.Off
+            }
+        }
     }
 
     fun setRebinding(rebinding: Boolean) {

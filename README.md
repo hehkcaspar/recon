@@ -32,7 +32,7 @@ Open in Android Studio for preview and live editing.
 | Permission | Why |
 |---|---|
 | `CAMERA` | Preview + capture |
-| `ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION` | GPS stamping in EXIF (optional — capture proceeds if denied) |
+| `ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION` | GPS stamping in EXIF — requested up-front on first camera view (after camera permission is granted) so the first capture already carries a fix. Denying is non-fatal; capture proceeds, EXIF just lacks GPS. |
 | `FOREGROUND_SERVICE` / `FOREGROUND_SERVICE_DATA_SYNC` | Let WorkManager's `SystemForegroundService` run the stitch worker reliably through Doze/backgrounding |
 | `POST_NOTIFICATIONS` | Foreground-worker progress notifications on Android 13+ (declared but not requested at runtime — if denied, the worker still runs; only the shade notification is suppressed) |
 
@@ -113,15 +113,15 @@ Package root: `com.example.bundlecam`. All files live under `app/src/main/java/c
 - [`BundleCamApp.kt`](./app/src/main/java/com/example/bundlecam/BundleCamApp.kt) — Application subclass, constructs `AppContainer`, provides `WorkManager.Configuration`.
 
 ### `ui/capture/` — the capture screen
-- `CaptureScreen.kt` — top bar, preview, zoom, shutter, queue strip, overlays (undo toast + saved shimmer).
-- `CaptureViewModel.kt` — state machine (`CaptureUiState`, `BusyState { Idle, Capturing }`, `PendingDiscard`), events (`BundlesCommitted`), and methods for shutter, commit, discard, undo, delete, reorder, zoom, camera mode, divider insert/remove. The commit pivots UI on Main synchronously; all I/O runs in the background.
+- `CaptureScreen.kt` — top bar, preview, zoom, flash / shutter / lens-flip row, queue strip, overlays (undo toast, saved shimmer, error banner). GPS permission is launched from a `LaunchedEffect(Unit)` the first time the camera UI mounts (not lazily on first shutter). The error banner sits inside the queue `Box` alongside `UndoToast` / `BundleSavedShimmer` so it overlays the queue rather than pushing the shutter + queue down.
+- `CaptureViewModel.kt` — state machine (`CaptureUiState`, `BusyState { Idle, Capturing }`, `PendingDiscard`), events (`BundlesCommitted`), and methods for shutter, commit, discard, undo, delete, reorder, zoom, camera mode, divider insert/remove, **lens flip (`onToggleLens` — back/front; rejects mid-capture or mid-rebind)**, and **flash cycle (`onCycleFlash` — Off → Auto → On)**. A VM-internal subscription pipes `flashMode` changes into `captureController.setFlashMode`. Commit pivots UI on Main synchronously; all I/O runs in the background.
 - `DividerOps.kt` — pure functions for queue-divider arithmetic (`partitionByDividers`, `remapDividersAfterDelete`); extracted from the VM so it's unit-testable without Android.
 - `DiscardSlot.kt` — "pending discard" session holder + single-shot undo-window timer. Whoever calls `take()` first owns the session, so a racing Undo tap and the timeout fire can't both act on it.
 - `CameraPreview.kt` — wraps `PreviewView`, tap-to-focus, pinch-to-zoom, lifecycle rebind.
 - `ShutterButton.kt` — 80dp circle, disabled during capture or camera rebinding.
 - `ZoomControl.kt` — 0.5×/1×/2×/5× chips, filtered by hardware zoom range.
 - `CameraModeToggle.kt` — EXT (CameraX Extensions) vs ZSL (zero-shutter-lag) segmented toggle.
-- `QueueStrip.kt` — two-sided edge-zone swipe to commit / discard, plus per-gap `DividerZone` swipe-down-to-insert / swipe-up-to-remove. Gesture state machine (`GestureState.Idle | Bundling | Discarding`), `VelocityTracker`, haptic edge detection, tide gradient, destination glyph + commit flash. Custom `Layout` in `QueueContent` positions thumbnails + 24dp divider hit zones overlapping into neighbors; dividers Z-above thumbnails + Initial-pass consumption arbitrates the overlap.
+- `QueueStrip.kt` — two-sided edge-zone swipe to commit / discard, plus per-gap `DividerZone` swipe-down-to-insert / swipe-up-to-remove. Gesture state machine (`GestureState.Idle | Bundling | Discarding`), `VelocityTracker`, haptic edge detection, tide gradient, destination glyph + commit flash. Custom `Layout` in `QueueContent` positions thumbnails + 24dp divider hit zones overlapping into neighbors; dividers Z-above thumbnails + Initial-pass consumption arbitrates the overlap. **`EdgeZone` widths are queue-size-aware**: when the tray has slack (short queue), each zone grows by `slack / 2` up to a cap (33% of screen width per side, with a 24dp neutral middle guard) so commits / discards can be initiated from a wider area. The destination fill (tick / cross over the screen-edge side) is constrained to a fixed 60dp regardless of the input width, anchored to the outer edge.
 - `QueueThumbnail.kt` — vertical drag-to-delete + long-press-then-drag reorder per thumbnail.
 - `UndoToast.kt` — "Discarded N photos · Undo" during the 3-second undo window.
 - `BundleSavedShimmer.kt` — green pill triggered by `BundlesCommitted`: "Bundle {id} saved" for single-bundle commits, "N bundles saved ({first}–{last})" for multi-bundle splits.
@@ -135,11 +135,11 @@ Package root: `com.example.bundlecam`. All files live under `app/src/main/java/c
 
 ### `ui/common/` + `ui/theme/`
 - `FolderPicker.kt` — reusable SAF launcher.
-- `ActionBanner.kt` — inline dismissible banner (used for `state.lastError`).
+- `ActionBanner.kt` — dismissible pill used for `state.lastError`. Text is capped at `maxLines = 2` with ellipsis so it fits as an overlay on the 72dp queue strip without ballooning its host.
 - `Theme.kt` / `Color.kt` / `Type.kt` — Material 3 with dynamic color on Android 12+.
 
 ### `data/camera/`
-- `CaptureController.kt` — owns `ProcessCameraProvider` + `ExtensionsManager`, binds `Preview` + `ImageCapture` to lifecycle via a `bindMutex`, exposes `zoomInfo` / `deviceOrientation` as `StateFlow`, runs an `OrientationEventListener` that snaps to cardinal and pushes `targetRotation` into the `ImageCapture` use case for correct EXIF orientation on tilted captures.
+- `CaptureController.kt` — owns `ProcessCameraProvider` + `ExtensionsManager`, binds `Preview` + `ImageCapture` to lifecycle via a `bindMutex`, exposes `zoomInfo` / `deviceOrientation` as `StateFlow`, runs an `OrientationEventListener` that snaps to cardinal and pushes `targetRotation` into the `ImageCapture` use case for correct EXIF orientation on tilted captures. `bind(..., lens: LensFacing, ...)` accepts a back/front selector; `setFlashMode(FlashMode.Off/Auto/On)` mutates the live `ImageCapture.flashMode` without a rebind and `bind()` re-reads `currentFlashMode` post-install so writes interleaved with a rebind still land on the new capture.
 - `BitmapUtils.kt` — `Bitmap.rotateIfNeeded(degrees)` extension (shared by thumbnail decode and stitching).
 - `ThumbnailDecoder.kt` — JPEG → small `ImageBitmap` via `inSampleSize`, rotated to match capture orientation. Two overloads: one for in-memory bytes (capture-time path), one for a file path (orphan-recovery path, avoids loading the full JPEG into memory).
 
@@ -155,7 +155,7 @@ Package root: `com.example.bundlecam`. All files live under `app/src/main/java/c
 
 ### `data/storage/`
 - `StagingStore.kt` — internal staging (`filesDir/staging/session-{uuid}/`); per-capture-session folders, per-photo files, session/file delete helpers.
-- `SafStorage.kt` — copy staged files to the user-picked SAF tree, ensures `bundles/` and `stitched/` subtrees exist. Batches one `listFiles()` per call so a 50-photo bundle isn't 50 full directory-listing IPCs; overwrites on name collision so worker retries don't produce `" (1).jpg"` duplicates.
+- `SafStorage.kt` — copy staged files to the user-picked SAF tree, ensures `bundles/` and `stitched/` subtrees exist. Batches one `listFiles()` per call so a 50-photo bundle isn't 50 full directory-listing IPCs; overwrites on name collision so worker retries don't produce `" (1).jpg"` duplicates. Directory resolution goes through `findOrCreateDir(parent, name)` which retries `findFile` after a null `createDirectory` — necessary because some DocumentsProviders return null when a concurrent creator (e.g. `configureRoot`'s `ensureBundleFolders` running in parallel with the first bundle worker after a folder swap) materializes the same name between our lookup and create. Without the retry, a lost race surfaces as a fatal "Failed to create directory 'bundles'" in the worker.
 - `StorageLayout.kt` — canonical naming: bundle IDs (`{date}-s-{0000}`), photo filenames (`-p-{kk}.jpg`), stitched filename (`-stitch.jpg`), EXIF UserComment format.
 - `BundleCounterStore.kt` — per-date monotonic counter via DataStore; `allocate()` returns the next ID and resets on date change.
 
@@ -168,7 +168,7 @@ Package root: `com.example.bundlecam`. All files live under `app/src/main/java/c
 - `OrphanRecovery.kt` — runs at `AppContainer` init: prunes terminal WorkInfo; re-enqueues manifests without in-flight work; returns the most-recent orphan staging session (if any) to `CaptureViewModel.init` so the user's in-flight queue comes back; deletes stale older orphan sessions to prevent unbounded disk growth.
 
 ### `di/`
-- `AppContainer.kt` — singleton, constructs all `data/` + `pipeline/` components, provides `configureRoot(uri)` which persists SAF permissions and creates the output subtrees.
+- `AppContainer.kt` — singleton, constructs all `data/` + `pipeline/` components, provides `configureRoot(uri): Job` which updates `SettingsRepository` then creates the `bundles/` + `stitched/` subtrees. Runs on an internal `appScope` (`SupervisorJob + Main.immediate`) rather than a caller-provided composition scope — otherwise a user who pops Settings immediately after picking a folder would cancel `ensureBundleFolders` mid-flight.
 
 ---
 
@@ -188,9 +188,11 @@ Package root: `com.example.bundlecam`. All files live under `app/src/main/java/c
 
 **UI counter-rotation (not UI rotation)** — `screenOrientation=portrait` locks the layout. For icons (settings, folder, zoom labels) to feel right-side-up, they get a `rotate(-deviceOrientation)` `Modifier` driven by a cumulative-target `animateFloatAsState` that picks the shortest arc (no 270° spins when going 0° → 90°).
 
-**Gesture model** — the queue strip has three disjoint sibling gesture zones: two 60dp `EdgeZone`s at the screen edges (commit / discard via `detectHorizontalDragGestures`) and the tray in between (horizontal scroll + per-thumbnail long-press reorder + vertical drag-to-delete). Because each zone is a separate child of an outer `Box`, Compose's hit-test routes each pointer-down unambiguously — no arbitration, no slop tuning. Commit / discard uses **hybrid thresholds**: commit if `|dragX| >= maxWidth/2` **or** `|velocity| >= 80.dp/s` in the commit direction. Velocity tracking via Compose's `VelocityTracker`. Tide-gradient fills toward the destination edge as progress grows; destination zone shows the accent color + glyph throughout swipe, intensifies on commit, then fades out — driven by `max(destinationAlpha, flashAlpha)` so there's no visual seam between swipe-end and commit animation.
+**Gesture model** — the queue strip has three disjoint sibling gesture zones: two `EdgeZone`s at the screen edges (commit / discard via `detectHorizontalDragGestures`) and the tray in between (horizontal scroll + per-thumbnail long-press reorder + vertical drag-to-delete). Because each zone is a separate child of an outer `Box`, Compose's hit-test routes each pointer-down unambiguously — no arbitration, no slop tuning. Commit / discard uses **hybrid thresholds**: commit if `|dragX| >= maxWidth/2` **or** `|velocity| >= 80.dp/s` in the commit direction. Velocity tracking via Compose's `VelocityTracker`. Tide-gradient fills toward the destination edge as progress grows; destination zone shows the accent color + glyph throughout swipe, intensifies on commit, then fades out — driven by `max(destinationAlpha, flashAlpha)` so there's no visual seam between swipe-end and commit animation.
 
-**Edge zones overlap tray, not vice versa** — the two 60dp `EdgeZone`s are stacked on top of the tray inside a `Box`. The tray is padded 48dp on each side so thumbnails render in the middle 48dp→W-48 slab, but the handle touch zones extend 12dp further inward (48-60dp). Only ~4dp of each edge thumbnail actually falls inside the swipe-start zone (the tray has 8dp inner padding), which is negligible — users tap thumbnail centers. The upside: `systemGestureExclusion()` on the edge zones goes flush to screen edge, fully covering Android's back-gesture region.
+**Queue-size-aware edge zones** — the base `EdgeZone` width is 60dp, but when the tray has empty slack (short queue, thumbs don't fill across) each zone grows by `slack / 2` so the user can start a commit / discard swipe from further inward. Capped at `maxWidth * 0.33f` per side with a `24dp` neutral middle guard — zones can never meet, and on a full tray they collapse back to 60dp. Width changes animate over 180ms linear so a mid-gesture queue-size change (e.g. a burst shot resolving while the user is dragging) doesn't yank the hit region from under the finger. The **destination fill** (tick / cross + commit flash) is decoupled from the input width: it always renders at 60dp anchored to the screen-edge side, so widening the input area doesn't bloat the visual. `systemGestureExclusion()` still goes flush to the screen edge (just over more pixels).
+
+**Edge zones overlap tray, not vice versa** — the `EdgeZone`s are stacked on top of the tray inside a `Box`. The tray is padded 48dp on each side so thumbnails render in the middle 48dp→W-48 slab. `detectHorizontalDragGestures` inside each zone only claims pointers after crossing horizontal touch slop, so taps and vertical drags propagate to thumbnails beneath even when the zone widens into thumbnail territory. Long-press-then-drag reorder still fires from the thumbnail's own `pointerInput` because long-press doesn't move.
 
 ---
 

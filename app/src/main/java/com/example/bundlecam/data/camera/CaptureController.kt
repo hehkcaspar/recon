@@ -43,6 +43,10 @@ private const val TAG = "BundleCam/CaptureController"
 
 enum class CameraMode { ZSL, Extensions }
 
+enum class LensFacing { Back, Front }
+
+enum class FlashMode { Off, Auto, On }
+
 class CapturedPhoto(
     val jpegBytes: ByteArray,
     val rotationDegrees: Int,
@@ -68,6 +72,11 @@ class CaptureController(context: Context) {
     private var camera: Camera? = null
     private var zoomObserver: Observer<ZoomState>? = null
     private var observedZoomState: LiveData<ZoomState>? = null
+
+    // Flash mode survives rebinds: setFlashMode updates this and any live capture use case;
+    // bind() re-applies it whenever a fresh ImageCapture is created.
+    @Volatile
+    private var currentFlashMode: FlashMode = FlashMode.Off
 
     private val _zoomInfo = MutableStateFlow<ZoomInfo?>(null)
     val zoomInfo: StateFlow<ZoomInfo?> = _zoomInfo.asStateFlow()
@@ -99,11 +108,12 @@ class CaptureController(context: Context) {
     suspend fun bind(
         lifecycleOwner: LifecycleOwner,
         mode: CameraMode,
+        lens: LensFacing,
         previewView: PreviewView,
     ) {
         // Init provider + extensions outside the mutex — idempotent, cached.
         val provider = getOrInitProvider()
-        val selector = buildSelector(provider, mode)
+        val selector = buildSelector(provider, mode, lens)
 
         val aspectStrategy = AspectRatioStrategy(
             AspectRatio.RATIO_4_3,
@@ -135,10 +145,21 @@ class CaptureController(context: Context) {
                 preview.surfaceProvider = previewView.surfaceProvider
                 imageCapture = capture
                 camera = cam
+                // Apply flash *after* installing so we see any setFlashMode() call that
+                // landed between Builder.build() above and here. Those calls post to
+                // mainHandler targeting whatever imageCapture was current at post time,
+                // which would be the now-discarded previous capture — so we re-read
+                // currentFlashMode and write the live one here.
+                capture.flashMode = toCxFlashMode(currentFlashMode)
                 attachZoomObserver(cam)
             }
         }
-        Log.i(TAG, "Bound camera in mode=$mode")
+        Log.i(TAG, "Bound camera in mode=$mode lens=$lens")
+    }
+
+    fun setFlashMode(mode: FlashMode) {
+        currentFlashMode = mode
+        mainHandler.post { imageCapture?.flashMode = toCxFlashMode(mode) }
     }
 
     fun focusAt(previewView: PreviewView, x: Float, y: Float) {
@@ -241,17 +262,27 @@ class CaptureController(context: Context) {
     private suspend fun buildSelector(
         provider: ProcessCameraProvider,
         mode: CameraMode,
+        lens: LensFacing,
     ): CameraSelector {
-        val base = CameraSelector.DEFAULT_BACK_CAMERA
+        val base = when (lens) {
+            LensFacing.Back -> CameraSelector.DEFAULT_BACK_CAMERA
+            LensFacing.Front -> CameraSelector.DEFAULT_FRONT_CAMERA
+        }
         if (mode != CameraMode.Extensions) return base
         val manager = getOrInitExtensionsManager(provider)
         return if (manager.isExtensionAvailable(base, ExtensionMode.AUTO)) {
-            Log.i(TAG, "Extensions AUTO available for back camera")
+            Log.i(TAG, "Extensions AUTO available for lens=$lens")
             manager.getExtensionEnabledCameraSelector(base, ExtensionMode.AUTO)
         } else {
-            Log.w(TAG, "Extensions AUTO not available; using default selector")
+            Log.w(TAG, "Extensions AUTO not available for lens=$lens; using default selector")
             base
         }
+    }
+
+    private fun toCxFlashMode(mode: FlashMode): Int = when (mode) {
+        FlashMode.Off -> ImageCapture.FLASH_MODE_OFF
+        FlashMode.Auto -> ImageCapture.FLASH_MODE_AUTO
+        FlashMode.On -> ImageCapture.FLASH_MODE_ON
     }
 
     private suspend fun getOrInitExtensionsManager(

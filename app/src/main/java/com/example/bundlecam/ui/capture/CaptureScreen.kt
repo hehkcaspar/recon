@@ -29,8 +29,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Cameraswitch
+import androidx.compose.material.icons.filled.FlashAuto
+import androidx.compose.material.icons.filled.FlashOff
+import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
@@ -59,6 +65,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.bundlecam.data.camera.FlashMode
 import com.example.bundlecam.ui.common.ActionBanner
 
 private const val TAG = "BundleCam/CaptureScreen"
@@ -111,6 +118,8 @@ private fun CaptureScreenContent(
     val state by vm.uiState.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val cameraMode by vm.cameraMode.collectAsStateWithLifecycle()
+    val lensFacing by vm.lensFacing.collectAsStateWithLifecycle()
+    val flashMode by vm.flashMode.collectAsStateWithLifecycle()
     val isRebinding by vm.isRebinding.collectAsStateWithLifecycle()
     val zoomInfo by vm.zoomInfo.collectAsStateWithLifecycle()
     val deviceOrientation by vm.deviceOrientation.collectAsStateWithLifecycle()
@@ -124,11 +133,12 @@ private fun CaptureScreenContent(
     ) { /* no-op; capture proceeds regardless */ }
     var locationAsked by rememberSaveable { mutableStateOf(false) }
 
-    val handleShutter = {
-        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-        if (settings.shutterSoundOn) {
-            mediaSound.play(MediaActionSound.SHUTTER_CLICK)
-        }
+    // Ask for GPS permission the first time the camera UI becomes available (after camera
+    // permission is granted and the user is past the folder picker). We don't wait for the
+    // first shutter press — getting consent up-front means the first capture can already
+    // carry a GPS fix. If the user already granted, already permanently declined, or has
+    // been asked this session, this is a no-op.
+    LaunchedEffect(Unit) {
         if (!locationAsked && !vm.hasLocationPermission()) {
             locationAsked = true
             locationPermissionLauncher.launch(
@@ -137,6 +147,13 @@ private fun CaptureScreenContent(
                     Manifest.permission.ACCESS_COARSE_LOCATION,
                 ),
             )
+        }
+    }
+
+    val handleShutter = {
+        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+        if (settings.shutterSoundOn) {
+            mediaSound.play(MediaActionSound.SHUTTER_CLICK)
         }
         vm.onShutter()
     }
@@ -215,6 +232,7 @@ private fun CaptureScreenContent(
                 CameraPreview(
                     controller = vm.captureController,
                     mode = cameraMode,
+                    lens = lensFacing,
                     onRebindingChange = vm::setRebinding,
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -229,17 +247,6 @@ private fun CaptureScreenContent(
                     .padding(bottom = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                state.lastError?.let { message ->
-                    ActionBanner(
-                        message = message,
-                        actionLabel = "Dismiss",
-                        onAction = vm::clearError,
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                    )
-                }
-
                 ZoomControl(
                     zoomInfo = zoomInfo,
                     onZoomChange = vm::onZoomChange,
@@ -247,10 +254,46 @@ private fun CaptureScreenContent(
                     modifier = Modifier.padding(bottom = 12.dp),
                 )
 
-                ShutterButton(
-                    onClick = handleShutter,
-                    enabled = state.busy == BusyState.Idle && !isRebinding,
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(
+                        onClick = vm::onCycleFlash,
+                        modifier = Modifier.size(48.dp),
+                    ) {
+                        Icon(
+                            imageVector = flashIconFor(flashMode),
+                            contentDescription = flashContentDescription(flashMode),
+                            tint = if (flashMode == FlashMode.Off) Color.White.copy(alpha = 0.65f) else Color.White,
+                            modifier = Modifier
+                                .size(26.dp)
+                                .rotate(contentRotation),
+                        )
+                    }
+                    Spacer(Modifier.width(56.dp))
+                    ShutterButton(
+                        onClick = handleShutter,
+                        enabled = state.busy == BusyState.Idle && !isRebinding,
+                    )
+                    Spacer(Modifier.width(56.dp))
+                    val flipEnabled = !isRebinding && state.busy == BusyState.Idle
+                    IconButton(
+                        onClick = vm::onToggleLens,
+                        enabled = flipEnabled,
+                        modifier = Modifier.size(48.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Cameraswitch,
+                            contentDescription = "Flip camera",
+                            tint = if (flipEnabled) Color.White.copy(alpha = 0.65f) else Color.White.copy(alpha = 0.35f),
+                            modifier = Modifier
+                                .size(26.dp)
+                                .rotate(contentRotation),
+                        )
+                    }
+                }
 
                 Spacer(Modifier.height(12.dp))
 
@@ -281,6 +324,19 @@ private fun CaptureScreenContent(
                         events = vm.events,
                         modifier = Modifier.padding(horizontal = 16.dp),
                     )
+                    // Errors overlay the queue (taking the same slot as UndoToast/Shimmer)
+                    // so they don't push the shutter + queue down when they appear.
+                    // Declared last so they draw on top of any concurrent overlay.
+                    state.lastError?.let { message ->
+                        ActionBanner(
+                            message = message,
+                            actionLabel = "Dismiss",
+                            onAction = vm::clearError,
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                        )
+                    }
                 }
             }
         }
@@ -314,6 +370,18 @@ private fun rememberContentRotation(deviceOrientation: Int): Float {
         label = "content-rotation",
     )
     return animated
+}
+
+private fun flashIconFor(mode: FlashMode) = when (mode) {
+    FlashMode.Off -> Icons.Filled.FlashOff
+    FlashMode.Auto -> Icons.Filled.FlashAuto
+    FlashMode.On -> Icons.Filled.FlashOn
+}
+
+private fun flashContentDescription(mode: FlashMode) = when (mode) {
+    FlashMode.Off -> "Flash off, tap for auto"
+    FlashMode.Auto -> "Flash auto, tap for on"
+    FlashMode.On -> "Flash on, tap for off"
 }
 
 private fun openFolderInSystemBrowser(context: Context, treeUri: Uri) {

@@ -50,7 +50,9 @@ fun SettingsScreen(
         .collectAsStateWithLifecycle(initialValue = null)
 
     val pickFolder = rememberFolderPickerLauncher { uri ->
-        scope.launch { container.configureRoot(uri) }
+        // Runs on the container's app-scoped coroutine so it survives the user popping
+        // this screen before ensureBundleFolders finishes.
+        container.configureRoot(uri)
     }
 
     val state = settings

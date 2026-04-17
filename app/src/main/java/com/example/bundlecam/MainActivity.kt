@@ -13,7 +13,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -24,7 +23,6 @@ import com.example.bundlecam.ui.capture.CaptureScreen
 import com.example.bundlecam.ui.settings.SettingsScreen
 import com.example.bundlecam.ui.setup.FolderPickerScreen
 import com.example.bundlecam.ui.theme.BundlecamTheme
-import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,7 +40,6 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun AppRoot(container: AppContainer) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val settings by container.settingsRepository.settings
         .collectAsStateWithLifecycle(initialValue = null)
     var showSettings by rememberSaveable { mutableStateOf(false) }
@@ -58,9 +55,7 @@ private fun AppRoot(container: AppContainer) {
         state == null -> Box(modifier = Modifier.fillMaxSize())
 
         configuredUri == null -> FolderPickerScreen(
-            onFolderPicked = { uri ->
-                scope.launch { container.configureRoot(uri) }
-            },
+            onFolderPicked = { uri -> container.configureRoot(uri) },
         )
 
         showSettings -> SettingsScreen(

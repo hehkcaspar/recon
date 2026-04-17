@@ -3,7 +3,9 @@ package com.example.bundlecam.ui.capture
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -29,7 +31,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.systemGestureExclusion
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -84,6 +85,10 @@ internal object QueueMetrics {
     val OuterPadding = 8.dp
     val DividerHitWidth = 24.dp
     val SlotSize = ThumbSize + ThumbGap
+    val TrayHorizontalPadding = 48.dp
+    val EdgeZoneMinWidth = 60.dp
+    val EdgeZoneMaxFraction = 0.33f
+    val EdgeZoneMiddleGuard = 24.dp
 }
 
 private sealed class GestureState {
@@ -153,6 +158,25 @@ fun QueueStrip(
         // Tuned below M3's 125.dp/s default so a natural swipe doesn't get cancelled.
         val velocityThresholdPx = with(density) { 80.dp.toPx() }
 
+        // Edge zones grow to reclaim empty tray pixels on short queues, so commit/discard
+        // can be initiated from a wider region when thumbs don't fill the tray. Cap at a
+        // third of screen width per side with a neutral middle strip so the two zones
+        // never meet.
+        val contentWidth = if (queue.isEmpty()) 0.dp
+            else QueueMetrics.OuterPadding * 2 +
+                 QueueMetrics.ThumbSize * queue.size +
+                 QueueMetrics.ThumbGap * (queue.size - 1)
+        val trayWidth = maxWidth - QueueMetrics.TrayHorizontalPadding * 2
+        val slack = (trayWidth - contentWidth).coerceAtLeast(0.dp)
+        val targetEdgeZoneWidth = (QueueMetrics.EdgeZoneMinWidth + slack / 2)
+            .coerceAtMost(maxWidth * QueueMetrics.EdgeZoneMaxFraction)
+            .coerceAtMost(maxWidth / 2 - QueueMetrics.EdgeZoneMiddleGuard)
+        val edgeZoneWidth by animateDpAsState(
+            targetValue = targetEdgeZoneWidth,
+            animationSpec = tween(durationMillis = 180, easing = LinearEasing),
+            label = "edge-zone-width",
+        )
+
         val progress = when (val g = gesture) {
             GestureState.Idle -> 0f
             is GestureState.Bundling -> (g.dragX / thresholdPx).coerceIn(0f, 1f)
@@ -180,7 +204,7 @@ fun QueueStrip(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 48.dp),
+                    .padding(horizontal = QueueMetrics.TrayHorizontalPadding),
             ) {
                 val snapshot = exiting
                 if (snapshot == null) {
@@ -241,7 +265,7 @@ fun QueueStrip(
                 },
                 modifier = Modifier
                     .align(Alignment.CenterStart)
-                    .width(60.dp)
+                    .width(edgeZoneWidth)
                     .fillMaxHeight()
                     .systemGestureExclusion(),
             )
@@ -282,7 +306,7 @@ fun QueueStrip(
                 },
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
-                    .width(60.dp)
+                    .width(edgeZoneWidth)
                     .fillMaxHeight()
                     .systemGestureExclusion(),
             )
@@ -382,10 +406,16 @@ private fun EdgeZone(
             if (isDestination) progress.coerceIn(0f, 1f) else 0f,
             flashAlpha,
         )
+        val handleAlignment = when (side) {
+            Side.Left -> Alignment.CenterStart
+            Side.Right -> Alignment.CenterEnd
+        }
         if (destBgAlpha > 0f) {
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .align(handleAlignment)
+                    .width(QueueMetrics.EdgeZoneMinWidth)
+                    .fillMaxHeight()
                     .clip(RoundedCornerShape(8.dp))
                     .background(destinationAccent.copy(alpha = destBgAlpha)),
                 contentAlignment = Alignment.Center,
@@ -404,10 +434,6 @@ private fun EdgeZone(
                 !enabled -> Color.White.copy(alpha = 0.25f)
                 isInitiator -> accent
                 else -> Color.White.copy(alpha = 0.85f)
-            }
-            val handleAlignment = when (side) {
-                Side.Left -> Alignment.CenterStart
-                Side.Right -> Alignment.CenterEnd
             }
             Box(
                 modifier = Modifier
@@ -622,7 +648,7 @@ private fun DividerZone(
     val view = LocalView.current
 
     var dragY by remember { mutableFloatStateOf(0f) }
-    val lineColor = MaterialTheme.colorScheme.primary
+    val lineColor = Color.White
 
     // Sign flips the "active" drag direction: swipe down inserts, swipe up removes.
     val activeSign = if (hasDivider) -1f else 1f

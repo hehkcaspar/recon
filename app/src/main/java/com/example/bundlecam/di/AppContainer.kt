@@ -12,6 +12,11 @@ import com.example.bundlecam.data.storage.StagingStore
 import com.example.bundlecam.pipeline.ManifestStore
 import com.example.bundlecam.pipeline.OrphanRecovery
 import com.example.bundlecam.pipeline.WorkScheduler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 private const val TAG = "BundleCam/AppContainer"
 
@@ -27,9 +32,20 @@ class AppContainer(context: Context) {
     val exifWriter: ExifWriter = ExifWriter()
     val locationProvider: LocationProvider = LocationProvider(appContext)
 
-    suspend fun configureRoot(uri: Uri) {
-        settingsRepository.setRootUri(uri)
-        runCatching { safStorage.ensureBundleFolders(uri) }
-            .onFailure { Log.w(TAG, "ensureBundleFolders failed for $uri", it) }
+    // App-scoped so folder-setup work isn't cancelled by UI navigation (e.g., user backing
+    // out of Settings immediately after picking a folder). Composition-scoped coroutines
+    // would cancel mid-ensureBundleFolders, leaving the directories half-created and the
+    // first bundle worker racing to create them itself.
+    private val appScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+    fun configureRoot(uri: Uri): Job = appScope.launch {
+        try {
+            settingsRepository.setRootUri(uri)
+            safStorage.ensureBundleFolders(uri)
+        } catch (t: Throwable) {
+            // Directory setup failures aren't fatal — SafStorage.findOrCreateDir will retry
+            // on the first worker's commit. Log for diagnostics but don't crash the scope.
+            Log.w(TAG, "configureRoot partial failure for $uri", t)
+        }
     }
 }

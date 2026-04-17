@@ -15,10 +15,7 @@ class SafStorage(context: Context) {
         val root = DocumentFile.fromTreeUri(appContext, rootUri)
             ?: throw IOException("Unable to open tree: $rootUri")
         listOf(StorageLayout.BUNDLES_DIR, StorageLayout.STITCHED_DIR).forEach { name ->
-            if (root.findFile(name)?.isDirectory != true) {
-                root.createDirectory(name)
-                    ?: throw IOException("Failed to create directory '$name'")
-            }
+            findOrCreateDir(root, name)
         }
     }
 
@@ -76,10 +73,28 @@ class SafStorage(context: Context) {
             ?: throw IOException("Unable to open tree: $rootUri")
         var dir = root
         for (segment in subPath) {
-            dir = dir.findFile(segment)?.takeIf { it.isDirectory }
-                ?: dir.createDirectory(segment)
-                ?: throw IOException("Failed to create directory '$segment'")
+            dir = findOrCreateDir(dir, segment)
         }
         return dir
+    }
+
+    /**
+     * Idempotent directory resolution for SAF trees.
+     *
+     * `createDirectory` can return null even when the caller has the right permissions:
+     *   - a concurrent creator (e.g. `ensureBundleFolders` running in parallel with a worker
+     *     after the user just switched output folders) materializes the same name between
+     *     our `findFile` and our `createDirectory` call, and the DocumentsProvider rejects
+     *     the duplicate;
+     *   - transient provider glitches on some OEM implementations.
+     *
+     * Re-check with `findFile` after a null create before giving up, so a lost race becomes
+     * a harmless no-op instead of a user-visible "Failed to create directory" failure.
+     */
+    private fun findOrCreateDir(parent: DocumentFile, name: String): DocumentFile {
+        parent.findFile(name)?.takeIf { it.isDirectory }?.let { return it }
+        parent.createDirectory(name)?.let { return it }
+        parent.findFile(name)?.takeIf { it.isDirectory }?.let { return it }
+        throw IOException("Failed to create directory '$name'")
     }
 }

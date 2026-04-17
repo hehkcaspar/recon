@@ -27,6 +27,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.bundlecam.data.camera.CameraMode
 import com.example.bundlecam.data.camera.CaptureController
+import com.example.bundlecam.data.camera.LensFacing
 import kotlinx.coroutines.delay
 
 private const val TAG = "BundleCam/CameraPreview"
@@ -35,6 +36,7 @@ private const val TAG = "BundleCam/CameraPreview"
 fun CameraPreview(
     controller: CaptureController,
     mode: CameraMode,
+    lens: LensFacing,
     onRebindingChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -85,12 +87,12 @@ fun CameraPreview(
         onDispose { controller.stopOrientationListening() }
     }
 
-    LaunchedEffect(mode, lifecycleOwner) {
+    LaunchedEffect(mode, lens, lifecycleOwner) {
         onRebindingChange(true)
         try {
-            controller.bind(lifecycleOwner, mode, previewView)
+            controller.bind(lifecycleOwner, mode, lens, previewView)
         } catch (t: Throwable) {
-            Log.e(TAG, "Failed to bind camera mode=$mode", t)
+            Log.e(TAG, "Failed to bind camera mode=$mode lens=$lens", t)
         } finally {
             onRebindingChange(false)
         }
