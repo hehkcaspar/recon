@@ -20,6 +20,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.bundlecam.di.AppContainer
 import com.example.bundlecam.ui.capture.CaptureScreen
+import com.example.bundlecam.ui.preview.BundlePreviewScreen
 import com.example.bundlecam.ui.settings.SettingsScreen
 import com.example.bundlecam.ui.setup.FolderPickerScreen
 import com.example.bundlecam.ui.theme.BundlecamTheme
@@ -43,6 +44,7 @@ private fun AppRoot(container: AppContainer) {
     val settings by container.settingsRepository.settings
         .collectAsStateWithLifecycle(initialValue = null)
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    var showBundlePreview by rememberSaveable { mutableStateOf(false) }
 
     val state = settings
     val configuredUri: Uri? = remember(context, state?.rootUri) {
@@ -50,6 +52,9 @@ private fun AppRoot(container: AppContainer) {
     }
 
     BackHandler(enabled = showSettings) { showSettings = false }
+    // Settings takes precedence in the when-chain below, so this handler only fires when
+    // preview is the visible screen — no need to also check !showSettings here.
+    BackHandler(enabled = showBundlePreview && !showSettings) { showBundlePreview = false }
 
     when {
         state == null -> Box(modifier = Modifier.fillMaxSize())
@@ -63,8 +68,13 @@ private fun AppRoot(container: AppContainer) {
             onBack = { showSettings = false },
         )
 
+        showBundlePreview -> BundlePreviewScreen(
+            onBack = { showBundlePreview = false },
+        )
+
         else -> CaptureScreen(
             onOpenSettings = { showSettings = true },
+            onOpenBundles = { showBundlePreview = true },
         )
     }
 }

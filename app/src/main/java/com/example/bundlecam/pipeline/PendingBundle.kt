@@ -10,6 +10,10 @@ data class PendingBundle(
     val sessionId: String,
     val orderedPhotos: List<PendingPhoto>,
     val capturedAt: Long,
+    // Defaults cover pre-flag manifests on disk at upgrade; post-upgrade writes always
+    // carry explicit values (frozen at commit from SettingsState).
+    val saveIndividualPhotos: Boolean = true,
+    val saveStitchedImage: Boolean = true,
 )
 
 @Serializable

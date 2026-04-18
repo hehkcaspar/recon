@@ -1,16 +1,9 @@
 package com.example.bundlecam.ui.capture
 
 import android.Manifest
-import android.content.ActivityNotFoundException
-import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.MediaActionSound
-import android.net.Uri
-import android.provider.DocumentsContract
-import android.util.Log
 import android.view.HapticFeedbackConstants
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -37,7 +30,7 @@ import androidx.compose.material.icons.filled.Cameraswitch
 import androidx.compose.material.icons.filled.FlashAuto
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
-import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -68,11 +61,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.bundlecam.data.camera.FlashMode
 import com.example.bundlecam.ui.common.ActionBanner
 
-private const val TAG = "BundleCam/CaptureScreen"
-
 @Composable
 fun CaptureScreen(
     onOpenSettings: () -> Unit,
+    onOpenBundles: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -103,6 +95,7 @@ fun CaptureScreen(
 
     CaptureScreenContent(
         onOpenSettings = onOpenSettings,
+        onOpenBundles = onOpenBundles,
         modifier = modifier,
     )
 }
@@ -110,9 +103,9 @@ fun CaptureScreen(
 @Composable
 private fun CaptureScreenContent(
     onOpenSettings: () -> Unit,
+    onOpenBundles: () -> Unit,
     modifier: Modifier,
 ) {
-    val context = LocalContext.current
     val view = LocalView.current
     val vm: CaptureViewModel = viewModel(factory = CaptureViewModel.Factory)
     val state by vm.uiState.collectAsStateWithLifecycle()
@@ -168,11 +161,6 @@ private fun CaptureScreenContent(
         vm.onDiscardQueue()
     }
 
-    val handleOpenFolder = {
-        settings.rootUri?.let { uri -> openFolderInSystemBrowser(context, uri) }
-        Unit
-    }
-
     var deleteProgress by remember { mutableFloatStateOf(0f) }
     var deleteHotspotXInRoot by remember { mutableFloatStateOf(0f) }
     val animatedDeleteProgress by animateFloatAsState(
@@ -212,12 +200,12 @@ private fun CaptureScreenContent(
                 )
                 Spacer(Modifier.weight(1f))
                 IconButton(
-                    onClick = handleOpenFolder,
+                    onClick = onOpenBundles,
                     enabled = settings.rootUri != null,
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.FolderOpen,
-                        contentDescription = "Open output folder",
+                        imageVector = Icons.Filled.PhotoLibrary,
+                        contentDescription = "Bundles",
                         tint = if (settings.rootUri != null) Color.White else Color.White.copy(alpha = 0.3f),
                         modifier = Modifier.rotate(contentRotation),
                     )
@@ -382,32 +370,6 @@ private fun flashContentDescription(mode: FlashMode) = when (mode) {
     FlashMode.Off -> "Flash off, tap for auto"
     FlashMode.Auto -> "Flash auto, tap for on"
     FlashMode.On -> "Flash on, tap for off"
-}
-
-private fun openFolderInSystemBrowser(context: Context, treeUri: Uri) {
-    try {
-        val docId = DocumentsContract.getTreeDocumentId(treeUri)
-        val docUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(docUri, "vnd.android.document/directory")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        context.startActivity(intent)
-    } catch (e: ActivityNotFoundException) {
-        Log.w(TAG, "No activity handles folder-view intent", e)
-        Toast.makeText(
-            context,
-            "No file browser app available to open this folder",
-            Toast.LENGTH_SHORT,
-        ).show()
-    } catch (e: Throwable) {
-        Log.e(TAG, "Failed to open folder $treeUri", e)
-        Toast.makeText(
-            context,
-            "Couldn't open folder: ${e.message}",
-            Toast.LENGTH_SHORT,
-        ).show()
-    }
 }
 
 @Composable

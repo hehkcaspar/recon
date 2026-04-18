@@ -37,6 +37,24 @@ class StagingStore(context: Context) {
         session.dir.deleteRecursively()
     }
 
+    /**
+     * Drop a marker file inside the session directory so [OrphanRecovery] knows this
+     * session was explicitly discarded (not merely orphaned by a process death mid-queue).
+     * Synchronous because the window between a discard gesture and a possible process
+     * kill is narrow — deferring it to a coroutine would race the kill and lose the
+     * marker, causing the queue to resurrect on next launch.
+     */
+    fun markDiscarded(session: StagingSession) {
+        runCatching { File(session.dir, DISCARD_MARKER).createNewFile() }
+    }
+
+    fun unmarkDiscarded(session: StagingSession) {
+        runCatching { File(session.dir, DISCARD_MARKER).delete() }
+    }
+
+    fun isDiscarded(session: StagingSession): Boolean =
+        File(session.dir, DISCARD_MARKER).exists()
+
     fun listSessions(): List<StagingSession> =
         baseDir.listFiles { f -> f.isDirectory && f.name.startsWith(SESSION_PREFIX) }
             ?.map { StagingSession(it.name.removePrefix(SESSION_PREFIX), it) }
@@ -44,5 +62,6 @@ class StagingStore(context: Context) {
 
     private companion object {
         const val SESSION_PREFIX = "session-"
+        const val DISCARD_MARKER = ".discarded"
     }
 }

@@ -45,8 +45,14 @@ class OrphanRecovery(
             }
         }
 
-        val orphanSessions = stagingStore.listSessions()
-            .filter { it.id !in inFlightSessionIds }
+        val allSessions = stagingStore.listSessions()
+        val (discarded, live) = allSessions.partition { stagingStore.isDiscarded(it) }
+        if (discarded.isNotEmpty()) {
+            Log.i(TAG, "Cleaning ${discarded.size} discarded session(s) left by last run")
+            discarded.forEach { runCatching { stagingStore.deleteSession(it) } }
+        }
+
+        val orphanSessions = live.filter { it.id !in inFlightSessionIds }
         if (orphanSessions.isEmpty()) return@withContext null
 
         val mostRecent = orphanSessions.maxByOrNull { it.dir.lastModified() }

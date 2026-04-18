@@ -4,10 +4,12 @@ object StorageLayout {
     const val BUNDLES_DIR = "bundles"
     const val STITCHED_DIR = "stitched"
     const val MIME_JPEG = "image/jpeg"
+    /** The filename tail for stitched outputs — shared with [BundleLibrary] when parsing names back. */
+    const val STITCH_SUFFIX = "-stitch.jpg"
 
     private const val BUNDLE_ID_FORMAT = "%s-s-%04d"
     private const val BUNDLE_PHOTO_FORMAT = "%s-p-%02d.jpg"
-    private const val STITCH_FILE_FORMAT = "%s-stitch.jpg"
+    private const val STITCH_FILE_FORMAT = "%s$STITCH_SUFFIX"
 
     fun bundleId(date: String, counter: Int): String = BUNDLE_ID_FORMAT.format(date, counter)
     fun bundlePhotoName(bundleId: String, oneBasedIndex: Int): String =

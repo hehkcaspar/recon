@@ -7,6 +7,7 @@ import com.example.bundlecam.data.exif.ExifWriter
 import com.example.bundlecam.data.location.LocationProvider
 import com.example.bundlecam.data.settings.SettingsRepository
 import com.example.bundlecam.data.storage.BundleCounterStore
+import com.example.bundlecam.data.storage.BundleLibrary
 import com.example.bundlecam.data.storage.SafStorage
 import com.example.bundlecam.data.storage.StagingStore
 import com.example.bundlecam.pipeline.ManifestStore
@@ -24,6 +25,7 @@ class AppContainer(context: Context) {
     private val appContext: Context = context.applicationContext
     val settingsRepository: SettingsRepository = SettingsRepository(appContext)
     val safStorage: SafStorage = SafStorage(appContext)
+    val bundleLibrary: BundleLibrary = BundleLibrary(appContext)
     val stagingStore: StagingStore = StagingStore(appContext)
     val bundleCounterStore: BundleCounterStore = BundleCounterStore(appContext)
     val manifestStore: ManifestStore = ManifestStore(appContext)
@@ -36,7 +38,7 @@ class AppContainer(context: Context) {
     // out of Settings immediately after picking a folder). Composition-scoped coroutines
     // would cancel mid-ensureBundleFolders, leaving the directories half-created and the
     // first bundle worker racing to create them itself.
-    private val appScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    val appScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     fun configureRoot(uri: Uri): Job = appScope.launch {
         try {

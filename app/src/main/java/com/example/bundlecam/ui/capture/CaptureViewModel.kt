@@ -21,6 +21,7 @@ import com.example.bundlecam.data.storage.StagingSession
 import com.example.bundlecam.di.AppContainer
 import com.example.bundlecam.pipeline.PendingBundle
 import com.example.bundlecam.pipeline.PendingPhoto
+import com.example.bundlecam.ui.common.TimedSlot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -100,7 +101,7 @@ class CaptureViewModel(
     val deviceOrientation: StateFlow<Int> = captureController.deviceOrientation
 
     private var currentSession: StagingSession? = null
-    private val discardSlot = DiscardSlot(viewModelScope)
+    private val discardSlot = TimedSlot<StagingSession>(viewModelScope)
 
     init {
         viewModelScope.launch {
@@ -212,6 +213,8 @@ class CaptureViewModel(
         }
 
         val stitchQualityName = currentSettings.stitchQuality.name
+        val saveIndividualPhotos = currentSettings.saveIndividualPhotos
+        val saveStitchedImage = currentSettings.saveStitchedImage
         viewModelScope.launch {
             val segments = DividerOps.partitionByDividers(items, dividers)
             val manifests = mutableListOf<PendingBundle>()
@@ -232,6 +235,8 @@ class CaptureViewModel(
                                 )
                             },
                             capturedAt = capturedAt,
+                            saveIndividualPhotos = saveIndividualPhotos,
+                            saveStitchedImage = saveStitchedImage,
                         )
                     )
                 }
@@ -283,6 +288,11 @@ class CaptureViewModel(
         }
         currentSession = null
 
+        // Persist the discard intent BEFORE starting the undo timer. If the process
+        // dies during the 3s window, OrphanRecovery sees the marker and cleans up
+        // instead of restoring the queue on next launch.
+        container.stagingStore.markDiscarded(session)
+
         discardSlot.stash(session, UNDO_WINDOW_MS) { taken ->
             _uiState.update { it.copy(pendingDiscard = null) }
             runCatching { container.stagingStore.deleteSession(taken) }
@@ -292,6 +302,7 @@ class CaptureViewModel(
     fun onUndoDiscard() {
         val pending = _uiState.value.pendingDiscard ?: return
         val session = discardSlot.take() ?: return
+        container.stagingStore.unmarkDiscarded(session)
         currentSession = session
         _uiState.update {
             it.copy(
