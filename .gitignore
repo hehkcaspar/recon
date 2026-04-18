@@ -9,6 +9,7 @@
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
 /.idea/deviceManager.xml
+/.idea/vcs.xml
 .DS_Store
 /build
 /captures
@@ -24,3 +25,6 @@ signing.properties
 
 # Firebase / Google services — contains client-side API keys
 google-services.json
+
+# Unreferenced local drafts (branding experiments) kept out of git
+/newlogo*.png
