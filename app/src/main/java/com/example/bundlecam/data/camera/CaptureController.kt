@@ -8,6 +8,7 @@ import android.view.OrientationEventListener
 import androidx.camera.core.AspectRatio
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ExperimentalZeroShutterLag
 import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
@@ -105,6 +106,11 @@ class CaptureController(context: Context) {
         orientationListener.disable()
     }
 
+    // bind() uses CAPTURE_MODE_ZERO_SHUTTER_LAG when mode == ZSL; that constant is
+    // gated behind @ExperimentalZeroShutterLag. Opting in here contains the experimental
+    // marker inside this function — `@ExperimentalZeroShutterLag` on the function itself
+    // would propagate the opt-in requirement to every caller.
+    @OptIn(ExperimentalZeroShutterLag::class)
     suspend fun bind(
         lifecycleOwner: LifecycleOwner,
         mode: CameraMode,

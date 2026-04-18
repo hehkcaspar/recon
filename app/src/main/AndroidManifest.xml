@@ -23,11 +23,14 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Bundlecam">
+        <!-- Portrait lock is intentional: the UI counter-rotates icons via Modifier.rotate
+             so the layout doesn't reflow when the device turns. See README §UI counter-
+             rotation. Android 16's orientation-override guidance doesn't apply here. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:label="@string/app_name"
-            android:screenOrientation="portrait">
+            android:screenOrientation="portrait"
+            tools:ignore="LockedOrientationActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

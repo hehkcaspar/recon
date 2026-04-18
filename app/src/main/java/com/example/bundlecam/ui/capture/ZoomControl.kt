@@ -29,8 +29,8 @@ private val Presets: FloatArray = floatArrayOf(0.5f, 1f, 2f, 5f)
 fun ZoomControl(
     zoomInfo: ZoomInfo?,
     onZoomChange: (Float) -> Unit,
-    contentRotation: Float = 0f,
     modifier: Modifier = Modifier,
+    contentRotation: Float = 0f,
 ) {
     if (zoomInfo == null) return
     val available = Presets.filter { it in zoomInfo.minRatio..zoomInfo.maxRatio }

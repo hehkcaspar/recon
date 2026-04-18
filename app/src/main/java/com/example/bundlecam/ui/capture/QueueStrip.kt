@@ -87,7 +87,7 @@ internal object QueueMetrics {
     val SlotSize = ThumbSize + ThumbGap
     val TrayHorizontalPadding = 48.dp
     val EdgeZoneMinWidth = 60.dp
-    val EdgeZoneMaxFraction = 0.33f
+    const val EdgeZoneMaxFraction = 0.33f
     val EdgeZoneMiddleGuard = 24.dp
 }
 
@@ -480,9 +480,9 @@ private fun QueueTray(
 
     BoxWithConstraints(modifier = modifier) {
         val widthPx = with(LocalDensity.current) { maxWidth.toPx() }
-        val dragX = when (val g = gesture) {
-            is GestureState.Bundling -> g.dragX
-            is GestureState.Discarding -> g.dragX
+        val dragX = when (gesture) {
+            is GestureState.Bundling -> gesture.dragX
+            is GestureState.Discarding -> gesture.dragX
             else -> 0f
         }
         val fillWidth = abs(dragX).coerceAtMost(widthPx)

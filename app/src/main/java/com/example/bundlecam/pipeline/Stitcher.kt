@@ -5,6 +5,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Rect
+import androidx.core.graphics.createBitmap
 import com.example.bundlecam.data.camera.rotateIfNeeded
 import com.example.bundlecam.data.settings.StitchQuality
 import java.io.File
@@ -38,7 +39,7 @@ class Stitcher {
 
         val visualDims = sources.map { visualDimensions(it) }
         val layout = computeLayout(visualDims, quality, availableHeapBudget())
-        val target = Bitmap.createBitmap(layout.commonWidth, layout.totalHeight, Bitmap.Config.ARGB_8888)
+        val target = createBitmap(layout.commonWidth, layout.totalHeight)
         val canvas = Canvas(target)
         val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
 

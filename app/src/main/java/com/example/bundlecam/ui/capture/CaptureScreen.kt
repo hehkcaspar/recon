@@ -3,6 +3,7 @@ package com.example.bundlecam.ui.capture
 import android.Manifest
 import android.content.pm.PackageManager
 import android.media.MediaActionSound
+import android.os.Build
 import android.view.HapticFeedbackConstants
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -152,7 +153,13 @@ private fun CaptureScreenContent(
     }
 
     val handleCommit = {
-        view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+        // CONFIRM was added in API 30; fall back to CONTEXT_CLICK on 26–29.
+        val haptic = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            HapticFeedbackConstants.CONFIRM
+        } else {
+            HapticFeedbackConstants.CONTEXT_CLICK
+        }
+        view.performHapticFeedback(haptic)
         vm.onCommitBundle()
     }
 
