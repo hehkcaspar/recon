@@ -10,6 +10,7 @@ import androidx.work.WorkManager
 import androidx.work.workDataOf
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import java.util.concurrent.TimeUnit
 
 private const val TAG = "BundleCam/WorkScheduler"
@@ -62,6 +63,30 @@ class WorkScheduler(context: Context) {
         }
     }
 
+    /**
+     * Bundle IDs with a worker that hasn't terminated yet (ENQUEUED / RUNNING / BLOCKED).
+     * The Bundle Preview screen overlays a "Processing…" row for these so users don't
+     * think a freshly-committed bundle has vanished during the worker's 5-20s write pass.
+     */
+    fun observeActiveBundleIds(): Flow<Set<String>> =
+        workManager.getWorkInfosByTagFlow(BundleWorker.TAG_ALL).map { infos ->
+            infos
+                .asSequence()
+                .filter {
+                    it.state == WorkInfo.State.ENQUEUED ||
+                        it.state == WorkInfo.State.RUNNING ||
+                        it.state == WorkInfo.State.BLOCKED
+                }
+                .mapNotNull { info ->
+                    // Prefer the bundleId tag over inputData: tags are always present on
+                    // the WorkInfo, while Data can be stripped for finished work. Tag
+                    // format is `bundle_$bundleId` (see `tagFor`).
+                    info.tags.firstOrNull { it.startsWith(BUNDLE_TAG_PREFIX) }
+                        ?.removePrefix(BUNDLE_TAG_PREFIX)
+                }
+                .toSet()
+        }
+
     fun pruneCompleted() {
         workManager.pruneWork()
     }
@@ -77,6 +102,10 @@ class WorkScheduler(context: Context) {
         }
     }
 
-    private fun tagFor(bundleId: String) = "bundle_$bundleId"
+    private fun tagFor(bundleId: String) = "$BUNDLE_TAG_PREFIX$bundleId"
     private fun uniqueNameFor(bundleId: String) = "$UNIQUE_NAME_PREFIX$bundleId"
+
+    private companion object {
+        const val BUNDLE_TAG_PREFIX = "bundle_"
+    }
 }

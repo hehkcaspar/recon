@@ -282,6 +282,8 @@ Each row shows:
 
 Multiple bundles can be pending-delete simultaneously — each has its own independent countdown and its own Undo button. Leaving the screen while deletes are pending doesn't cancel them: they continue to completion on the app-scoped coroutine.
 
+**Processing rows.** When a user swipes to commit and immediately opens this screen, the background worker is still writing the bundle (seconds to tens of seconds for stitch) so nothing has landed in SAF yet. The screen subscribes to in-flight worker state and renders a "processing" row at the top of the list for each pending bundle: a circular spinner in the leading thumbnail slot, the monospace bundle id, and a "Processing…" subtitle. Processing rows aren't swipeable. When the worker finishes, the screen refreshes the SAF listing *before* dropping the processing row, so the completed row takes over with no blank frame in between. Failed workers simply disappear from the processing set; the failure banner remains the capture screen's concern.
+
 ---
 
 ## iOS build notes

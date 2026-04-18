@@ -49,6 +49,8 @@ data class BundlePreviewUiState(
     val pendingDeletes: Map<String, PendingDelete> = emptyMap(),
     /** Keyed by URI, not bundle id — each bundle can contribute up to 3 URIs. */
     val thumbnails: Map<Uri, ImageBitmap> = emptyMap(),
+    /** Bundle IDs whose worker is ENQUEUED/RUNNING/BLOCKED, sorted newest-first. */
+    val processingBundleIds: List<String> = emptyList(),
 )
 
 class BundlePreviewViewModel(
@@ -68,38 +70,61 @@ class BundlePreviewViewModel(
     private val thumbnailMutex = Mutex()
     private val inFlightThumbnails = mutableSetOf<Uri>()
 
+    init {
+        // Track in-flight bundle workers so the list can show a "Processing…" row for a
+        // just-committed bundle that hasn't been written to SAF yet. When a bundle leaves
+        // the active set (worker finished), we refresh SAF *before* dropping its
+        // processing row, so the completed row slides in without a blank-gap flash.
+        viewModelScope.launch {
+            var previous = emptySet<String>()
+            container.workScheduler.observeActiveBundleIds().collect { ids ->
+                val sortedIds = ids.sortedDescending()
+                val finished = previous - ids
+                previous = ids
+                if (finished.isEmpty()) {
+                    _uiState.update { it.copy(processingBundleIds = sortedIds) }
+                } else {
+                    loadBundles()
+                    _uiState.update { it.copy(processingBundleIds = sortedIds) }
+                }
+            }
+        }
+    }
+
     fun refresh() {
+        viewModelScope.launch { loadBundles() }
+    }
+
+    private suspend fun loadBundles() {
         val rootUri = settings.value.rootUri
         if (rootUri == null) {
             _uiState.update { it.copy(loadState = LoadState.Error, errorMessage = "No output folder set") }
             return
         }
         _uiState.update { it.copy(loadState = LoadState.Loading, errorMessage = null) }
-        viewModelScope.launch {
-            runCatching { container.bundleLibrary.listBundles(rootUri) }
-                .onSuccess { bundles ->
-                    _uiState.update { state ->
-                        // Drop thumbnails whose URIs are no longer present so the map
-                        // doesn't grow unbounded across refreshes.
-                        val presentUris = bundles.flatMap { it.thumbnailUris }.toSet()
-                        state.copy(
-                            bundles = bundles,
-                            loadState = LoadState.Loaded,
-                            errorMessage = null,
-                            thumbnails = state.thumbnails.filterKeys { it in presentUris },
-                        )
-                    }
+        runCatching { container.bundleLibrary.listBundles(rootUri) }
+            .onSuccess { bundles ->
+                _uiState.update { state ->
+                    // Drop thumbnails whose URIs are no longer present so the map
+                    // doesn't grow unbounded across refreshes.
+                    val presentUris = bundles.flatMap { it.thumbnailUris }.toSet()
+                    state.copy(
+                        bundles = bundles,
+                        loadState = LoadState.Loaded,
+                        errorMessage = null,
+                        thumbnails = state.thumbnails.filterKeys { it in presentUris },
+                    )
                 }
-                .onFailure { t ->
-                    Log.e(TAG, "Failed to list bundles", t)
-                    _uiState.update {
-                        it.copy(
-                            loadState = LoadState.Error,
-                            errorMessage = "Couldn't load bundles: ${t.message ?: "unknown error"}",
-                        )
-                    }
+            }
+            .onFailure { t ->
+                Log.e(TAG, "Failed to list bundles", t)
+                _uiState.update {
+                    it.copy(
+                        loadState = LoadState.Error,
+                        errorMessage = "Couldn't load bundles: ${t.message ?: "unknown error"}",
+                    )
                 }
-        }
+            }
     }
 
     fun loadThumbnail(uri: Uri) {

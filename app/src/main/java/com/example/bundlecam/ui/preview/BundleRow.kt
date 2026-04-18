@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.ViewStream
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
@@ -371,6 +372,56 @@ private fun PendingDeleteRow(
         // the TextButton inflates the Row to ~72dp and pushes neighbouring rows down.
         CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
             TextButton(onClick = onUndo) { Text("Undo") }
+        }
+    }
+}
+
+@Composable
+fun ProcessingBundleRow(
+    bundleId: String,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.bundleRowLayout(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Reserve the same leading strip as completed rows so bundle IDs stay aligned
+        // when a row transitions from processing to completed.
+        Box(
+            modifier = Modifier.width(ThumbStripWidth),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(ThumbSize)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator(
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(20.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+
+        Spacer(Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = bundleId,
+                style = MaterialTheme.typography.titleMedium,
+                fontFamily = FontFamily.Monospace,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.padding(top = 2.dp))
+            Text(
+                text = "Processing…",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
         }
     }
 }

@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -39,6 +38,8 @@ import com.example.bundlecam.data.storage.BundleModality
 import com.example.bundlecam.data.storage.CompletedBundle
 import com.example.bundlecam.ui.common.ActionBanner
 import com.example.bundlecam.ui.common.openFolderInSystemBrowser
+
+private const val PROCESSING_ROW_KEY_PREFIX = "processing:"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,17 +93,23 @@ fun BundlePreviewScreen(
                 .padding(padding)
                 .fillMaxSize(),
         ) {
+            // A row is "processing" if its worker is in-flight AND no SAF files exist for
+            // it yet — once the subfolder or stitch lands, the completed row takes over.
+            val completedIds = state.bundles.mapTo(mutableSetOf()) { it.id }
+            val processingOnly = state.processingBundleIds.filterNot { it in completedIds }
+            val hasContent = state.bundles.isNotEmpty() || processingOnly.isNotEmpty()
+
             when {
-                state.loadState == LoadState.Loading && state.bundles.isEmpty() -> {
+                state.loadState == LoadState.Loading && !hasContent -> {
                     CenteredProgress()
                 }
-                state.loadState == LoadState.Error && state.bundles.isEmpty() -> {
+                state.loadState == LoadState.Error && !hasContent -> {
                     EmptyMessage(
                         title = "Couldn't load bundles",
                         subtitle = state.errorMessage ?: "Try returning to capture and back.",
                     )
                 }
-                state.bundles.isEmpty() -> {
+                !hasContent -> {
                     EmptyMessage(
                         title = "No bundles yet",
                         subtitle = "Capture some photos and swipe to commit a bundle.",
@@ -110,6 +117,7 @@ fun BundlePreviewScreen(
                 }
                 else -> {
                     BundleList(
+                        processingIds = processingOnly,
                         bundles = state.bundles,
                         pendingDeletes = state.pendingDeletes,
                         thumbnails = state.thumbnails,
@@ -161,6 +169,7 @@ fun BundlePreviewScreen(
 
 @Composable
 private fun BundleList(
+    processingIds: List<String>,
     bundles: List<CompletedBundle>,
     pendingDeletes: Map<String, PendingDelete>,
     thumbnails: Map<android.net.Uri, androidx.compose.ui.graphics.ImageBitmap>,
@@ -171,6 +180,18 @@ private fun BundleList(
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
     ) {
+        items(
+            items = processingIds,
+            // Prefix the key so a processing ID can't collide with a completed bundle
+            // that shares the same id during the brief SAF-write → refresh transition.
+            key = { id -> "$PROCESSING_ROW_KEY_PREFIX$id" },
+        ) { id ->
+            ProcessingBundleRow(bundleId = id)
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant,
+                thickness = 0.5.dp,
+            )
+        }
         items(items = bundles, key = { it.id }) { bundle ->
             BundleRow(
                 bundle = bundle,
