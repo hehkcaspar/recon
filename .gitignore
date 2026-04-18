@@ -23,6 +23,9 @@ local.properties
 keystore.properties
 signing.properties
 
+# Local-only notes / secrets (e.g. KEYSTORE_SECRETS.local.md)
+*.local.md
+
 # Firebase / Google services — contains client-side API keys
 google-services.json
 

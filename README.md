@@ -15,11 +15,14 @@ Requirements: JDK 11+, Android SDK 36, Gradle 9 (via wrapper).
 ```bash
 ./gradlew assembleDebug            # build debug APK
 ./gradlew installDebug             # install on connected device/emulator
+./gradlew assembleRelease          # build signed release APK (see RELEASE.md)
 ```
 
 Open in Android Studio for preview and live editing.
 
 `local.properties` points Gradle at your Android SDK and is gitignored — it's generated automatically on first open in Android Studio.
+
+For signing, R8, and Play Store packaging, see [RELEASE.md](./RELEASE.md).
 
 ### Configuration
 
