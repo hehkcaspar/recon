@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Native Android camera app called **Recon**. The Gradle `namespace` and `applicationId` remain `com.example.bundlecam` so existing installs don't orphan on upgrade; every class, log tag, document, resource, and EXIF identifier is **Recon**. Core flow: capture photos → stage on internal storage → swipe-commit a "bundle" → background worker copies raw JPEGs + produces one vertically-stitched JPEG into the user's SAF-picked folder.
 
-Design spec (interaction/UX intent) lives in `recon-mvp-designs.md`. README.md has a detailed architecture walk-through — keep both in sync when changing pipeline or capture-flow behavior.
+The platform-neutral product + architecture spec (source of truth for an iOS port) lives in `recon-mvp-designs.md`. README.md is the Android-specific technical reference — keep both in sync when changing pipeline, capture-flow, or UX behavior. Post-MVP ideas (OCR / LocalSend) live in `BACKLOG.md`.
 
 ## Common commands
 
@@ -26,7 +26,7 @@ Toolchain: JDK 11, Android `compileSdk`/`targetSdk` 36, `minSdk` 26, Gradle 9 vi
 
 This is the load-bearing mental model. **Don't break the phase boundaries** — especially the Main-thread commit pivot.
 
-**Phase 1 — Shutter (≤100ms, UI-thread budget).** `CaptureViewModel.onShutter` → CameraX returns JPEG → `StagingStore.writePhoto` to `filesDir/staging/session-{uuid}/p-{k}.jpg` → `ExifWriter.stamp` (time/GPS-if-cached/orientation) → `decodeThumbnail` → push `StagedPhoto` onto `uiState.queue`. No SAF writes in this phase.
+**Phase 1 — Shutter (≤100ms, UI-thread budget).** `CaptureViewModel.onShutter` → CameraX returns JPEG → `StagingStore.writePhoto` to `filesDir/staging/session-{uuid}/{photo-uuid}.jpg` (filenames are random UUIDs — ordering lives in the manifest, not the filesystem) → `ExifWriter.stamp` (time/GPS-if-cached/orientation) → `decodeThumbnail` → push `StagedPhoto` onto `uiState.queue`. No SAF writes in this phase.
 
 **Phase 2 — Commit (single frame).** `CaptureViewModel.onCommitBundle` pivots UI **synchronously on Main**: nulls `currentSession`, clears `queue` + `dividers`. Shutter is usable on the very next frame. The actual bookkeeping (bundle-ID allocation from DataStore, `PendingBundle` manifest serialization + file write, `WorkScheduler.enqueue`) runs in a background coroutine afterwards. If the process dies between the UI pivot and the manifest save, the staging session persists on disk and `OrphanRecovery` restores it as an uncommitted queue on next launch.
 
@@ -47,7 +47,7 @@ Runs at `AppContainer` init. Prunes terminal `WorkInfo`; re-enqueues manifests w
 
 Package root: `com.example.bundlecam`. All sources under `app/src/main/java/com/example/bundlecam/`.
 
-- `ui/capture/` — capture screen, VM, gestures (`QueueStrip`, `QueueThumbnail`), divider arithmetic (`DividerOps`), undo-window holder (`DiscardSlot`), first-run gesture onboarding (`GestureTutorial`). **UI is locked to portrait** (`screenOrientation=portrait` in the manifest) — icons counter-rotate via `Modifier.rotate(-deviceOrientation)` with shortest-arc animation.
+- `ui/capture/` — capture screen, VM, gestures (`QueueStrip`, `QueueThumbnail`), divider arithmetic (`DividerOps`), first-run gesture onboarding (`GestureTutorial`). The discard-undo window uses `TimedSlot<StagingSession>` from `ui/common/`. **UI is locked to portrait** (`screenOrientation=portrait` in the manifest) — icons counter-rotate via `Modifier.rotate(-deviceOrientation)` with shortest-arc animation.
 - `ui/setup/`, `ui/settings/`, `ui/common/`, `ui/theme/` — first-run folder picker, settings, shared banner/picker, Material 3 theme with dynamic color on Android 12+.
 - `data/camera/` — `CaptureController` owns `ProcessCameraProvider` + `ExtensionsManager`, binds use cases under a `bindMutex`; `OrientationEventListener` snaps device degrees to cardinal and writes `ImageCapture.targetRotation` so EXIF orientation reflects physical pose even with the UI locked. Exposes `bind(.., lens: LensFacing, ..)` (back/front selector) and `setFlashMode(FlashMode.Off/Auto/On)` that mutates live `ImageCapture.flashMode`. `bind()` re-applies `currentFlashMode` *after* installing the new capture — otherwise a `setFlashMode()` call that races the rebind targets the about-to-be-discarded old `ImageCapture`.
 - `data/exif/` — `ExifWriter.stamp` (capture-time) and `stampFinalMetadata` (worker-time, single open/save). `OrientationCodec` converts between device degrees / `Surface.ROTATION_*` / ExifInterface tags.

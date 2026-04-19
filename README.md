@@ -4,7 +4,13 @@ Native Android camera app for capturing **bundles** of photos. A bundle produces
 
 > The Gradle `namespace` and `applicationId` remain `com.example.bundlecam` — renaming them would orphan existing installs on upgrade. Everything user-facing, every class / log tag / EXIF identifier, and every document uses **Recon**.
 
-For the user-facing product spec and interaction design, see [`recon-mvp-designs.md`](./recon-mvp-designs.md).
+**Other docs:**
+- [`recon-mvp-designs.md`](./recon-mvp-designs.md) — product + UX + architecture design spec (platform-neutral; canonical source for an iOS port).
+- [`RELEASE.md`](./RELEASE.md) — signing, R8, and Play Store release runbook.
+- [`BACKLOG.md`](./BACKLOG.md) — post-MVP directions (OCR / MinerU companion, LocalSend peer-to-peer transfer).
+- [`CLAUDE.md`](./CLAUDE.md) — condensed architecture reference for Claude Code agents.
+
+This README is the **Android-specific technical reference**: module layout, dependency versions, resilience rationale, and testing. Read `recon-mvp-designs.md` for the product design rationale.
 
 ---
 
@@ -93,7 +99,7 @@ No DI framework — a plain singleton [`AppContainer`](./app/src/main/java/com/e
 
 ### Three-phase capture lifecycle
 
-**Phase 1 — Shutter (≤100ms, UI thread budget).** CameraX returns a JPEG → write to internal staging (`filesDir/staging/session-{uuid}/p-{k}.jpg`) → stamp EXIF (time, GPS if available, orientation) → decode a small thumbnail → push onto the queue. No SAF writes yet.
+**Phase 1 — Shutter (≤100ms, UI thread budget).** CameraX returns a JPEG → write to internal staging (`filesDir/staging/session-{uuid}/{photo-uuid}.jpg` — each file is a random UUID; queue order lives in the manifest, not the filesystem) → stamp EXIF (time, GPS if available, orientation) → decode a small thumbnail → push onto the queue. No SAF writes yet.
 
 **Phase 2 — Commit (single frame).** User swipes the queue. `CaptureViewModel.onCommitBundle` pivots the UI synchronously on Main — nulls `currentSession`, clears `queue` + `dividers` — so the shutter is ready on the very next frame. The actual bookkeeping (allocate bundle IDs, write [`PendingBundle`](./app/src/main/java/com/example/bundlecam/pipeline/PendingBundle.kt) manifests to disk, enqueue `BundleWorker`s) runs in a background coroutine. If the process dies before the manifest is saved, photos are still on staging and `OrphanRecovery` restores the session as a queue on next launch.
 

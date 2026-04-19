@@ -1,407 +1,677 @@
-# Recon MVP — Native Designs (v1 scope)
+# Recon — Design Spec
 
 _Pure capture tool. Photos go into a queue, the user commits a bundle, files land in folders. That's it._
 
+This document is the **canonical product and interaction spec** for Recon. It is platform-neutral: every claim is grounded in the shipped Android reference implementation, but the architecture, resilience model, and interaction vocabulary described here are the target for any port (iOS first).
+
+For the Android-specific technical reference (file layout, module responsibilities, dependency versions), see [`README.md`](./README.md). For release/signing runbook, see [`RELEASE.md`](./RELEASE.md). For post-MVP ideas (OCR / LAN peer-to-peer transfer), see [`BACKLOG.md`](./BACKLOG.md).
+
 ---
 
-## What v1 is (and isn't)
+## Purpose
+
+Recon captures **bundles** of photos. A bundle is an ordered sequence the user decides is related — pages of a document, facets of an object, scenes in a sequence — committed as one unit. A commit produces up to two parallel outputs in the user's chosen folder:
+
+- **Raw photos** in `bundles/{bundle-id}/` — one JPEG per shot, numbered to preserve order.
+- **A vertically-stitched JPEG** in `stitched/` — all photos in the bundle composed top-to-bottom into one image.
+
+Both outputs share a common bundle ID, so a downstream pipeline can reconstruct bundle membership from either format.
+
+The UX target is **machinegun cadence**: shoot-shoot-shoot-swipe-shoot-shoot-swipe, with no perceptible delay between any tap and the next. All heavy work (EXIF stamping, SAF I/O, stitching) happens off the interaction path.
+
+## Scope
 
 **In scope:**
-- One-time output folder setup on first launch
-- A single capture screen with a photo queue
-- A single bundle commit action whose outputs are controlled by settings: a stitched single image AND/OR the raw individual photos with naming pattern, written to two parallel folders (at least one output must be on — both on is the default)
-- Auto-captured EXIF: timestamp, GPS, orientation, bundle ID
-- An in-app **Bundle Preview** list for reviewing and deleting saved bundles (per-bundle swipe-to-delete with a configurable undo window; modality icons indicate which outputs exist)
-- Minimal settings
+- One-time output-folder setup on first launch.
+- A single capture screen with a photo queue.
+- A single swipe-commit gesture whose outputs are controlled by settings (raw folder AND/OR stitched image; at least one on; both on is the default).
+- Auto-captured EXIF: timestamp, GPS, orientation, bundle-ID marker.
+- An in-app **Bundle Preview** list for reviewing and deleting saved bundles (per-bundle swipe-to-delete with configurable undo window).
+- First-run gesture tutorial, re-triggerable from Settings.
+- Minimal settings: output folder, output toggles, stitch quality, shutter sound, delete-confirmation + undo window.
 
 **Out of scope:**
-- Capture modes (Document/Object/Scene), post-processing, auto-crop
-- User-entered metadata (tags, notes, prefix chips)
-- Full in-app viewer — the Preview screen lists bundles; for opening files the user deep-links out to the system file browser
-- Export/share flows — output is files on disk; the user takes it from there
-- Pipelines, cloud, OCR, automation hooks
+- Capture modes (document / object / scene), post-processing, auto-crop.
+- User-entered metadata (tags, notes, prefix chips).
+- A full in-app photo viewer — Bundle Preview lists bundles; opening individual files deep-links to the system file browser.
+- Export / share flows — output is files on disk; the user takes it from there.
+- Pipelines, cloud, OCR, automation hooks. (See [`BACKLOG.md`](./BACKLOG.md) for post-MVP directions.)
 
 ---
 
-## Naming pattern
+## The interaction vocabulary
 
-`{date}-s-{xxxx}-p-{k}.jpg`
+The entire app, once onboarded, is six gestures:
 
-Where:
-- `date` = calendar date of the bundle, formatted `yyyy-mm-dd`
-- `xxxx` = zero-padded daily bundle counter, resets at local midnight
-- `k` = zero-padded photo index within the bundle, starting at `01`
+| Gesture | Start region | Motion | Effect |
+|---|---|---|---|
+| **Capture** | Shutter button | Tap | Photo appended to queue's right end |
+| **Commit** | Left handle of queue strip | Drag right past threshold | Queue → bundle(s) written to disk |
+| **Discard** | Right handle of queue strip | Drag left past threshold | Queue cleared (with 3-second undo) |
+| **Delete one** | A thumbnail in the queue | Swipe down past threshold | Just that photo removed |
+| **Reorder** | A thumbnail in the queue | Long-press then drag horizontally | That thumbnail moved within the queue |
+| **Divide / Un-divide** | The gap between two adjacent thumbnails | Swipe down to insert a divider; swipe up to remove | Queue partitions into sub-bundles; one swipe-commit produces N parallel bundles |
 
-Example: `2026-04-14-s-0003-p-02.jpg` — the 2nd photo of the 3rd bundle started on 14 April 2026.
+Because every gesture has a **unique starting region**, disambiguation is deterministic. A touch on a thumbnail never triggers commit or discard; a touch on a handle never triggers reorder. There is no velocity arbitration between competing gestures and no slop tuning.
 
-`yyyy-mm-dd` sorts chronologically in any file listing, which matters for every downstream tool that reads the folders in default order.
-
-The stitched image for a bundle is named `{date}-s-{xxxx}-stitch.jpg` (no `-p-k`).
-
----
-
-## Folder structure on disk
-
-```
-<user-selected-root>/
-├── bundles/
-│   └── {date}-s-{xxxx}/
-│       ├── {date}-s-{xxxx}-p-01.jpg
-│       ├── {date}-s-{xxxx}-p-02.jpg
-│       └── ...
-├── stitched/
-│   ├── 2026-04-14-s-0001-stitch.jpg
-│   ├── 2026-04-14-s-0002-stitch.jpg
-│   └── ...
-└── .recon-staging/      ← internal; hidden from user
-    └── session-{uuid}/
-        └── p-{k}.jpg         ← raw photos written at capture time
-```
-
-By default a bundle commit writes to both `bundles/{bundle-id}/` (raw photos) and `stitched/` (the stitched image) simultaneously, so downstream tooling can consume either format without recapture. The "Bundle output" settings block exposes per-output toggles (**Individual photos in subfolder** / **Vertical stitched image**) so users who only need one of the two can skip the unused pipeline branch. At least one must remain on — the UI locks the only-on toggle, and the settings repository sanitizes a `(false, false)` read back to `(true, true)` as a safety net.
-
-The two folders share a common bundle ID (`{date}-s-{xxxx}`), so raw photos and the stitched image for the same capture event are always findable and pairable.
-
-`.recon-staging/` is an internal working area, hidden from the user by the leading-dot convention. Its role is covered in the async pipeline section.
-
----
-
-## User flow
-
-**First launch**
-1. App opens to a brief "Pick output folder" screen
-2. User taps "Choose folder" → OS folder picker appears
-3. App persists the reference and creates `bundles/` and `stitched/` subfolders
-4. App drops into the capture screen, where a full-screen `GestureTutorial` overlay walks through the five main-screen gestures (commit, discard, delete-one, reorder, split) once. Skip or Got-it dismisses and sets `seenGestureTutorial = true`. Settings → "Gesture tutorial → Show" re-triggers the overlay.
-
-**Every subsequent launch**
-1. App opens directly to the capture screen, folder already configured, overlay already acknowledged.
-
-**Capture loop** — the user only ever does five things:
-
-1. **Tap shutter** → photo taken, thumbnail appears at the right end of the queue
-2. **Swipe the queue right** (from the left handle) → bundle commits: whichever outputs are enabled in settings are written in parallel (by default the stitched image to `stitched/` and the individual photos to `bundles/{bundle-id}/`), brief success flash, queue clears, daily counter increments
-3. **Swipe the queue left** (from the right handle) → discard: queue clears without writing anything (with a brief undo toast)
-4. **Swipe a single thumbnail down** → delete just that photo from the queue
-5. **Drag a thumbnail horizontally** → reorder within the queue; this ordering determines both the vertical sequence in the stitched image and the `-p-k` index in the loose filenames
-
-That's the entire interaction vocabulary.
+The six gestures compose: a user can shoot, reorder, insert dividers, delete a bad shot, and commit — all in one queue session — and the pipeline treats it as a single atomic operation at the end.
 
 ---
 
 ## Capture screen anatomy
 
-```
-At rest (queue has photos, no gesture active):
+The capture screen is locked to portrait orientation (see [Design decisions § Portrait lock](#design-decisions)). Every icon counter-rotates to match the device's physical orientation, so labels and glyphs always read right-side-up.
 
+```
 ┌─────────────────────────────────────┐
-│   ⚙                              ⚡ │  ← settings | flash
+│  ⚙       EXT ▸ ZSL           🖼  │  ← top bar: settings · camera-mode toggle · bundle library
 │                                     │
-│          ┌───────────────┐         │
-│          │  live preview │         │
-│          └───────────────┘         │
-│                   ⬤                │  ← shutter
+│   ┌─────────────────────────────┐   │
+│   │                             │   │
+│   │       live preview          │   │  ← 3:4 viewfinder
+│   │  (tap-to-focus, pinch-zoom) │   │
+│   │                             │   │
+│   └─────────────────────────────┘   │
+│         0.5×   1×   2×   5×         │  ← zoom chips (hardware-filtered)
 │                                     │
-│  ║  ┌──┬──┬──┬──┬──┐  ║             │
-│  ║  │p1│p2│p3│p4│p5│  ║             │  ← neutral grab handles | queue
-│  ║  └──┴──┴──┴──┴──┘  ║             │
+│       ⚡auto    ⬤    ⇆             │  ← flash cycle · shutter · lens flip
+│                                     │
+│   ║  ┌──┬──┬──┬──┬──┐  ║            │  ← queue strip: left handle · tray · right handle
+│   ║  │p1│p2│p3│p4│p5│  ║            │    (72dp tall, 56dp thumbs, 6dp gap)
+│   ║  └──┴──┴──┴──┴──┘  ║            │
 └─────────────────────────────────────┘
-
-
-During a bundle gesture (finger holds left handle, drags →):
-
-│  ║══════════════════▶ ✓             │
-│  ▓  ┌──┬──┬──┬──┬──┐  ┃             │  ← green flow toward lit ✓ destination
-│  ▓  │p1│p2│p3│p4│p5│  ┃             │
-│  ▓  └──┴──┴──┴──┴──┘  ┃             │
-
-
-During a discard gesture (finger holds right handle, drags ←):
-
-│   ✕ ◀══════════════════║            │
-│   ┃ ┌──┬──┬──┬──┬──┐  ▓             │  ← amber flow toward lit ✕ destination
-│   ┃ │p1│p2│p3│p4│p5│  ▓             │
-│   ┃ └──┴──┴──┴──┴──┘  ▓             │
 ```
 
-The capture screen is chromeless. No mode toggle, no prefix field, no tagging — just preview, shutter, and a three-part queue strip with neutral handles. Bundling produces whichever outputs are enabled in settings (by default both the raw photos and the stitched image), so the user never has to choose at commit time.
+### Top bar (inside status-bar padding)
 
-### The three-part queue strip
+- **Settings** (left) — gear icon, opens the Settings screen.
+- **Camera-mode toggle** (center) — `EXT / ZSL` segmented pill.
+    - `ZSL`: zero-shutter-lag capture via CameraX's `CAPTURE_MODE_ZERO_SHUTTER_LAG`. Uses a frame ring buffer; shortest latency; preferred default.
+    - `EXT`: CameraX Extensions in `AUTO` mode (device-chosen HDR / night / beauty) with `CAPTURE_MODE_MINIMIZE_LATENCY`. Falls back to the base selector if extensions aren't available on the device.
+    - Mode switch triggers a camera rebind; shutter briefly disabled during rebind.
+- **Bundle library** (right) — photo-library icon, opens the Bundle Preview screen. Disabled until the user has picked an output folder.
 
-At rest, the strip has three regions:
+### Viewfinder
 
-- **Left handle (~40pt/dp):** a neutral vertical bar, thin and grey. Reads as a grab-point. No ✕, no ✓, no color. It's a handle.
-- **Middle (scrollable):** thumbnails. Direct gesture targets for reorder (horizontal drag) and delete (down swipe).
-- **Right handle (~40pt/dp):** symmetric neutral vertical bar.
+- 3:4 aspect ratio, fills the available width under the top bar.
+- **Tap-to-focus**: tapping anywhere on the preview fires an `AF + AE` metering action (3-second duration) and shows an animated circle indicator at the tap point (scale 1.5× → 1×, 500ms lifetime).
+- **Pinch-to-zoom**: a two-finger pinch multiplies the current zoom ratio; the visible ratio updates the zoom chip selection live.
 
-Both handles are dimmed when the queue is empty and become subtly vibrant when the queue has at least one photo.
+### Zoom chips
 
-### Semantic icons appear at destinations
+Row of pill-shaped buttons for presets `0.5× / 1× / 2× / 5×`. The row filters to only the presets that fall within the device's reported min/max zoom range (a phone without an ultrawide won't show `0.5×`). The currently-selected ratio renders with a trailing `×` suffix. Width transitions animate over 180ms linear when the set of available presets changes.
 
-The ✓ and ✕ are not stamped on static positions. They appear contextually on the **opposite edge** from the finger, because that edge is the destination the swipe is heading toward. An icon at the destination reads correctly ("swiping toward ✓ means save"); an icon at the starting point would contradict the swipe's direction.
+### Bottom controls row
 
-| State | Left edge | Right edge |
-|---|---|---|
-| Rest | neutral handle | neutral handle |
-| Finger on left handle | handle with subtle grab-pulse | transforms to green panel with ✓ |
-| Finger on right handle | transforms to amber panel with ✕ | handle with subtle grab-pulse |
+Three circular buttons laid out as **flash · shutter · lens flip**:
 
-The transformation is fast (~120ms ease-out) so it feels responsive, not delayed.
+- **Flash** (left) — cycles `Off → Auto → On`. Icon changes per mode (`⚡off / ⚡auto / ⚡on`). `Off` renders at 65% opacity; `Auto`/`On` at 100%. Mode is applied live to the `ImageCapture` use case without rebinding, and re-applied after any rebind so it survives lens flips and mode switches.
+- **Shutter** (center) — 80dp circle, white border (3dp) with white fill. Disabled during the ≤100ms capture window and during camera rebinds (dims to 50% when disabled).
+- **Lens flip** (right) — `↔` icon; toggles between back and front camera. Disabled mid-capture or mid-rebind. Triggers a rebind on the same executor/mutex that the capture path holds, so a tap during capture is rejected cleanly rather than racing.
 
-Discard uses amber, not red, because discard has an undo — it's reversible. Red reads as "final/dangerous" and would make users hesitant to use a gesture that's actually safe to play with. Amber reads as "warning, but recoverable."
+All three icons counter-rotate with device orientation via a spring animation on the shortest rotational arc.
 
-### The five user actions
+### Queue strip (72dp tall, pinned above navigation-bar insets)
 
-| Action | Finger starts on | Motion | Result |
-|---|---|---|---|
-| Capture | Shutter | Tap | Photo added to right end of queue |
-| Bundle | Left handle | Drag rightward | Green flow across queue → right edge lights up ✓ → at threshold, queue compresses and flies into the ✓ panel with a bright flash, queue clears |
-| Discard | Right handle | Drag leftward | Amber flow across queue → left edge lights up ✕ → at threshold, queue puffs out through the ✕ panel, queue clears, undo toast for 3s |
-| Delete one | A specific thumbnail | Swipe down | That thumbnail slides down and fades |
-| Reorder | A specific thumbnail | Drag horizontally | Thumbnail sticks to finger, neighbors shift, release to drop |
+Three regions:
 
-Because each gesture has a **unique starting region**, disambiguation is deterministic. A touch that begins on a thumbnail will never trigger bundle or discard. A touch that begins on a handle will never trigger reorder. No velocity thresholds, no slop tuning.
+- **Left handle** (`EdgeZoneMinWidth = 60dp`, grows to fill empty tray on short queues). Neutral vertical bar at rest; transforms into a green `✓` destination panel mid-commit-gesture.
+- **Tray** (middle, horizontally scrollable). Rounded 56dp thumbnails with 6dp gap, 8dp outer padding. Between adjacent thumbnails is an invisible 24dp divider hit zone (see [Divide / Un-divide](#gesture-mechanics-in-depth)).
+- **Right handle** (symmetric, also 60dp-and-growing). Transforms into an amber `✕` destination panel mid-discard-gesture.
 
-### Mid-gesture visual feedback
+Handles are dimmed when the queue is empty and become subtly vibrant when the queue has at least one photo. `systemGestureExclusion()` is applied flush to the screen edges on both sides so Android's system-gesture navigation doesn't eat the edge-swipe.
 
-The moment the finger touches a handle, a color "fills" out from the finger under the queue, tracking the finger position. As the finger drags across, the color advances and the destination edge becomes progressively more vibrant.
+### Overlays (peer of the queue strip, layered inside the same `Box`)
 
-- **Bundle**: green gradient flows left-to-right under the queue. Thumbnails subtly tilt right as if being pushed. The ✓ panel on the right pulses brighter as the finger approaches. Crossing the commit threshold (around 60–70% of travel) triggers a haptic tick and the panel "locks on" — at that point, even if the finger lifts early, the gesture completes.
-- **Discard**: amber gradient flows right-to-left. Thumbnails subtly tilt left. The ✕ panel on the left pulses. Same threshold behavior.
+These occupy the 72dp queue-strip slot and never push other UI down:
 
-This continuous feedback makes the gesture feel physical. The user understands exactly where in the swipe they are, what action it commits, and — crucially — that they can abort by dragging back toward the starting handle before crossing threshold. On abort, the queue reverts to rest state, no harm done.
+- **UndoToast** — "Discarded N photo(s) · Undo" during the 3-second discard-undo window.
+- **BundleSavedShimmer** — green pill that fades in (150ms), holds (900ms), fades out (150ms). Text: `Bundle {id} saved` for single-bundle commits, `N bundles saved ({first}–{last})` when dividers split the queue into multiple bundles.
+- **ActionBanner** — dismissible red pill for recoverable errors (e.g. "Capture failed", "No output folder set"). Text capped at two lines with ellipsis so it fits within 72dp.
+- **DeleteGlow** — 18dp red gradient at the bottom edge of the queue strip, intensifying with delete-progress as the user drags a thumbnail downward.
 
-### Completion animations
+### GestureTutorial (first-run scrim, drawn above everything)
 
-- **Bundle commit**: thumbnails slide rightward and compress into the ✓ panel; ✓ flashes bright white-on-green for ~200ms; strong success haptic; where the queue was, a brief green shimmer with "Bundle 2026-04-14-s-0003 · saved" (fades in 150ms, holds 400ms, fades out 150ms); both edges return to neutral handle state, queue area is empty.
-- **Discard**: thumbnails slide leftward and dissolve through the ✕ panel with a puff (scale down + fade); medium haptic; bottom toast "Discarded · Undo" with a 3-second progress bar. Tapping Undo within 3s restores the queue exactly.
-- **Delete one**: the thumbnail slides downward and fades in ~200ms; light haptic; neighbors close the gap with a spring.
-- **Reorder**: thumbnail lifts with a subtle 2dp shadow while dragging; neighbors animate out of the way with a 120ms ease; on release, thumbnail settles into slot with a gentle spring bounce.
-- **Capture**: subtle shutter sound (toggleable); the new thumbnail flies in from the shutter button to the queue tail with a 300ms curve, light haptic tick.
+A full-screen black-at-82%-opacity scrim with 5 steps (commit, discard, delete-one, reorder, divide). The demo strip inside the overlay uses the real 72dp queue height and is pinned to the bottom with a 12dp nav-bar gap, so muscle memory transfers when the overlay dismisses. The scrim consumes every pointer event (the `awaitEachGesture` loop eats every unconsumed change) — do not poke holes, or users can accidentally swipe the real (empty) queue beneath. Shown once when `seenGestureTutorial == false`; re-triggerable from Settings.
 
-### Touch targets
+---
 
-- Shutter: large circle, center-bottom, 80pt/dp
-- Queue thumbnails: 56pt/dp squares, rounded 8pt, horizontal scroll if the queue overflows the middle region
-- Handles: each ~40pt/dp wide × 72pt/dp tall. Slim at rest; expand visually to ~56pt/dp wide when finger is on them so the hit zone feels confident
+## Gesture mechanics in depth
 
-No long-press, no pinch, no two-finger gestures, no preview mode. To inspect a photo already taken, the user opens the output folder in their OS file browser after bundling.
+### Capture
+
+- **Start region**: the shutter button.
+- **Motion**: single tap. Gesture completes instantly; no threshold.
+- **Feedback**: short haptic tick (`CONTEXT_CLICK`) + optional shutter sound (user-toggleable, default on). New thumbnail appears at the right end of the queue; tray scrolls to make it visible.
+- **Timing**: shutter re-enables within ~50–200ms depending on device. The underlying write is async (see [Phase 1](#phase-1--capture-100ms-ui-thread-budget)), so the button is usable before the file is fully staged.
+
+### Commit
+
+- **Start region**: left handle of the queue strip.
+- **Motion**: horizontal drag rightward.
+- **Threshold (hybrid)**: commit fires when `|dragX| ≥ maxWidth / 2` **or** `|velocity| ≥ 80dp/s` in the commit direction. A flick short of halfway still commits if fast enough; a slow deliberate drag past halfway also commits. Velocity tracking uses the platform's standard `VelocityTracker`.
+- **Feedback during drag**:
+    - Green gradient (the "tide") fills under the queue left-to-right, progress tracking the finger.
+    - Thumbnails tilt up to +3° to the right (spring damping).
+    - The right edge transforms into a green `✓` destination panel, intensity rising with progress.
+    - Handle bars scale up from 4dp/44dp to 10dp/56dp (width/height) to show the handle is "pressed".
+    - On crossing 50% travel, a medium haptic tick (`CLOCK_TICK`) fires as a threshold marker.
+- **Completion**: green flash (220ms). Thumbnails fly off the right edge (350ms exit). Strong commit haptic (`CONFIRM` on API 30+, else `CONTEXT_CLICK`). `BundleSavedShimmer` plays.
+- **Abort**: dragging back below threshold with no velocity reverts the tide + tilt + destination panel with spring animation — no commit fires.
+
+### Discard
+
+Mirror of commit:
+- **Start region**: right handle.
+- **Motion**: horizontal drag leftward.
+- **Same threshold model** (50% distance OR 80dp/s velocity).
+- **Feedback**: amber tide right-to-left, thumbnails tilt left, left edge shows an amber `✕` destination panel.
+- **Completion**: amber flash (220ms), left-edge exit animation, medium haptic (`LONG_PRESS`). An undo toast appears for 3 seconds.
+- **Why amber, not red**: discard is **undoable** within the 3-second window. Red reads as "final / dangerous" and would make users hesitate on a safe gesture. Amber reads as "warning, but recoverable."
+
+### Delete one
+
+- **Start region**: a specific thumbnail.
+- **Motion**: vertical drag downward.
+- **Feedback**: the thumbnail slides downward, following the finger; a red DeleteGlow intensifies at the bottom edge of the queue strip; haptic tick at threshold.
+- **Completion**: thumbnail slides fully down and fades (~200ms). Neighbours close the gap with a spring. Dividers are remapped: if the deleted index split a partition, the divider index after it shifts down by 1; dividers that would straddle fewer than 2 items collapse.
+- **Abort**: releasing below threshold springs the thumbnail back into place.
+
+### Reorder
+
+- **Start region**: a specific thumbnail.
+- **Motion**: long-press (≥500ms) and then horizontal drag.
+- **Feedback**: thumbnail lifts with a small shadow; neighbours shift out of the way with a 120ms ease; the dragged thumbnail follows the finger instantly.
+- **Completion**: on release, the thumbnail settles into the nearest slot with a spring bounce. The release index becomes its new position; the `-p-{kk}` index in output filenames reflects this new order.
+- **Divider interaction**: reorder does not touch dividers — they keep their absolute indices. Reordering across a divider does not remove it; the partition boundary stays where the user put it.
+
+### Divide / Un-divide
+
+- **Start region**: the 24dp gap between two adjacent thumbnails (the "divider hit zone"). This zone is drawn **above** thumbnails in Z-order and consumes its pointer in the initial pass so the overlapping thumbnails underneath don't steal the touch.
+- **Motion**: swipe down past ~24dp to insert a divider at that gap; swipe up past the same threshold to remove it.
+- **Feedback**: a vertical divider line appears/disappears with a fade + spread (neighbouring thumbs slide apart ~18dp total, maintaining the center of the gap so the line stays anchored).
+- **Completion**: queue is now partitioned. On the next commit swipe, each partition becomes its own bundle, each with its own freshly-allocated bundle ID (see [Phase 2](#phase-2--commit-single-frame-ui-thread)).
+
+### Queue-size-aware edge zones
+
+The base edge-zone width is `EdgeZoneMinWidth = 60dp`. When the tray has empty slack (short queue, thumbs don't fill across), each zone grows by `slack / 2` so the user can begin a commit/discard swipe from further inward. The width is capped two ways:
+
+- Per side, `maxWidth * 0.33` (the `EdgeZoneMaxFraction` — each zone is at most a third of the screen).
+- Combined, `maxWidth / 2 - 24dp` (the `EdgeZoneMiddleGuard` — the two zones can never meet; there's always at least a 24dp neutral strip).
+
+Width changes animate over 180ms linear so a mid-gesture queue-size change (e.g. a burst resolving while the user is dragging) doesn't yank the hit region from under the finger. The **destination fill** (the `✓` / `✕` glyph + commit flash) is decoupled from the input width — it always renders at 60dp anchored to the screen-edge side, so widening the input area doesn't bloat the visual.
+
+### Edge zones overlap the tray (not vice versa)
+
+Edge zones are stacked on top of the tray inside an outer `Box`. The tray is padded 48dp on each side so thumbnails render in the middle slab. Horizontal-drag detectors inside each zone only claim pointers after crossing the platform's horizontal touch slop, so taps and vertical drags on thumbnails propagate through even when the zone widens into thumbnail territory. Long-press-then-drag reorder still fires from the thumbnail's own pointer handler because long-press doesn't move.
+
+---
+
+## Naming & folder layout
+
+### Bundle ID
+
+`{date}-s-{counter}` where:
+- `date` = local calendar date at bundle-allocation time, `yyyy-mm-dd`. Sorts chronologically in any file listing, which matters for every downstream tool that reads the folders in default order.
+- `counter` = zero-padded (4 digits) daily monotonic counter. Resets at local midnight.
+
+Example: `2026-04-14-s-0003`.
+
+The counter is incremented **atomically** from persistent storage at commit time, before any output I/O. If a worker fails partway through writing its bundle, the counter does not rewind — the next commit gets the next ID, and a retry of the failed bundle reuses its allocated ID.
+
+### Filenames
+
+- Raw photo: `{bundle-id}-p-{kk}.jpg` (2-digit photo index, 01-based).
+    - e.g. `2026-04-14-s-0003-p-02.jpg` — the 2nd photo of the 3rd bundle on 14 April 2026.
+- Stitched image: `{bundle-id}-stitch.jpg`.
+
+### Folder structure on disk
+
+```
+{user-selected-root}/
+├── bundles/
+│   └── {bundle-id}/
+│       ├── {bundle-id}-p-01.jpg
+│       ├── {bundle-id}-p-02.jpg
+│       └── ...
+└── stitched/
+    ├── {bundle-id-A}-stitch.jpg
+    ├── {bundle-id-B}-stitch.jpg
+    └── ...
+```
+
+The two folders share a common bundle ID, so raw photos and the stitched image for the same capture event are always findable and pairable.
+
+`bundles/` and `stitched/` are created at folder-pick time (under the SAF tree on Android, under the security-scoped bookmark on iOS). If either is missing at commit time — user deleted it externally, cloud-sync hiccup — the worker recreates it, tolerating race conditions from concurrent creators.
+
+### Internal staging (NOT under the user folder)
+
+Recon does **not** stage raw captures inside the user's output folder. Staging lives entirely in the app's **internal storage**:
+
+- Android: `filesDir/staging/session-{uuid}/{photo-uuid}.jpg`.
+- iOS: `FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]/staging/session-{uuid}/{photo-uuid}.jpg`.
+
+There are two reasons for this:
+
+1. **Latency.** Writing every capture into a SAF/bookmark tree would mean an IPC round-trip per photo (Android) or security-scoped-resource dance per photo (iOS). Internal storage is a direct `FileOutputStream` — microseconds.
+2. **User folder hygiene.** The user picks a folder to receive committed bundles, not a folder to receive in-flight raw captures. Staging the in-progress queue there would mean the user sees a moving "session-uuid" directory full of raw files until every bundle commits. Unacceptable.
+
+Committed bundles are **copied** from staging to the user folder by the background worker (see [Phase 3](#phase-3--worker-serial-off-thread-seconds-to-tens-of-seconds)). Rename/move tricks do not apply because internal storage and the user folder are on different filesystems (SAF is a content provider, not a filesystem; a bookmark points into a different sandbox). Copy is the only correct operation.
 
 ---
 
 ## Auto-captured metadata
 
-Written to each photo's EXIF at capture time, with no user interaction:
+Every photo's EXIF is stamped at capture time (Phase 1) and then finalised at commit time (Phase 3). Users never enter any of this.
 
-| Field | Source | Notes |
+| Field | When | Source | Notes |
+|---|---|---|---|
+| `DateTimeOriginal` + `DateTime` | Phase 1 | System clock, device local timezone | Per-photo timestamp, formatted `yyyy:MM:dd HH:mm:ss`. |
+| `Make` / `Model` | Phase 1 | Device metadata | Standard. |
+| `Orientation` | Phase 1 | Accelerometer-derived (see [Design decisions § Orientation](#design-decisions)) | EXIF orientation tag reflects physical device pose even with UI locked to portrait. |
+| `GPSLatitude` / `GPSLongitude` etc. | Phase 1 (best-effort) + Phase 3 (backfill) | Fused location with 30s TTL cache | Stamped at Phase 1 if a cached fix is available; otherwise backfilled at Phase 3 after a bounded (2s) location refresh. First-capture without GPS is still delivered — just without coordinates. |
+| `UserComment` | Phase 3 | Storage layout | Raw photos: `Recon:{bundle-id}:p{kk}`. Stitched: `Recon:{bundle-id}:stitch`. Preserves membership + sequence if files are moved or mixed. |
+
+The `UserComment` is the product's worst-case-recovery mechanism: even if folder structure is lost, bundle membership and per-photo order can be reconstructed from EXIF alone.
+
+---
+
+## The three-phase async pipeline
+
+Capture → commit → process. Each phase has a hard role; the boundaries between them are the app's load-bearing correctness guarantees.
+
+### Phase 1 — Capture (≤100ms, UI-thread budget)
+
+Per shutter tap:
+
+1. Camera delivers a JPEG buffer.
+2. Write the JPEG to internal staging (`staging/session-{uuid}/{photo-uuid}.jpg`).
+3. Stamp capture-time EXIF on the file: DateTimeOriginal, orientation, make/model, and GPS if a cached fix (≤30s old) is available.
+4. Decode a small thumbnail (~50KB in-memory bitmap + path reference) for the queue UI.
+5. Append the staged photo to the queue state; shutter re-enables.
+
+In-memory footprint per queued photo is **just the thumbnail**, not the full photo. A 50-photo queue costs ~2.5MB of thumbnails, not ~250MB of decoded JPEG. Raw JPEGs are **durable on disk** from the moment the shutter fires.
+
+If the process dies here, staging persists — see [Resilience](#resilience).
+
+### Phase 2 — Commit (single frame, UI thread)
+
+The swipe-commit gesture must re-enable the shutter by the next frame. It does so by splitting Phase 2 into a **synchronous UI pivot** and a **deferred background step**:
+
+**Synchronous (on the UI thread):**
+- Snapshot the queue's ordered list of staging paths + the current set of dividers.
+- Null the `currentSession` reference; clear `queue` and `dividers` in UI state.
+- Shutter is now usable. This happens in one frame.
+
+**Deferred (coroutine, off UI thread):**
+- Partition the snapshot by dividers into one or more segments. Each segment becomes its own bundle.
+- For each segment, atomically allocate the next bundle ID from persistent storage (the daily counter).
+- Build a `PendingBundle` manifest per segment — JSON-serializable record of: bundle ID, root URI, stitch quality, session ID, ordered photo list (path + rotation), capture timestamp, `saveIndividualPhotos` flag, `saveStitchedImage` flag. Flags are **frozen at commit time** so a settings change mid-flight doesn't change what an already-queued worker produces.
+- Write all manifests to internal storage (`pending/{bundle-id}.json`). Write them **all before enqueuing any worker** — a mid-loop crash leaves no enqueued workers on partial state.
+- Enqueue one worker per manifest to the platform's background scheduler (WorkManager on Android, OperationQueue + BGProcessingTask on iOS). Only the `bundle-id` goes through the scheduler's input data; the worker loads the rest from the manifest file. This sidesteps Android's 10KB `Data` limit (a 50-photo bundle's paths exceed it) and makes orphan recovery trivial.
+- Emit a `BundlesCommitted({bundleIds})` event → `BundleSavedShimmer` displays the saved pill.
+
+If the process dies **between the UI pivot and the manifest write**, the staging session still exists on internal storage; `OrphanRecovery` at next launch restores it as an uncommitted queue.
+
+### Phase 3 — Worker (serial, off-thread, seconds to tens of seconds)
+
+One worker per bundle manifest, wrapped in a **foreground service** (Android) / `beginBackgroundTask` (iOS) so the OS grants time to finish. A **process-wide mutex** serialises all bundle workers — stitching a tall image allocates ~60% of heap, and two in parallel reliably OOMs mid-range devices.
+
+Per worker:
+
+1. Load `pending/{bundle-id}.json`.
+2. If `saveIndividualPhotos`:
+    - Refresh location (bounded 2s). Backfill GPS EXIF on any staged photo missing it. Stamp `UserComment = "Recon:{bundle-id}:p{kk}"`. Both in one open/save pass per file (avoids paying the ExifInterface open-cost twice).
+    - Copy each staged JPEG to `bundles/{bundle-id}/{bundle-id}-p-{kk}.jpg` via SAF/bookmark. Overwrite on name collision so retries don't produce `" (1).jpg"` duplicates.
+3. If `saveStitchedImage`:
+    - Compute stitch layout (see [Stitcher](#stitcher)) from the raw source photos.
+    - Render to a canvas, compress JPEG at the quality tier, stamp `UserComment = "Recon:{bundle-id}:stitch"`.
+    - Copy to `stitched/{bundle-id}-stitch.jpg` via SAF/bookmark.
+4. Delete the manifest file.
+5. If no other pending manifests reference the session, delete the staging session directory.
+
+On failure (I/O error, OOM, crash): the worker returns failure; the manifest persists so the retry at next launch (or via exponential backoff) can resume cleanly.
+
+### Stitcher
+
+Layout math (pure function, testable without bitmap allocation):
+
+1. **Quality ceiling** on width:
+    - `LOW`: 1600 px
+    - `STANDARD`: 1800 px
+    - `HIGH`: unbounded
+2. **Initial common width** = min(narrowest source width, quality ceiling).
+3. **Scale down proportionally** if total composed height > 32,000 px (`HEIGHT_CAP_PX`): `scale = 32000 / totalHeight`, reduce `commonWidth` and each per-slot height by that factor.
+4. **Scale down further** if planned ARGB bytes (`commonWidth * totalHeight * 4`) exceed `60%` of runtime heap (`HEAP_BUDGET_FRACTION`): `scale = sqrt(heapBudget / plannedBytes)`, reduce both dimensions uniformly (square root preserves aspect ratio).
+5. Decode each source with a subsample factor (`inSampleSize`) just large enough to fit its slot; rotate per EXIF orientation; draw into a single canvas; compress JPEG at the quality's JPEG tier:
+    - `LOW`: 70
+    - `STANDARD`: 82
+    - `HIGH`: 92
+
+### Resilience
+
+- **Photos survive process kill**: they're on internal storage the moment the shutter fires. On next launch, `OrphanRecovery` scans the staging dir, prunes any sessions marked discarded, re-enqueues manifests whose workers never ran, and restores the most recent live orphan session (the queue the user was building) back into the capture VM. Older live orphans are deleted to prevent unbounded disk growth.
+- **Bundle-ID counter is atomic**: allocated from persistent storage before any output I/O. Worker failure doesn't rewind it. Retries reuse the same ID.
+- **Worker failures are observable without noise**: the failure flow filters pre-existing historical failures on first subscription (the "acknowledged set"). Without this, every app launch would re-surface yesterday's transient failure.
+- **Discard marker is synchronous**: when the user swipes-discard, a `.discarded` marker file is written to the staging session directory **synchronously** on the UI thread (one `File.createNewFile()`, ~1ms, Main-thread-safe) **before** the 3-second undo timer starts. If the process dies inside the undo window, the coroutine that would've cleaned up gets cancelled — but the marker is already on disk. `OrphanRecovery` sees the marker on next launch and deletes the session (instead of restoring it as a zombie queue). Undo removes the marker.
+- **Backpressure is natural**: the worker queue drains at its own pace. If the user commits faster than stitching, bundles pile up and catch up during a pause. Capture latency never depends on worker depth.
+- **Memory stays flat**: photos are on disk, not in RAM. The worker holds at most one bundle's decoded pixels at a time.
+
+---
+
+## Settings
+
+All persisted in a key-value store (DataStore on Android, `UserDefaults` / property-list file on iOS). Defaults are chosen so a first-run user has a functional setup after only picking a folder.
+
+| Setting | Default | Meaning |
 |---|---|---|
-| DateTimeOriginal | System clock | Per-photo timestamp |
-| GPS coordinates | Last known location | Cached 30s to avoid GPS fix delay on every shot |
-| Orientation | Device accelerometer | Honors device rotation |
-| Make/Model | Device metadata | Standard |
-| Bundle ID | Custom EXIF UserComment | `Recon:{bundle-id}:p{k}` — lets downstream tools reconstruct bundle membership and sequence from loose files even if folder structure is lost |
+| **Output folder** | _unset_ (blocks capture until chosen) | The user-picked SAF tree (Android) or security-scoped bookmark (iOS). Shows the path; "Change" button re-triggers the picker. |
+| **Bundle output: Individual photos in subfolder** | On | Whether a commit writes raw JPEGs into `bundles/{bundle-id}/`. |
+| **Bundle output: Vertical stitched image** | On | Whether a commit writes the composed JPEG into `stitched/`. |
+| **Stitch Quality** | Standard | Low / Standard / High. Affects only the stitched image (width ceiling + JPEG quality per [Stitcher](#stitcher)). Disabled when the stitched toggle is off; preference is preserved. |
+| **Shutter sound** | On | Whether to play the system shutter-click sound. |
+| **Confirm before deleting a bundle** | On | If off, swiping a bundle row in Bundle Preview goes straight to pending-delete (or hard delete if undo window = 0s). |
+| **Undo window for bundle deletion** | 5s | Off (0) / 1s / 2s / … / 10s. Controls the countdown shown on a pending-delete row. `Off` removes the pending state entirely — confirmed deletes go through immediately with no undo affordance. |
+| **Gesture tutorial** | _(action)_ | "Show" button clears `seenGestureTutorial` and pops back to capture so the overlay re-appears. |
+| **App version** | _info only_ | Read-only. |
 
-The custom UserComment preserves the product's value proposition even in the worst-case file-hygiene scenario: if files get moved, renamed, or mixed into a larger dataset, membership and sequence are still recoverable from EXIF alone.
+**Output invariant**: at least one of Individual Photos / Stitched must be on. The UI locks whichever switch is the sole-on, showing an inline caption ("At least one output is required.") only while the lock is active. The settings store sanitises a `(false, false)` read (external edit, restore from backup) back to `(true, true)` at read time — a belt-and-suspenders guarantee that a corrupt pair can never silently drop bundles.
 
----
-
-## Async pipeline — capture → stage → commit → process
-
-The UX target is **machinegun cadence**: shot-shot-shot-swipe-shot-shot-shot-swipe with no perceptible delay. The user must be able to take the next photo within milliseconds of a bundle swipe, regardless of how long stitching and final writes actually take. The lifecycle is split into three phases with the heavy work moved off the interaction path.
-
-### Phase 1 — Capture (every shutter tap, ≤ ~100ms)
-
-The photo is written to the staging folder immediately on capture, not held in memory:
-
-1. Camera captures JPEG → buffer
-2. Decode small thumbnail for the queue UI (~30ms)
-3. Spawn async task: write full-resolution JPEG to `.recon-staging/session-{uuid}/p-{k}.jpg` with EXIF embedded
-4. UI updates the queue with the thumbnail immediately (the thumbnail holds only a small in-memory bitmap + a file path reference to staging)
-5. Shutter is ready for the next tap
-
-In-memory footprint per queued photo is just the thumbnail (~50KB), not the full photo (~5MB). The user can queue 50+ photos without memory pressure, and the raw JPEGs are already durably on disk if the app is killed.
-
-### Phase 2 — Bundle commit (on swipe-right, ≤ ~50ms)
-
-The swipe gesture does almost no actual work:
-
-1. Snapshot the current queue state: ordered list of staging file paths + the daily counter's current value
-2. Atomically increment the daily counter (so the next bundle gets the next ID even if this one is still processing)
-3. Hand off the snapshot to the background worker (enqueue a job)
-4. Clear the in-memory queue and return both edges to their empty state
-5. UI is immediately ready for the next capture
-
-No file I/O on the main thread. No stitching. No waiting. The swipe returns control in under a frame.
-
-### Phase 3 — Background processing (per bundle, seconds to tens of seconds)
-
-A background worker, one bundle at a time (FIFO, single-concurrency to avoid disk and memory contention), does the real work:
-
-1. **Loose write**: for each staged photo in the captured order, move it from `.recon-staging/session-{uuid}/p-{k}.jpg` to `bundles/{bundle-id}/{bundle-id}-p-{kk}.jpg`. On same-volume filesystems this is a metadata-only rename — microseconds. Embed the bundle-ID EXIF UserComment during the move.
-2. **Stitch write**: read the now-final raw files sequentially, normalize widths, concatenate vertically, encode JPEG at quality 0.85, write to `stitched/{bundle-id}-stitch.jpg`. Height cap: 32,000 px (above that, memory allocation and JPEG encoders start to fail on mid-range devices).
-3. Clean up the staging session folder.
-4. On success: silent.
-5. On failure: surface a non-blocking banner above the queue strip ("Bundle 0003 couldn't save · Retry"). Do not interrupt ongoing capture.
-
-### Why this architecture is resilient
-
-- **Photos survive app kill**: they're on disk from the moment of capture, in the staging folder. On relaunch, the app detects orphaned staging sessions and silently restores the queue.
-- **Backpressure is natural**: the background worker queue can grow, but capture experience stays fast regardless. If the user bundles faster than stitching completes, bundles pile up in the worker queue and catch up during pauses.
-- **Memory pressure stays flat**: photos are on disk, not in RAM; the worker holds at most one bundle's worth of decoded image data at a time during stitching.
-- **Camera pipeline never contends**: capture-time disk writes are small async tasks on a utility queue; stitching runs on a lower-priority queue with explicit throttling.
+No accounts, no cloud, no permissions management beyond what the OS already provides.
 
 ---
 
-## Settings screen
+## First-run onboarding
 
-1. **Output folder** — shows current path (full URI wraps below the friendly name), "Change" button anchored top-right re-triggers the folder picker
-2. **Bundle output** — two switches for the artifacts a commit produces:
-   - `Individual photos in subfolder` (raw JPEGs into `bundles/{bundle-id}/`)
-   - `Vertical stitched image` (the single tall JPEG into `stitched/`)
-   At least one must remain on — the UI locks whichever switch is the sole-on, and a caption ("At least one output is required.") surfaces only while a lock is active. Individual photos are always saved at original quality.
-3. **Stitch Quality** — nested under `Vertical stitched image`, indented; compact Material 3 dropdown (Low / Standard / High) that affects JPEG quality and downscale thresholds for the stitched image only. Disabled when stitching is off (the preference is preserved for when the user re-enables it).
-4. **Shutter sound** — On / Off
-5. **Confirm before deleting a bundle** — On / Off (default On). When off, swipe-to-delete skips the confirmation dialog and goes straight to the pending-delete state (or straight to hard delete if the undo window is 0s).
-6. **Undo window for bundle deletion** — dropdown, `Off` / `1s` … `10s` (default `5s`). Controls both the countdown shown on the pending-delete row and how long the user has to tap Undo before the files are hard-deleted. `Off` removes the pending state entirely — confirmed deletes go through immediately with no undo affordance.
-7. **App version** — info only
+### Folder picker
 
-No accounts, no cloud, no permissions management beyond OS-level.
+1. App opens to a brief "Pick output folder" screen with the app name and a short explanation.
+2. User taps "Choose folder" → OS folder picker appears.
+    - Android: `ACTION_OPEN_DOCUMENT_TREE` with `takePersistableUriPermission` so the grant survives app kills and reboots.
+    - iOS: `UIDocumentPickerViewController` in `.open` mode with `directoryURL` support; persist `bookmarkData(options: .withSecurityScope)`.
+3. App persists the reference and creates `bundles/` and `stitched/` under the chosen root.
+4. App drops into the capture screen.
+
+### Gesture tutorial overlay
+
+On first entry to the capture screen (`seenGestureTutorial == false`), a full-screen overlay scrims the capture UI and walks the user through **all five queue-strip gestures** (commit, discard, delete-one, reorder, divide) with a looping animated finger over a fake 4-thumbnail demo queue. Text sits mid-screen; pager dots + Next button below; demo strip pinned to the bottom 72dp (same location and size as the real queue strip) so muscle memory transfers on dismiss.
+
+- "Skip" (top-right) or "Got it" (last step) both write `seenGestureTutorial = true` and dismiss.
+- The scrim consumes every pointer event — users cannot accidentally fire real gestures on the (empty) queue beneath.
+- Re-triggerable anytime from Settings → "Gesture tutorial → Show".
+
+### Permissions
+
+Requested at the moment they're needed, not up-front:
+
+- **Camera**: requested when the capture screen first mounts (required; denial blocks capture).
+- **Location**: requested after camera permission resolves, from a `LaunchedEffect(Unit)` on first capture-screen mount. Non-fatal: denial just means EXIF lacks GPS.
+- **Notifications** (Android 13+): declared but not requested. Worker runs whether or not it's granted; only the shade notification is suppressed.
 
 ---
 
 ## Bundle Preview screen
 
-Reached from the capture screen's top-right photo-library icon. Pure-native Material 3 styling — `TopAppBar` with back-left, title-center, "open in system file browser" action on the right, and a `LazyColumn` of bundle rows below.
+Reached from the capture screen's top-right photo-library icon. Material 3 styling (Android) / system styling (iOS): title bar with back, title, and an "open in system file browser" action on the right; body is a vertical list of bundle rows.
 
-Each row shows:
-- Up to three small thumbnails in a fixed-width strip (the strip is always the same width regardless of how many thumbs the bundle has, so row alignment stays consistent). Thumbnails are drawn from the raw subfolder photos when present — they crop cleanly. If only a stitched image exists for a bundle, the stitch is used as the single thumbnail.
-- The monospace bundle id and a photo-count subtitle.
-- Modality icons on the right: `PhotoLibrary` outline when the raw subfolder exists, `ViewStream` outline when the stitched image exists. Both appear when both outputs were kept.
+### Row anatomy
 
-**Swipe left** on a row to delete. By default (confirmation on) this surfaces an `AlertDialog` summarising which modalities will be removed for that bundle; confirming marks the row pending. A pending row keeps the same layout skeleton — same thumbnails, same width — but swaps the id/count for "Deleting in Xs" in the error color and the modality icons for an `Undo` text button with a live countdown. Tapping `Undo` within the window cancels the delete; letting it expire hard-deletes every modality via SAF.
+All three row states share a common skeleton with `heightIn(min = 68.dp)` so neighbour rows don't shift when a row changes state.
 
-Multiple bundles can be pending-delete simultaneously — each has its own independent countdown and its own Undo button. Leaving the screen while deletes are pending doesn't cancel them: they continue to completion on the app-scoped coroutine.
+- **Normal row** (shipped bundle):
+    - Thumbnail strip (up to 3 thumbs, 128dp fixed width — strip width is constant regardless of how many thumbs exist, so rows stay column-aligned).
+    - Monospace bundle ID + "N photos" subtitle.
+    - Modality icons on the right: `PhotoLibrary` outline when the raw subfolder exists, `ViewStream` outline when the stitched image exists. Both when both outputs were kept.
+    - Thumbnails are drawn from the raw subfolder photos when present (they crop cleanly). If only the stitched image exists for a bundle, the stitch is the single thumbnail.
+- **Pending-delete row**:
+    - Same thumbnail strip (preserving row width).
+    - Title replaced by "Deleting in Xs" in the error color (countdown ticks via a derived-state observer that only recomposes on whole-second boundaries).
+    - Modality icons replaced by an "Undo" text button.
+- **Processing row** (ENQUEUED / RUNNING / BLOCKED worker):
+    - `CircularProgressIndicator` in the leading thumbnail slot; the 3-thumb strip width is still reserved so the bundle ID stays column-aligned with completed rows.
+    - Title is the bundle ID; subtitle is "Processing…".
+    - **Not swipeable** — you can't delete a bundle that's still being written.
 
-**Processing rows.** When a user swipes to commit and immediately opens this screen, the background worker is still writing the bundle (seconds to tens of seconds for stitch) so nothing has landed in SAF yet. The screen subscribes to in-flight worker state and renders a "processing" row at the top of the list for each pending bundle: a circular spinner in the leading thumbnail slot, the monospace bundle id, and a "Processing…" subtitle. Processing rows aren't swipeable. When the worker finishes, the screen refreshes the SAF listing *before* dropping the processing row, so the completed row takes over with no blank frame in between. Failed workers simply disappear from the processing set; the failure banner remains the capture screen's concern.
+### Swipe-to-delete
 
----
+Swipe left on a normal row past ~40% of row width (or with terminal velocity matching the capture screen's threshold) to arm the delete. Haptic tick on both threshold crossings so dragging back below the line reads as an armed cancel.
 
-## iOS build notes
+- If **confirm-before-delete** is on (default): swipe reveals an alert dialog summarising which modalities will be removed. Confirming puts the row in pending-delete state.
+- If **confirm-before-delete** is off: swipe goes straight to pending-delete (or straight to hard delete if the undo window is 0s).
 
-**Camera:** AVFoundation with a custom `AVCaptureSession`. Preview via `AVCaptureVideoPreviewLayer`. Capture via `AVCapturePhotoOutput` in high-quality mode. Async capture pipeline so rapid taps don't block.
+Pending-delete rows have per-row **independent countdowns**. A user can swipe multiple bundles in quick succession — each row starts its own timer and each has its own Undo button. Leaving the screen while deletes are pending does not cancel them; they continue to completion on an app-scoped (not screen-scoped) coroutine. This is a deliberate departure from the capture screen's single-slot discard-undo model: a user tidying up old bundles should be able to queue up many deletes without blocking.
 
-**Async pipeline:** capture writes use `DispatchQueue.global(qos: .utility)`. Background processing uses a dedicated serial `OperationQueue` with `qualityOfService = .background` and `maxConcurrentOperationCount = 1` (single-concurrency stitching to bound memory). Wrap each bundle's processing in `UIApplication.beginBackgroundTask` so iOS grants the ~30 seconds typically needed to finish a stitch even if the user returns to the home screen. For very large backlog scenarios, register a `BGProcessingTask` that drains remaining bundles when the system is idle and charging.
+### Processing-row bridge
 
-**Folder persistence:** `UIDocumentPickerViewController` in `.open` mode with `directoryURL` support. The returned URL is security-scoped — save as `bookmarkData(options: .withSecurityScope)` and restore with `startAccessingSecurityScopedResource()` on every app launch. Budget a half-day for getting bookmark handling right.
-
-**File writes:** direct `Data.write(to:)` into subfolders of the bookmarked root. Create `bundles/` and `stitched/` on first access if not present.
-
-**EXIF writes:** `CGImageDestinationAddImage` with a metadata dictionary; custom UserComment via `kCGImagePropertyExifUserComment`.
-
-**Location:** `CLLocationManager` with "When in use" authorization. Request on first shutter tap with auto-location enabled.
-
-**Haptics:** `UIImpactFeedbackGenerator(.light)` for capture; `UINotificationFeedbackGenerator().notificationOccurred(.success)` for bundle commit.
-
-**Design language:** dark capture screen with white controls. System gray tones elsewhere. SF Symbols for all icons. No large titles on capture screen (it's chromeless); small titles on settings. Respect Safe Area insets for the bottom queue strip.
-
-**Gesture implementation:** the queue strip is three sibling views in a horizontal stack — `DiscardZoneView`, a `UICollectionView` (middle), and `BundleZoneView`. Each owns its own gestures:
-
-- Middle `UICollectionView`: horizontal scrolling, `UICollectionViewDropDelegate` for reorder (sticky drag on a cell), and per-cell `UISwipeGestureRecognizer(direction: .down)` for delete.
-- `BundleZoneView`: a `UIPanGestureRecognizer` filtered to rightward motion. On completion past threshold, fires bundle commit.
-- `DiscardZoneView`: a `UIPanGestureRecognizer` filtered to leftward motion. On completion past threshold, fires discard.
-
-Because the zones own their own gestures and are physically separate from the collection view, there is no gesture arbitration needed — touches that begin in a zone don't reach the collection view, and vice versa.
-
-The commit animation (queue contents sliding into the right zone with the zone flashing accent color) is a `UIViewPropertyAnimator` choreographed from the collection view's snapshot and the zone's layer.
-
----
-
-## Android build notes
-
-**Camera:** CameraX with `Preview` + `ImageCapture` use cases. Preview via `PreviewView`. Capture via `takePicture` with in-memory buffer, then immediately write to the staging folder via the `Dispatchers.IO` coroutine scope. CameraX handles device quirks, removing the need to touch Camera2 directly.
-
-**Async pipeline:** capture-time writes use `CoroutineScope(Dispatchers.IO)` so the shutter returns immediately. Background bundle processing uses **WorkManager** — one `OneTimeWorkRequest` per bundle, with a `uniqueWorkPolicy` that chains them serially under a shared tag. WorkManager provides survival across process death, resume on next launch after interruption, retries with backoff, and device-storage constraint respect. Input data: the staging folder `Uri`, the assigned bundle ID, and the photo ordering.
-
-**Folder persistence:** `ActivityResultContracts.OpenDocumentTree` on first launch. Persist the returned `Uri` in `SharedPreferences`. Call `contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or FLAG_GRANT_WRITE_URI_PERMISSION)` so the grant survives app kills and reboots. Access via `DocumentFile.fromTreeUri(context, rootUri)`; create `bundles/` and `stitched/` as child `DocumentFile` directories on first access.
-
-**File writes:** `DocumentFile.createFile("image/jpeg", filename)` then `contentResolver.openOutputStream(docFile.uri)`. Works with any SAF-backed provider including Google Drive folders.
-
-**EXIF writes:** `androidx.exifinterface.media.ExifInterface` on the output file. Supports custom UserComment via `TAG_USER_COMMENT`.
-
-**Location:** `FusedLocationProviderClient` with `PRIORITY_BALANCED_POWER_ACCURACY`. Cache last known location in the ViewModel with a 30s TTL.
-
-**Haptics:** `HapticFeedbackConstants.CONTEXT_CLICK` for capture; `HapticFeedbackConstants.CONFIRM` for commit.
-
-**Design language:** Material 3 with dynamic color. Dark capture screen with tonal surfaces for controls; primary color used for the commit success flash and reorder drop indicator. Standard MD3 type scale. Bottom inset for gesture navigation on modern devices.
-
-**Gesture implementation:** the queue strip is a Compose `Row` with three children — `DiscardZone`, `LazyRow` (middle), `BundleZone`. Each child owns its own `pointerInput` block:
-
-- `LazyRow` middle: reorder via immediate horizontal drag on a thumbnail; per-thumbnail vertical drag threshold for delete.
-- `BundleZone` right: `detectHorizontalDragGestures` filtered to positive (rightward) deltas, commits on crossing a distance threshold with terminal velocity.
-- `DiscardZone` left: `detectHorizontalDragGestures` filtered to negative (leftward) deltas, commits similarly.
-
-Because each child has its own input handler and they are disjoint in layout, Compose's natural hit-testing handles disambiguation for free — no nested gesture arbitration, no slop tuning.
-
-Stylistically, the zones feel like **drawer handles**: touching one gives an immediate visual response (a subtle color deepen and scale-up of the zone), and the swipe feels like pulling the handle across the queue. Reorder still feels sticky (thumbnail follows finger instantly). The user learns the model in one or two bundles.
-
----
-
-## Platform comparison (MVP scope)
-
-| Concern | iOS approach | Android approach |
-|---|---|---|
-| Folder persistence | Security-scoped bookmark (some ceremony) | SAF URI + persistable permission (some ceremony) |
-| User sees bundles in their file manager | Files app shows folder if in Files-accessible scope | Any app via SAF — including Drive-synced folders |
-| Pipeline-friendliness of output | Files in Files app | Files in user's chosen folder, including cloud-synced — **stronger** |
-| Build effort for MVP | ~3–4 weeks solo | ~3–4 weeks solo |
-
-For a pipeline-producer tool, Android is the stronger first platform: `ACTION_OPEN_DOCUMENT_TREE` lets the user point the app at a Drive/Nextcloud/Syncthing folder once, and every bundle automatically ends up wherever their downstream pipeline already reads from. iOS's sandbox makes that flow more friction-ful.
+When a user swipes-commits and immediately opens Bundle Preview, the worker is still running (seconds to tens of seconds) and the bundle has not yet landed in the user folder. The screen subscribes to the worker scheduler's active-bundle-IDs flow and renders a processing row at the top of the list for each in-flight worker. When the worker finishes, the screen refreshes the folder listing **first**, **then** drops the processing ID from state — so the completed row takes over with no blank frame between the processing row disappearing and the real row appearing. Failed workers simply disappear from the processing set; the failure banner is the capture screen's concern.
 
 ---
 
 ## Design decisions
 
-1. **Date format** → `yyyy-mm-dd`. Sorts chronologically in every file listing, which every downstream tool benefits from.
+Decisions with non-obvious rationale, captured so future ports can make equivalent trade-offs (or override them with the "why" in hand).
 
-2. **App-kill / relaunch behavior** → **silent auto-resume**. If the app detects an orphaned staging session on launch, the queue is restored transparently and the user lands on the capture screen with the previous photos already queued. No prompt, no confirmation — the user can continue shooting, swipe to bundle, or swipe to discard, exactly as if the app had never quit. The staging session UUID is preserved so if the app is killed again mid-way, the same behavior applies on the next launch.
+1. **Date format `yyyy-mm-dd`.** Sorts chronologically in any file listing, which every downstream tool benefits from. Every other format sorts either alphabetically-wrongly (`MM-DD-YYYY`) or ambiguously (`DD/MM/YYYY`).
 
-3. **Empty-queue gesture handling** → **swipes disabled on empty queue**, both handles dimmed and unresponsive. A 1-photo queue commits normally (stitch output is the single photo copied; raw folder contains that one file). Gesture vocabulary stays consistent regardless of queue size.
+2. **Silent auto-resume on app-kill / relaunch.** If `OrphanRecovery` finds an uncommitted staging session on launch, the queue is restored transparently — no prompt, no "Continue?" dialog. The user lands on the capture screen with the previous photos already queued and can shoot, swipe-commit, or swipe-discard exactly as if the app had never quit.
 
-4. **First-launch coach-marks** → **five-step `GestureTutorial` overlay**, shown once when `seenGestureTutorial` is false. Each step loops a finger animation over a fake 4-thumb queue positioned at the real queue strip's 72dp location (so muscle memory transfers on dismiss). Re-triggerable from Settings. The overlay scrims the capture UI and consumes every touch so the user can't accidentally fire a real gesture on the (empty) queue beneath.
+3. **Empty-queue swipes are disabled.** Both handles dim and are unresponsive when the queue is empty. A 1-photo queue commits normally (the stitch output is just the single photo copied; the raw folder contains that one file). Gesture vocabulary stays consistent regardless of queue size.
 
-5. **Storage double-cost management** → **no maintenance UI**. Modern devices and user-chosen folders (often cloud-synced) handle this naturally.
+4. **Portrait lock + counter-rotating icons.** The capture screen is locked to portrait via the platform's orientation attribute (`android:screenOrientation="portrait"` / `UIInterfaceOrientationMask.portrait`). For icons to feel right-side-up when the device is held sideways, each icon applies a `rotate(-deviceOrientation)` transform driven by an accelerometer-derived `deviceOrientation` StateFlow. Rotation animation uses a cumulative-target spring that always picks the **shortest arc** (no 270° spins when going 0° → 90°). Why lock: the queue-strip gesture model, edge-zone widths, and shutter muscle-memory all depend on a fixed horizontal axis; allowing landscape would require a second full layout and a second gesture-arbitration story.
 
-6. **In-flight bundle indicator** → **silent**. No badges, no counters, no status rows. Failures still surface as non-blocking banners per the async pipeline spec.
+5. **Accelerometer-driven EXIF orientation.** Platform display-rotation APIs only report when the activity itself rotates. Because we're locked to portrait, the app would otherwise never notice that the user held the phone sideways. An accelerometer listener (Android: `OrientationEventListener`; iOS: `CoreMotion`) snaps the device pose to the nearest cardinal (0/90/180/270) and writes it into the capture pipeline's `targetRotation` equivalent, so EXIF orientation reflects physical device pose even though the UI doesn't move.
+
+6. **Hybrid commit thresholds (distance OR velocity).** A flick should commit even if short, and a slow deliberate drag should commit once past halfway. The threshold is `|dragX| ≥ maxWidth/2` OR `|velocity| ≥ 80dp/s` in the commit direction (`VelocityTracker`). The `80dp/s` is tuned **below** platform gesture defaults (`125dp/s` on Android) so a natural swipe doesn't get cancelled.
+
+7. **Queue-size-aware edge zones, fixed destination fill.** Edge-zone input widths grow on short queues to let the user begin a swipe from further inward (slack-based formula, capped at 33% of width per side, with a 24dp neutral middle guard so zones never meet). The visual destination fill (tick/cross + commit flash), however, stays pinned at 60dp anchored to the screen edge — the growing input width doesn't bloat the visual. These two concerns stay decoupled so UX doesn't couple to slack math.
+
+8. **Discard is amber, not red.** Discard has an undo, so it's recoverable. Red reads as "final / dangerous" and would make users hesitant to use a gesture that's actually safe to try. Amber reads as "warning, but recoverable."
+
+9. **Synchronous discard marker.** The 3-second undo window for discard is scoped to the VM's coroutine scope — process death inside the window cancels the cleanup coroutine and would otherwise cause the discarded queue to restore on next launch. To prevent this, the discard gesture writes a `.discarded` marker file synchronously on the UI thread (single `File.createNewFile()`, ~1ms on internal storage) before the timer starts. Orphan recovery sees the marker and cleans up. Undo removes the marker. This is the only place in the app where we intentionally do I/O on the UI thread — the trade-off is worth it.
+
+10. **Manifest file indirection, not in-worker data dict.** Worker-input payloads have a size limit on every platform (Android WorkManager: 10KB). A 50-photo bundle's paths exceed it. Rather than compressing paths, we write a JSON manifest per bundle to internal storage and pass only the bundle ID into the worker. This also makes orphan recovery trivial: the manifest is already on disk; re-enqueue by bundle ID.
+
+11. **Process-wide worker mutex.** Stitching a tall image allocates ~60% of heap. Running two workers in parallel reliably OOMs mid-range devices. A static mutex held across `doWork` / `main` serialises workers process-wide; the user sees no difference because the cadence is capture-and-commit, not commit-bundles-in-parallel.
+
+12. **Worker failure flow filters pre-existing failures.** The platform's work-info subscription replays historical failures on every `observe()`. Without filtering, every app launch would re-surface yesterday's transient bundle failure. The scheduler snapshots the set of failures on first emission as "acknowledged" and only emits fresh failures thereafter.
+
+13. **Flags on PendingBundle are frozen at commit time.** `saveIndividualPhotos` / `saveStitchedImage` / `stitchQuality` are captured into the manifest at commit, not read at worker time. A user who commits then changes settings mid-flight gets the settings that were in effect when they swiped, not the settings at the moment the worker happens to run. Predictable > convenient.
+
+14. **Multi-slot pending-delete in Bundle Preview.** The Bundle Preview screen uses a `Map<bundle-id, Job>` for pending deletes — multiple bundles can be pending simultaneously, each with an independent countdown. This is a deliberate departure from the capture screen's single-slot discard-undo. Rationale: capture-time discard is a single binary event ("I'm done with this queue"), while cleanup-time bundle delete is a **batch operation** ("I'm cleaning up the last few shoots"). Forcing serial handling of the latter would make batch cleanup painfully slow.
+
+15. **Processing rows bridge the worker gap.** Without processing rows, a user who commits then immediately opens Bundle Preview sees their bundle "missing" until the worker finishes. The subscription to the scheduler's active-bundle-IDs flow surfaces the in-flight state; the ordering (refresh SAF *before* dropping the processing ID) prevents a blank frame where neither the processing row nor the completed row exists.
+
+16. **No maintenance UI for storage.** Modern devices and user-chosen folders (often cloud-synced) handle storage naturally. Adding "delete old bundles" or "usage totals" UI would grow scope without matching user need.
+
+17. **No in-flight badge / counter on the capture screen.** No "2 bundles processing" chip. The capture screen stays silent unless there's an error. Failures surface as the non-blocking `ActionBanner`; successes surface as the transient `BundleSavedShimmer`.
 
 ---
 
-## Backlog
+## Implementation principles for any platform
 
-Post-MVP ideas, not scoped for the current milestone. Capture here so they don't get lost; re-evaluate once the core capture-and-commit loop is stable.
+Everything above is interaction. These are the platform-neutral **engineering principles** that any port (iOS next) should adopt. They are the lessons the Android implementation extracted the hard way.
 
-1. **OCR / document-understanding pipeline for bundle → Markdown.** Post-process a committed bundle (raw JPEGs + stitched image) into a structured Markdown document written to `bundles/{bundle-id}/{bundle-id}.md` alongside the existing outputs. **Scope note:** Recon is a personal-use project, so license terms (AGPL-3.0 in particular) are not constraints, and the design criterion collapses to "which path produces the highest-quality output". That changes the architecture meaningfully — the cherry-pick-Apache-2.0-models path that earlier drafts treated as a middle tier was a license-driven workaround; without the AGPL constraint and with quality as the goal, it's strictly dominated by running real MinerU off-device. The shape reduces to two paths: a fast on-device fallback and a high-quality desktop companion.
+1. **Stage on internal storage, not in memory, not in the user folder.** Memory footprint stays bounded at ~50KB/thumbnail regardless of queue depth. User folder stays clean of in-flight sessions. I/O at capture time stays within the app's sandbox (fastest possible).
 
-    - **Best-quality path — MinerU VLM on a desktop companion.** Run [MinerU](https://github.com/opendatalab/mineru) (current `mineru` 3.0.x as of April 2026) on a personal desktop, reached over the LAN via the LocalSend interop in item 2 below. Use the **VLM backend** (`MinerU2.5-2509-1.2B` — 1.16B-param Qwen2-VL derivative, ~4.6 GB BF16; or `MinerU2.5-Pro-2510` if hardware permits) for the strongest open-source document-understanding output currently available: layout-faithful Markdown with LaTeX formulas, HTML tables, and learned reading order. Realistic hardware expectations: an Apple Silicon Mac with 16+ GB unified memory runs the VLM workably at CPU/MPS speeds (tens of seconds per page); a Linux/Windows box with a discrete GPU and 8+ GB VRAM runs it near-real-time. If GPU isn't available, the **pipeline backend** (`mineru -b pipeline`) is the workable second choice on CPU-only desktops — slower and slightly less faithful on complex layouts, but no GPU dependency.
-    - **Offline fallback — ML Kit Text Recognition v2 on-device.** When no companion is reachable (no LAN, desktop off, on the road), chain a separate `OneTimeWorkRequest` after `BundleWorker` that runs **ML Kit Text Recognition v2** (`com.google.mlkit:text-recognition:16.0.1` for Latin bundled, ~4 MB APK delta per script per ABI; or `play-services-mlkit-text-recognition:19.0.1` unbundled, ~260 KB APK + ~1.5–4 MB Play-Services model fetched on first call; supports Latin / CJK / Japanese / Korean / Devanagari as separate artifacts). Pure CPU via TFLite + XNNPACK — **no NNAPI / GPU acceleration** for text recognition, so SD 7-class NPU/DSP buys nothing. Latency at full 12MP: ~500–900 ms warm on SD 7-class, ~250–500 ms on Pixel 7a/8a, 1–3 s on SD 4/6-class; cold-start adds 100–400 ms. **Downscale to ~2 MP long-edge before inference** — Google's docs note characters need only 16×16 px and there's "no accuracy benefit beyond 24×24", and downscaling cuts latency ~6× with zero quality loss for document text. Consumes raw per-page JPEGs from `bundles/{bundle-id}/` (never the stitched composite — stitch is for humans, raw pages are for the model), joins line-level text in reading order with one `## Page N` heading per photo, writes the `.md` sidecar via SAF. **Decode → process → recycle each Bitmap per page** — a 12MP ARGB_8888 bitmap is ~48 MB, so holding all 20 page bitmaps simultaneously will OOM the 512 MB heap; one at a time is comfortably safe. **Reuse a single `TextRecognizer` for the whole bundle** and `close()` it in `finally` to release native resources; do **not** parallelize `process()` calls (Google's docs warn against concurrent recognizers and parallelism doesn't help anyway). Reuse the process-wide `workMutex` so OCR never races a stitch. WorkManager constraints: `setRequiresStorageNotLow(true)` + `setRequiresBatteryNotLow(true)`; explicitly **not** `setRequiresCharging` / `setRequiresDeviceIdle` (would defer by hours). Surface failures via the existing `ActionBanner`; no status rows. No formulas, no tables-as-HTML, modest reading-order — but lands a usable sidecar with zero setup, fully offline, no GMS dependency if Latin-bundled is used.
+2. **Three phases, hard boundaries.**
+    - Phase 1 (Shutter, ≤100ms): staging write + capture-time EXIF + thumbnail.
+    - Phase 2 (Commit, single frame): UI pivots synchronously; manifest write + worker enqueue runs in a background coroutine **after** the UI is already ready for the next shot.
+    - Phase 3 (Worker, serial): manifest-driven; location refresh + GPS backfill + final EXIF + output-folder I/O + stitch + cleanup. **Serialised** process-wide by a mutex to bound heap for stitching.
 
-    - **Companion mechanics.** The "MinerU companion" can be as thin as a Python script that watches an inbox folder, runs `mineru -p {file_or_dir} -o {out_dir} -b vlm` per bundle, and drops the result back. The architectural commitment is just "the bundle ships off-device; something out there produces a `.md`; the `.md` lands in `bundles/{bundle-id}/`". Concrete options ranked by setup effort:
-        - *Easiest*: a Syncthing-shared folder between phone and desktop, plus a desktop-side `inotifywait`/`fswatch` shell loop that runs `mineru` on each new bundle and writes the `.md` back into the same folder. Zero protocol work.
-        - *Cleaner*: a small Python receiver speaking the LocalSend protocol (item 2), accepting bundles, running MinerU, and replying via LocalSend's send-back. Pairs well with item 2's clean-room sender.
-        - *Heaviest*: a first-party Kotlin desktop app (Compose Multiplatform) that wraps `mineru` as a subprocess and presents a peer to the phone. Probably overkill for personal use.
+3. **Manifest file, not in-worker input.** JSON-serialize the per-bundle spec to internal storage; pass only the bundle ID through the scheduler. Orphan recovery replays manifests on next launch.
 
-    - **Routing.** Two reasonable defaults — pick one based on usage pattern. (a) **Always-fallback, opt-in upgrade**: ML Kit always produces `{bundle-id}.md` shortly after commit; sending the bundle to the desktop companion later overwrites it with the higher-fidelity result. Has the property that something always lands. (b) **Tagged-for-companion**: the user marks a bundle as "needs OCR companion" before/after commit; the app routes to the companion when reachable and skips ML Kit for that bundle. Avoids redundant work but means some bundles sit without a `.md` until the desktop is online. (a) is the safer default; (b) is worth considering if the on-device pass turns out to be wasted effort for the user's actual workflow (e.g. always-have-desktop, never-on-the-road).
+4. **Bundle-ID counter is atomic.** Allocate from persistent storage **before** any output I/O. Worker failure must never rewind the counter.
 
-    - **Architectural rules.** OCR output never influences stitch layout — visual and semantic artifacts stay independent and separately reproducible. The on-device pass runs as a chained `WorkRequest` after `BundleWorker`, not as a third stage inside it, so failures retry independently and the stitch-mutex scope stays tight. Extend the `PendingBundle` manifest with a `sidecarMarkdown` field rather than introducing a second manifest type. The companion route doesn't touch the worker pipeline at all — it's a user-initiated send (item 2) followed by an inbound `.md` write whenever the desktop replies.
+5. **Orphan recovery at startup.** Prune terminal worker records; re-enqueue manifests without in-flight work; delete staging sessions marked discarded; restore the most-recent live orphan as an uncommitted queue; delete older orphan sessions to prevent unbounded disk growth.
 
-    - **Open questions.** Should the on-device ML Kit `.md` be considered "draft" and overwritten by the companion result, or kept under different filenames (`{bundle-id}.md` vs. `{bundle-id}.mineru.md`) so the two outputs can be compared? How does a future bundles browser surface the per-bundle state ("draft", "upgraded by companion", "send pending")? Should the companion script live in the Recon repo (`tools/mineru-companion/`) so the personal-use setup is one `git clone` + `pip install mineru` away?
+6. **Worker failure flow filters pre-existing failures** on first subscription. Without this, every launch re-surfaces yesterday's transient failure.
 
-2. **LocalSend interop for peer-to-peer bundle transfer.** Implement a clean-room Kotlin sender that speaks the [LocalSend protocol](https://github.com/localsend/protocol) (current spec **v2.1**, cut 2026-01-13; reference app v1.17.0) so a committed bundle (raw JPEGs + stitched image, plus any `.md` sidecar) can be pushed to any device on the LAN running LocalSend — desktop, phone, tablet, or our own MinerU companion from item 1. We are **not** bundling the upstream Flutter app; just enough protocol to send. Realistic effort: **~2–4 days** for a working sender, plus 1–2 days for cert-fingerprint UX and SAF-streaming polish.
+7. **Discard marker is synchronous**, on the UI thread, before the 3-second undo timer. Nothing else in the app does UI-thread I/O; here, the cost of a single `File.createNewFile()` is worth the crash-consistency guarantee.
 
-    - **Discovery.** On share-sheet open, acquire a `WifiManager.MulticastLock`, open a `MulticastSocket` joined to `224.0.0.167:53317` on every non-loopback IPv4 interface, and emit one announce — JSON `{alias, version:"2.1", deviceModel, deviceType:"mobile", fingerprint, port:53317, protocol:"https", download:false, announce:true}`. Peers reply via `POST /api/localsend/v2/register` (preferred) or a multicast response with `announce:false`. Drop self-echoes by `fingerprint`. Release the lock the moment the sheet closes — the spec's "no background multicast chatter" rule is non-negotiable.
-    - **Transport.** HTTPS on TCP `53317`, prefix `/api/localsend/v2/…`. Use **OkHttp 4.12+** with a custom `X509TrustManager` that accepts any self-signed cert plus a no-op `HostnameVerifier`; trust is fingerprint-pinned (SHA-256 of the peer's leaf cert, captured at discovery and re-verified post-handshake), not CA-based. Generate one self-signed cert per install and cache it.
-    - **Upload flow.** Three calls per bundle. (1) `POST /api/localsend/v2/prepare-upload` with `{info, files:{fileId:{id, fileName, size, fileType:"image/jpeg", sha256?}}}` (optional `?pin=…`); receiver shows the trust prompt here, response is `{sessionId, files:{fileId:token}}`. (2) Per file, `POST /api/localsend/v2/upload?sessionId=…&fileId=…&token=…` with the raw binary as the request body — **not** multipart, one file per request, parallelizable across files within the bundle. (3) `POST /api/localsend/v2/cancel?sessionId=…` on user abort. Errors: 401 PIN required, 403 rejected by user, 409 session blocked, 429 rate-limit, 204 "already received". No native resumability — a failed upload re-runs the whole file.
-    - **SAF streaming.** A custom `RequestBody.writeTo(sink)` that pulls from `contentResolver.openInputStream(documentFile.uri)` and copies in chunks. Never `readBytes()` the stitched JPEG (can be 20 MB+).
-    - **Permissions.** `INTERNET`, `ACCESS_WIFI_STATE`, `CHANGE_WIFI_MULTICAST_STATE`, `ACCESS_NETWORK_STATE`. `NEARBY_WIFI_DEVICES` (Android 13+) is **not** required for outbound multicast on an already-connected Wi-Fi network — skip it. JSON: reuse existing `kotlinx.serialization`; add `Info`, `PrepareUploadRequest`, `FileMetadata`, `PrepareUploadResponse`.
-    - **UX shape.** Action lives on a future bundles-browser row (long-press → action sheet → bottom sheet that scans on open and dismisses on close, listing peers as they register). Cert fingerprint shown as a short hex on first contact for trust-on-first-use. Gate send on `manifestStore.get(bundleId) == null` so we never ship a bundle whose `BundleWorker` is still running. Progress and failures use the existing `ActionBanner`; no persistent status rows. The capture screen's silence principle stays intact — no "share" affordance lives there.
-    - **Edge cases.** Hotel / carrier networks blocking multicast (no fix — surface "no peers found"); AP isolation hiding peers on the same SSID (same — user-actionable, not app-fixable); IPv6-only Wi-Fi where the IPv4 multicast group is unreachable (LocalSend desktop falls back to a `/24` legacy TCP sweep — defer this to v2, MVP can require IPv4); upstream protocol breaking changes (pin to `v2.1` in README, accept that an eventual bump may be required).
-    - Open questions: trust-on-first-use vs. always show fingerprint; whether to also implement **receive** (would need an embedded HTTP server — Ktor server-cio or NanoHTTPD — and a SAF-folder write target, useful symmetrically for getting the MinerU companion's `.md` back); whether to allow batch-share of multiple bundles in one session or keep it one-bundle-per-share for simplicity.
+8. **Gesture zones are disjoint siblings, not nested.** The queue strip is three sibling children of a container (left handle · tray · right handle). Each owns its own gesture handler. Hit-testing routes pointers unambiguously — no arbitration, no slop tuning, no "which gesture wins" code.
+
+9. **Portrait-lock + counter-rotating icons.** Fixed axis for the gesture model; accelerometer-driven icon rotation with shortest-arc animation.
+
+10. **Accelerometer → capture-pipeline rotation.** Platform display-rotation APIs don't catch orientation changes while the UI is locked. Use an accelerometer listener to snap to cardinal angles and write the matching rotation into the capture API's rotation hint, so EXIF orientation is correct regardless of UI pose.
+
+11. **At-least-one output invariant**, enforced both at UI lock-in and at settings-read time (belt and suspenders).
+
+12. **Flags frozen at commit time.** The manifest captures a snapshot of user preferences; the worker doesn't re-read settings mid-flight.
+
+13. **Single open/save pass for final EXIF.** Combine GPS backfill and `UserComment` stamping into one `ExifInterface` open per file. Two passes doubles the I/O cost.
+
+14. **Multi-slot delete timers for bulk cleanup.** Bundle-list delete is batchy by nature; use a map of per-bundle jobs rather than a single-slot timer.
+
+---
+
+## iOS build notes
+
+This section is the SOTA target for an iOS port, informed by the Android reference implementation. Assume minimum iOS 16; use Swift + SwiftUI + modern Swift Concurrency.
+
+### Camera
+
+- `AVFoundation` with a custom `AVCaptureSession` running on a dedicated serial queue.
+- Preview via `AVCaptureVideoPreviewLayer` (wrapped in a `UIViewRepresentable` for SwiftUI embedding). Aspect ratio 3:4 by constraining the layer bounds; use `videoGravity = .resizeAspect`.
+- Capture via `AVCapturePhotoOutput`. Equivalent of Android's two "camera modes":
+    - **ZSL**: `AVCapturePhotoOutput.isResponsiveCaptureEnabled = true` + `isZeroShutterLagEnabled = true` (iOS 17+).
+    - **Quality**: `AVCapturePhotoSettings.photoQualityPrioritization = .quality`. No direct "HDR/auto" equivalent to CameraX Extensions; rely on `AVCapturePhotoSettings.isAutoRedEyeReductionEnabled` / `isAutoStillImageStabilizationEnabled` per device capability.
+- Lens flip: set `AVCaptureDevice(discovering: ...)` for back/front via `AVCaptureDevice.DiscoverySession`; reconfigure the session on a background queue, holding a session-lock equivalent of Android's `bindMutex`.
+- Flash: `AVCapturePhotoSettings.flashMode = .off / .auto / .on`, applied per-capture. To mirror Android's "flash mode survives rebinds": store `currentFlashMode` as instance state and apply it at every `AVCapturePhotoSettings` instantiation.
+- Zoom: `AVCaptureDevice.videoZoomFactor` with `ramp(toVideoZoomFactor:withRate:)` for smooth chip-to-chip transitions; pinch gesture multiplies `videoZoomFactor`. Hardware-filter chip presets against `device.activeFormat.videoMinZoomFactorForDepthDataDelivery` / `device.maxAvailableVideoZoomFactor`.
+- Tap-to-focus: on preview tap, translate the tap into device coordinates via `previewLayer.captureDevicePointConverted(fromLayerPoint:)`; set `focusPointOfInterest` + `exposurePointOfInterest` + `focusMode = .autoFocus` + `exposureMode = .autoExpose`. Animate a 500ms ring at the tap point in SwiftUI.
+
+### Orientation
+
+- Lock to portrait: in `Info.plist` set `UIInterfaceOrientation` to `UIInterfaceOrientationPortrait` only; override `supportedInterfaceOrientations` at the view-controller level.
+- Detect physical orientation via `CoreMotion`: an `CMMotionManager` polling `deviceMotion` at ~10Hz, reading gravity vector, snapping to the nearest cardinal (0/90/180/270).
+- Write the orientation into `AVCapturePhotoOutput.connection(with: .video)?.videoRotationAngle` (iOS 17+) or the older `videoOrientation` API so the captured photo's EXIF orientation reflects physical pose.
+- Counter-rotate icons in SwiftUI via `.rotationEffect(.degrees(-deviceOrientation))` + `.animation(.spring())`. Use a `DeviceOrientationStore` (observable) that emits shortest-arc cumulative angles so a 0° → 90° rotation doesn't spin through 270°.
+
+### Output-folder persistence
+
+- `UIDocumentPickerViewController` in `.open` mode with `.folder` type. Callback returns a security-scoped URL.
+- Persist as `url.bookmarkData(options: .withSecurityScope)` to `UserDefaults` or a plist in application-support.
+- **Every access** (not just at pick time) must be bracketed: `url.startAccessingSecurityScopedResource()` → use → `url.stopAccessingSecurityScopedResource()`. Failing to do this will cause the URL to become unreachable after app relaunch. Wrap in a helper `func withBookmarkedRoot<T>(_ block: (URL) throws -> T) rethrows -> T`.
+- Create `bundles/` and `stitched/` under the root at first access.
+
+### Staging (internal storage — NOT inside the bookmark)
+
+- Root: `FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]/staging/`.
+- Per-session dir: `staging/session-{UUID()}/`.
+- Per-photo file: `session-{uuid}/{UUID()}.jpg`.
+- Use `FileHandle` or `Data.write(to:)` for writes — direct filesystem, no bookmark dance.
+
+### Manifest store
+
+- JSON-encode the manifest struct (Codable `PendingBundle`) to `application-support/pending/{bundle-id}.json` via `JSONEncoder`.
+- Atomicity: `data.write(to: url, options: [.atomic])` so a crash mid-write leaves a valid-or-absent file, never corrupt.
+
+### Bundle-ID counter
+
+- Back it with a single-file JSON or property list at `application-support/counter.plist`: `{lastDate: "yyyy-mm-dd", lastCounter: Int}`.
+- Gate reads/writes behind an `actor BundleCounterStore` so concurrent commits serialise on the actor.
+- Reset counter to 1 when `lastDate != today`.
+
+### Worker
+
+- One `Operation` per bundle on a dedicated `OperationQueue(name: "recon.bundle-worker", maxConcurrentOperationCount: 1)`. The `maxConcurrentOperationCount = 1` is the equivalent of Android's process-wide worker mutex.
+- For each operation:
+    1. Wrap in `UIApplication.shared.beginBackgroundTask(withName: "bundle-{id}")` so the OS grants ~30 seconds even if the user switches away.
+    2. Run the work on a detached `Task` inside the operation.
+    3. End the background task in `finally`.
+- For longer backlogs (multiple bundles queued), register a `BGProcessingTaskRequest` (`BackgroundTasks` framework) that drains remaining manifests when the system is idle and charging. Use identifier `{ios-bundle-id}.drain` (reverse-DNS, declared in `Info.plist` under `BGTaskSchedulerPermittedIdentifiers`); set `requiresNetworkConnectivity = false`, `requiresExternalPower = false` unless the queue is large (>5 bundles).
+- The worker body is manifest-driven (exact mirror of Android): load manifest → (optionally) copy raw JPEGs to bookmarked `bundles/{id}/` + stamp final EXIF → (optionally) stitch + copy to bookmarked `stitched/` → delete manifest → reap empty staging session.
+
+### Failure surfacing
+
+- The worker publishes failures through a `Publisher<BundleFailure, Never>` (Combine) or `AsyncStream<BundleFailure>`. The capture screen subscribes.
+- Mirror Android's "acknowledged-set" trick: snapshot the set of in-flight-to-failed transitions at subscription time and only emit deltas after.
+
+### Stitcher
+
+- `CoreImage` with a `CIFilter` chain or a hand-rolled `CGContext`:
+    - Decode each source as `CGImageSource` → `CGImage`.
+    - Apply orientation from EXIF via `CGImagePropertyOrientation`.
+    - Scale each to common width (pure `computeLayout` function first, ported 1:1 from the Kotlin version — `LOW=1600`, `STANDARD=1800`, `HIGH=.max`, height cap `32_000`, heap fraction `0.6`).
+    - Draw each into a single `CGContext` of size `commonWidth × totalHeight`.
+    - Encode as JPEG via `CGImageDestination` at quality tier (`0.70 / 0.82 / 0.92` for LOW/STANDARD/HIGH).
+- Write to a temp URL in `NSTemporaryDirectory()` first, then copy to the bookmarked `stitched/` via `FileManager.copyItem(at:to:)` with `startAccessingSecurityScopedResource` bracketing.
+
+### EXIF
+
+- At capture time: `CGImageDestinationAddImage` with a metadata dict: `kCGImagePropertyExifDateTimeOriginal`, `kCGImagePropertyTIFFOrientation`, `kCGImagePropertyTIFFMake`, `kCGImagePropertyTIFFModel`, `kCGImagePropertyGPSLatitude` / `...Longitude` if available.
+- At worker time: open the file with `CGImageSourceCreateWithURL`, read existing metadata dict, mutate to add `kCGImagePropertyExifUserComment = "Recon:{bundleId}:p{kk}"` (or `:stitch`), backfill GPS if missing and a refreshed location is available, re-encode with `CGImageDestinationCreateWithURL(destURL, type, 1, nil)` + `CGImageDestinationAddImageFromSource` + `CGImageDestinationSetProperties` for the updated metadata.
+- Single open/save pass per file, mirroring Android's `stampFinalMetadata`.
+
+### Location
+
+- `CLLocationManager` with `.desiredAccuracy = kCLLocationAccuracyNearestTenMeters`, `.distanceFilter = 50`. Request `whenInUse` authorization on first capture-screen mount.
+- Cache last fix with a 30s TTL; refresh via `requestLocation()` (single-shot) when the cache is ≥15s old (coalesce threshold, mirror of Android).
+- Worker-time refresh: wrap in `try await withTimeout(2.0) { locationProvider.refresh() }` — if it doesn't complete in 2 seconds, commit proceeds without GPS backfill.
+
+### Settings
+
+- Bookmark + flags: `UserDefaults.standard`. Keys mirror Android's set: `rootBookmark`, `stitchQuality` (enum raw), `shutterSoundOn`, `saveIndividualPhotos`, `saveStitchedImage`, `deleteDelaySeconds`, `deleteConfirmEnabled`, `seenGestureTutorial`.
+- Expose as a `Published` stream (Combine) or `AsyncStream` for SwiftUI observation.
+- Enforce the at-least-one-output invariant at both write time and read time.
+
+### Haptics
+
+- Capture: `UIImpactFeedbackGenerator(style: .light).impactOccurred()`.
+- Commit-threshold cross + commit success: `UINotificationFeedbackGenerator().notificationOccurred(.success)`.
+- Discard-threshold cross + discard success: `UINotificationFeedbackGenerator().notificationOccurred(.warning)`.
+- Delete-threshold cross: `UIImpactFeedbackGenerator(style: .rigid)`.
+- Prepare generators on `viewDidAppear` to warm the haptic engine; low latency matters for threshold feedback.
+
+### Gesture zones
+
+The queue strip is three sibling views, not a nested hierarchy:
+- `DiscardZoneView`: a `UIView` owning its own `UIPanGestureRecognizer` filtered to leftward motion; fires discard on completion past threshold (distance OR velocity, mirroring Android's hybrid).
+- A middle `UICollectionView` with horizontal scroll, long-press-then-drag reorder via `UICollectionViewDropDelegate`, and per-cell `UISwipeGestureRecognizer(direction: .down)` for delete-one.
+- `BundleZoneView`: mirror of `DiscardZoneView`, filtered to rightward motion, fires commit.
+
+Between cells, a 24dp-wide invisible divider view owns a separate pan recognizer for the divide / un-divide gesture. Z-ordered above the cells so it wins the touch.
+
+Because zones and cells are physically separate views with their own recognizers, iOS's standard gesture arbitration routes touches unambiguously — no `shouldRecognizeSimultaneouslyWith` overrides needed.
+
+The commit animation (queue contents sliding into the right zone with the zone flashing accent color) is a `UIViewPropertyAnimator` choreographed from a snapshot of the collection view and the zone's layer.
+
+### Visual design
+
+- Dark capture screen with white controls; system background elsewhere.
+- SF Symbols for all icons: `gearshape`, `bolt.slash` / `bolt.badge.automatic` / `bolt`, `camera.rotate`, `photo.on.rectangle`, etc.
+- Respect safe areas, especially bottom inset for home-indicator gesture interaction (mirror of Android's `navigationBarsPadding()` + `systemGestureExclusion`).
+- Accent colors: commit-green `#2E7D32`, discard-amber `#B26A00`, delete-red (system destructive). Map to asset catalog with dark/light variants.
+
+### Testing
+
+- Port the three pure-function test suites 1:1:
+    - `DividerOps` → `DividerOpsTests` (partition + remap-on-delete).
+    - `OrientationCodec` → `OrientationCodecTests` (cardinal round-trip, snap boundaries, surface-rotation inverse).
+    - `Stitcher.computeLayout` → `StitcherLayoutTests` (quality ceilings, height cap, heap budget, aspect preservation).
+- Manual smoke path: same as Android — first-run folder pick + permissions + tutorial; capture 3–5 photos; swipe-commit; verify raw + stitched in bookmarked folder; swipe-discard + undo; let undo time out; delete-one; reorder; kill the app mid-queue; relaunch; queue is restored.
+
+### Effort estimate (from Android delta)
+
+- Camera + orientation + zoom + flash + lens flip: **~4 days**.
+- Staging + manifest store + bookmark I/O helpers: **~2 days**.
+- Worker + background task + operation queue: **~2 days**.
+- Stitcher port: **~1 day** (layout math is pure; CoreImage composition is straightforward).
+- EXIF (capture-time + final-pass): **~1 day**.
+- Location provider with TTL: **~0.5 day**.
+- Settings + DataStore-equivalent: **~1 day**.
+- Capture UI + queue strip + gestures: **~4 days** (the gesture mechanics are the most subtle part; budget for playtesting).
+- Bundle Preview + pending-delete + processing-row: **~2 days**.
+- Gesture tutorial: **~1 day**.
+- Polish (haptics tuning, shimmer animations, icon counter-rotation): **~2 days**.
+
+**Total: ~3 weeks solo.** The Android reference is a 1:1 specification; most time goes to the gesture feel, not the architecture.
+
+---
+
+## See also
+
+- [`README.md`](./README.md) — Android reference implementation: module layout, dependency versions, class-by-class responsibilities.
+- [`RELEASE.md`](./RELEASE.md) — Signing, R8, Play Store / AAB packaging runbook.
+- [`BACKLOG.md`](./BACKLOG.md) — Post-MVP ideas (OCR / MinerU companion, LocalSend peer-to-peer transfer).
+- [`CLAUDE.md`](./CLAUDE.md) — Condensed architecture reference for Claude Code agents.
