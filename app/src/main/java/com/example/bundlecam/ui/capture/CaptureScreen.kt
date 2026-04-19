@@ -347,6 +347,13 @@ private fun CaptureScreenContent(
                     .height(18.dp),
             )
         }
+
+        // First-run gesture tutorial overlay. Shown only until the user dismisses it;
+        // declared last so it draws on top of the entire capture UI (including status +
+        // navigation bar regions) and consumes all touches.
+        if (!settings.seenGestureTutorial) {
+            GestureTutorial(onDismiss = vm::onDismissGestureTutorial)
+        }
     }
 }
 

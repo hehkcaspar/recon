@@ -358,6 +358,13 @@ class CaptureViewModel(
 
     fun hasLocationPermission(): Boolean = container.locationProvider.hasPermission()
 
+    fun onDismissGestureTutorial() {
+        viewModelScope.launch {
+            runCatching { container.settingsRepository.setSeenGestureTutorial(true) }
+                .onFailure { Log.w(TAG, "Failed to persist gesture tutorial flag", it) }
+        }
+    }
+
     fun onCameraModeChange(mode: CameraMode) {
         _cameraMode.value = mode
     }

@@ -238,6 +238,24 @@ fun SettingsScreen(
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
+            SettingsRow(label = "Gesture tutorial") {
+                TextButton(
+                    onClick = {
+                        // Write finishes before onBack so CaptureScreen's Flow has already
+                        // seen the flip by the time it recomposes and the overlay appears
+                        // without a visible lag.
+                        scope.launch {
+                            container.settingsRepository.setSeenGestureTutorial(false)
+                            onBack()
+                        }
+                    },
+                ) {
+                    Text("Show")
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+
             SettingBlock(label = "App version") {
                 Text(
                     text = BuildConfig.VERSION_NAME,

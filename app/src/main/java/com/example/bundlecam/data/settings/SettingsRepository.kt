@@ -30,6 +30,7 @@ data class SettingsState(
     val saveStitchedImage: Boolean = true,
     val deleteDelaySeconds: Int = DEFAULT_DELETE_DELAY_SECONDS,
     val deleteConfirmEnabled: Boolean = true,
+    val seenGestureTutorial: Boolean = false,
 )
 
 const val DEFAULT_DELETE_DELAY_SECONDS: Int = 5
@@ -44,6 +45,7 @@ private object Keys {
     val SAVE_STITCHED_IMAGE = booleanPreferencesKey("save_stitched_image")
     val DELETE_DELAY_SECONDS = intPreferencesKey("delete_delay_seconds")
     val DELETE_CONFIRM_ENABLED = booleanPreferencesKey("delete_confirm_enabled")
+    val SEEN_GESTURE_TUTORIAL = booleanPreferencesKey("seen_gesture_tutorial")
 }
 
 class SettingsRepository(context: Context) {
@@ -68,6 +70,7 @@ class SettingsRepository(context: Context) {
                 deleteDelaySeconds = (prefs[Keys.DELETE_DELAY_SECONDS] ?: DEFAULT_DELETE_DELAY_SECONDS)
                     .coerceIn(MIN_DELETE_DELAY_SECONDS, MAX_DELETE_DELAY_SECONDS),
                 deleteConfirmEnabled = prefs[Keys.DELETE_CONFIRM_ENABLED] ?: true,
+                seenGestureTutorial = prefs[Keys.SEEN_GESTURE_TUTORIAL] ?: false,
             )
         }
         .distinctUntilChanged()
@@ -97,6 +100,10 @@ class SettingsRepository(context: Context) {
 
     suspend fun setDeleteConfirmEnabled(on: Boolean) {
         store.edit { it[Keys.DELETE_CONFIRM_ENABLED] = on }
+    }
+
+    suspend fun setSeenGestureTutorial(seen: Boolean) {
+        store.edit { it[Keys.SEEN_GESTURE_TUTORIAL] = seen }
     }
 
     // Peer read + self write live in one edit{} so DataStore serializes concurrent toggles

@@ -72,10 +72,10 @@ The two folders share a common bundle ID (`{date}-s-{xxxx}`), so raw photos and 
 1. App opens to a brief "Pick output folder" screen
 2. User taps "Choose folder" → OS folder picker appears
 3. App persists the reference and creates `bundles/` and `stitched/` subfolders
-4. App drops straight into the capture screen
+4. App drops into the capture screen, where a full-screen `GestureTutorial` overlay walks through the five main-screen gestures (commit, discard, delete-one, reorder, split) once. Skip or Got-it dismisses and sets `seenGestureTutorial = true`. Settings → "Gesture tutorial → Show" re-triggers the overlay.
 
 **Every subsequent launch**
-1. App opens directly to the capture screen, folder already configured.
+1. App opens directly to the capture screen, folder already configured, overlay already acknowledged.
 
 **Capture loop** — the user only ever does five things:
 
@@ -367,7 +367,7 @@ For a pipeline-producer tool, Android is the stronger first platform: `ACTION_OP
 
 3. **Empty-queue gesture handling** → **swipes disabled on empty queue**, both handles dimmed and unresponsive. A 1-photo queue commits normally (stitch output is the single photo copied; raw folder contains that one file). Gesture vocabulary stays consistent regardless of queue size.
 
-4. **First-launch coach-marks** → **none**. The neutral handles plus contextual ✓/✕ destinations are self-evident. Revisit post-MVP if user testing shows discoverability problems.
+4. **First-launch coach-marks** → **five-step `GestureTutorial` overlay**, shown once when `seenGestureTutorial` is false. Each step loops a finger animation over a fake 4-thumb queue positioned at the real queue strip's 72dp location (so muscle memory transfers on dismiss). Re-triggerable from Settings. The overlay scrims the capture UI and consumes every touch so the user can't accidentally fire a real gesture on the (empty) queue beneath.
 
 5. **Storage double-cost management** → **no maintenance UI**. Modern devices and user-chosen folders (often cloud-synced) handle this naturally.
 
