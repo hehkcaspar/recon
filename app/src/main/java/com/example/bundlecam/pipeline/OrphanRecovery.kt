@@ -11,7 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 
-private const val TAG = "BundleCam/OrphanRecovery"
+private const val TAG = "Recon/OrphanRecovery"
 
 data class RestoredPhoto(
     val localFile: File,

@@ -30,7 +30,7 @@ import com.example.bundlecam.data.camera.CaptureController
 import com.example.bundlecam.data.camera.LensFacing
 import kotlinx.coroutines.delay
 
-private const val TAG = "BundleCam/CameraPreview"
+private const val TAG = "Recon/CameraPreview"
 
 @Composable
 fun CameraPreview(

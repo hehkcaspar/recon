@@ -23,15 +23,15 @@ import com.example.bundlecam.ui.capture.CaptureScreen
 import com.example.bundlecam.ui.preview.BundlePreviewScreen
 import com.example.bundlecam.ui.settings.SettingsScreen
 import com.example.bundlecam.ui.setup.FolderPickerScreen
-import com.example.bundlecam.ui.theme.BundlecamTheme
+import com.example.bundlecam.ui.theme.ReconTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val container = (application as BundleCamApp).container
+        val container = (application as ReconApp).container
         setContent {
-            BundlecamTheme {
+            ReconTheme {
                 AppRoot(container)
             }
         }

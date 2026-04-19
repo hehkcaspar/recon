@@ -1,6 +1,6 @@
 # Release builds
 
-Producing a signed production APK for Recon (BundleCam).
+Producing a signed production APK for Recon.
 
 ## One-time: generate the release keystore
 
@@ -56,7 +56,7 @@ Google Play requires an **AAB**; sideloaded installs take the APK.
   are stripped from the packaged APK.
 - ProGuard rules live in `app/proguard-rules.pro`. The only reflective surfaces
   that need keep rules are: kotlinx-serialization (`PendingBundle`), the
-  `BundleWorker` class (WorkManager instantiates by name), the `BundleCamApp`
+  `BundleWorker` class (WorkManager instantiates by name), the `ReconApp`
   Application class, and CameraX Extensions vendor shims.
 - Release builds are implicitly **non-debuggable** (no `android:debuggable`
   attribute is set).

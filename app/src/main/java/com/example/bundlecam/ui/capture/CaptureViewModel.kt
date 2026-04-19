@@ -9,7 +9,7 @@ import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.AP
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.example.bundlecam.BundleCamApp
+import com.example.bundlecam.ReconApp
 import com.example.bundlecam.data.camera.CameraMode
 import com.example.bundlecam.data.camera.CaptureController
 import com.example.bundlecam.data.camera.FlashMode
@@ -39,7 +39,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
 
-private const val TAG = "BundleCam/CaptureVM"
+private const val TAG = "Recon/CaptureVM"
 private const val UNDO_WINDOW_MS = 3000L
 
 enum class BusyState { Idle, Capturing }
@@ -411,7 +411,7 @@ class CaptureViewModel(
     companion object {
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
-                val app = this[APPLICATION_KEY] as BundleCamApp
+                val app = this[APPLICATION_KEY] as ReconApp
                 CaptureViewModel(app, app.container)
             }
         }

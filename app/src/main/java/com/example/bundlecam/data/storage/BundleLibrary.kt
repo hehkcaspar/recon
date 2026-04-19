@@ -11,7 +11,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 
-private const val TAG = "BundleCam/BundleLibrary"
+private const val TAG = "Recon/BundleLibrary"
 private const val MAX_PREVIEW_THUMBNAILS = 3
 
 /**

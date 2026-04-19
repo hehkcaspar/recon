@@ -16,7 +16,7 @@ import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.resume
 
-private const val TAG = "BundleCam/Location"
+private const val TAG = "Recon/Location"
 private const val TTL_MS = 30_000L
 private const val COALESCE_THRESHOLD_MS = TTL_MS / 2
 

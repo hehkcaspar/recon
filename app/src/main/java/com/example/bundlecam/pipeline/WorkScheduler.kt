@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import java.util.concurrent.TimeUnit
 
-private const val TAG = "BundleCam/WorkScheduler"
+private const val TAG = "Recon/WorkScheduler"
 private const val UNIQUE_NAME_PREFIX = "bundle-work-"
 
 data class BundleFailure(

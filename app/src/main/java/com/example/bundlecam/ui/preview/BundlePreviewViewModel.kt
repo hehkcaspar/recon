@@ -10,7 +10,7 @@ import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.AP
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.example.bundlecam.BundleCamApp
+import com.example.bundlecam.ReconApp
 import com.example.bundlecam.data.camera.decodeThumbnail
 import com.example.bundlecam.data.settings.SettingsState
 import com.example.bundlecam.data.storage.CompletedBundle
@@ -30,7 +30,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-private const val TAG = "BundleCam/BundlePreviewVM"
+private const val TAG = "Recon/BundlePreviewVM"
 
 enum class LoadState { Idle, Loading, Loaded, Error }
 
@@ -239,7 +239,7 @@ class BundlePreviewViewModel(
     companion object {
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
-                val app = this[APPLICATION_KEY] as BundleCamApp
+                val app = this[APPLICATION_KEY] as ReconApp
                 BundlePreviewViewModel(app, app.container)
             }
         }

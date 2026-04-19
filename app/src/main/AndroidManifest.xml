@@ -14,7 +14,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
-        android:name=".BundleCamApp"
+        android:name=".ReconApp"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -22,7 +22,7 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Bundlecam">
+        android:theme="@style/Theme.Recon">
         <!-- Portrait lock is intentional: the UI counter-rotates icons via Modifier.rotate
              so the layout doesn't reflow when the device turns. See README §UI counter-
              rotation. Android 16's orientation-override guidance doesn't apply here. -->
@@ -44,7 +44,7 @@
             tools:node="merge" />
 
         <!-- Disable default WorkManager auto-init so the Configuration.Provider in
-             BundleCamApp actually gets used (otherwise WorkManager picks up the default
+             ReconApp actually gets used (otherwise WorkManager picks up the default
              config before the Application instance is ready). -->
         <provider
             android:name="androidx.startup.InitializationProvider"

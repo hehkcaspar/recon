@@ -13,7 +13,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
-import com.example.bundlecam.BundleCamApp
+import com.example.bundlecam.ReconApp
 import com.example.bundlecam.data.settings.StitchQuality
 import com.example.bundlecam.data.storage.StorageLayout
 import kotlinx.coroutines.Dispatchers
@@ -23,9 +23,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 
-private const val TAG = "BundleCam/BundleWorker"
+private const val TAG = "Recon/BundleWorker"
 private const val NOTIFICATION_ID = 2026
-private const val CHANNEL_ID = "bundlecam_pipeline"
+private const val CHANNEL_ID = "recon_pipeline"
 private const val LOCATION_REFRESH_TIMEOUT_MS = 2000L
 
 class BundleWorker(
@@ -33,7 +33,7 @@ class BundleWorker(
     params: WorkerParameters,
 ) : CoroutineWorker(context, params) {
 
-    private val container by lazy { (applicationContext as BundleCamApp).container }
+    private val container by lazy { (applicationContext as ReconApp).container }
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         val bundleId = inputData.getString(KEY_BUNDLE_ID)
@@ -190,7 +190,7 @@ class BundleWorker(
     companion object {
         const val KEY_BUNDLE_ID = "bundle_id"
         const val KEY_ERROR = "error"
-        const val TAG_ALL = "bundlecam_bundle"
+        const val TAG_ALL = "recon_bundle"
 
         // Process-wide single-concurrency gate for bundle workers.
         private val workMutex = Mutex()

@@ -1,4 +1,4 @@
-# BundleCam MVP — Native Designs (v1 scope)
+# Recon MVP — Native Designs (v1 scope)
 
 _Pure capture tool. Photos go into a queue, the user commits a bundle, files land in folders. That's it._
 
@@ -53,7 +53,7 @@ The stitched image for a bundle is named `{date}-s-{xxxx}-stitch.jpg` (no `-p-k`
 │   ├── 2026-04-14-s-0001-stitch.jpg
 │   ├── 2026-04-14-s-0002-stitch.jpg
 │   └── ...
-└── .bundlecam-staging/      ← internal; hidden from user
+└── .recon-staging/      ← internal; hidden from user
     └── session-{uuid}/
         └── p-{k}.jpg         ← raw photos written at capture time
 ```
@@ -62,7 +62,7 @@ By default a bundle commit writes to both `bundles/{bundle-id}/` (raw photos) an
 
 The two folders share a common bundle ID (`{date}-s-{xxxx}`), so raw photos and the stitched image for the same capture event are always findable and pairable.
 
-`.bundlecam-staging/` is an internal working area, hidden from the user by the leading-dot convention. Its role is covered in the async pipeline section.
+`.recon-staging/` is an internal working area, hidden from the user by the leading-dot convention. Its role is covered in the async pipeline section.
 
 ---
 
@@ -199,7 +199,7 @@ Written to each photo's EXIF at capture time, with no user interaction:
 | GPS coordinates | Last known location | Cached 30s to avoid GPS fix delay on every shot |
 | Orientation | Device accelerometer | Honors device rotation |
 | Make/Model | Device metadata | Standard |
-| Bundle ID | Custom EXIF UserComment | `BundleCam:{bundle-id}:p{k}` — lets downstream tools reconstruct bundle membership and sequence from loose files even if folder structure is lost |
+| Bundle ID | Custom EXIF UserComment | `Recon:{bundle-id}:p{k}` — lets downstream tools reconstruct bundle membership and sequence from loose files even if folder structure is lost |
 
 The custom UserComment preserves the product's value proposition even in the worst-case file-hygiene scenario: if files get moved, renamed, or mixed into a larger dataset, membership and sequence are still recoverable from EXIF alone.
 
@@ -215,7 +215,7 @@ The photo is written to the staging folder immediately on capture, not held in m
 
 1. Camera captures JPEG → buffer
 2. Decode small thumbnail for the queue UI (~30ms)
-3. Spawn async task: write full-resolution JPEG to `.bundlecam-staging/session-{uuid}/p-{k}.jpg` with EXIF embedded
+3. Spawn async task: write full-resolution JPEG to `.recon-staging/session-{uuid}/p-{k}.jpg` with EXIF embedded
 4. UI updates the queue with the thumbnail immediately (the thumbnail holds only a small in-memory bitmap + a file path reference to staging)
 5. Shutter is ready for the next tap
 
@@ -237,7 +237,7 @@ No file I/O on the main thread. No stitching. No waiting. The swipe returns cont
 
 A background worker, one bundle at a time (FIFO, single-concurrency to avoid disk and memory contention), does the real work:
 
-1. **Loose write**: for each staged photo in the captured order, move it from `.bundlecam-staging/session-{uuid}/p-{k}.jpg` to `bundles/{bundle-id}/{bundle-id}-p-{kk}.jpg`. On same-volume filesystems this is a metadata-only rename — microseconds. Embed the bundle-ID EXIF UserComment during the move.
+1. **Loose write**: for each staged photo in the captured order, move it from `.recon-staging/session-{uuid}/p-{k}.jpg` to `bundles/{bundle-id}/{bundle-id}-p-{kk}.jpg`. On same-volume filesystems this is a metadata-only rename — microseconds. Embed the bundle-ID EXIF UserComment during the move.
 2. **Stitch write**: read the now-final raw files sequentially, normalize widths, concatenate vertically, encode JPEG at quality 0.85, write to `stitched/{bundle-id}-stitch.jpg`. Height cap: 32,000 px (above that, memory allocation and JPEG encoders start to fail on mid-range devices).
 3. Clean up the staging session folder.
 4. On success: silent.

@@ -40,7 +40,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-private const val TAG = "BundleCam/CaptureController"
+private const val TAG = "Recon/CaptureController"
 
 enum class CameraMode { ZSL, Extensions }
 

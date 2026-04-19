@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Native Android camera app. User-facing name **Recon**; package root and class names retain `bundlecam` / `BundleCam` to avoid an invasive rename. Core flow: capture photos → stage on internal storage → swipe-commit a "bundle" → background worker copies raw JPEGs + produces one vertically-stitched JPEG into the user's SAF-picked folder.
+Native Android camera app called **Recon**. The Gradle `namespace` and `applicationId` remain `com.example.bundlecam` so existing installs don't orphan on upgrade; every class, log tag, document, resource, and EXIF identifier is **Recon**. Core flow: capture photos → stage on internal storage → swipe-commit a "bundle" → background worker copies raw JPEGs + produces one vertically-stitched JPEG into the user's SAF-picked folder.
 
-Design spec (interaction/UX intent) lives in `bundlecam-mvp-designs.md`. README.md has a detailed architecture walk-through — keep both in sync when changing pipeline or capture-flow behavior.
+Design spec (interaction/UX intent) lives in `recon-mvp-designs.md`. README.md has a detailed architecture walk-through — keep both in sync when changing pipeline or capture-flow behavior.
 
 ## Common commands
 
@@ -30,7 +30,7 @@ This is the load-bearing mental model. **Don't break the phase boundaries** — 
 
 **Phase 2 — Commit (single frame).** `CaptureViewModel.onCommitBundle` pivots UI **synchronously on Main**: nulls `currentSession`, clears `queue` + `dividers`. Shutter is usable on the very next frame. The actual bookkeeping (bundle-ID allocation from DataStore, `PendingBundle` manifest serialization + file write, `WorkScheduler.enqueue`) runs in a background coroutine afterwards. If the process dies between the UI pivot and the manifest save, the staging session persists on disk and `OrphanRecovery` restores it as an uncommitted queue on next launch.
 
-**Phase 3 — Worker (seconds–tens of seconds, off UI).** `BundleWorker` (CoroutineWorker) loads the manifest, optionally refreshes GPS (bounded 2s), stamps final per-file EXIF (`UserComment=BundleCam:{bundleId}:p{kk}` or `:stitch` + GPS backfill) in one open/save pass, copies raw JPEGs to `bundles/{bundle-id}/` via SAF, runs `Stitcher` into `stitched/{bundle-id}-stitch.jpg`, then deletes staging + manifest. **A process-wide `Mutex` (`workMutex`) serializes all workers** — stitching allocates ~60% of heap and two in parallel reliably OOMs mid-range devices.
+**Phase 3 — Worker (seconds–tens of seconds, off UI).** `BundleWorker` (CoroutineWorker) loads the manifest, optionally refreshes GPS (bounded 2s), stamps final per-file EXIF (`UserComment=Recon:{bundleId}:p{kk}` or `:stitch` + GPS backfill) in one open/save pass, copies raw JPEGs to `bundles/{bundle-id}/` via SAF, runs `Stitcher` into `stitched/{bundle-id}-stitch.jpg`, then deletes staging + manifest. **A process-wide `Mutex` (`workMutex`) serializes all workers** — stitching allocates ~60% of heap and two in parallel reliably OOMs mid-range devices.
 
 ### Why these shapes
 
@@ -55,9 +55,9 @@ Package root: `com.example.bundlecam`. All sources under `app/src/main/java/com/
 - `data/settings/` — `SettingsRepository` backed by DataStore Preferences; `SettingsState { rootUri, stitchQuality, shutterSoundOn, saveIndividualPhotos, saveStitchedImage, deleteDelaySeconds, deleteConfirmEnabled, seenGestureTutorial }` as a distinct-until-changed `Flow`. `seenGestureTutorial` gates the first-run `GestureTutorial` overlay; Settings has a "Gesture tutorial → Show" row that flips it back to `false` and pops to capture so the overlay re-appears.
 - `data/storage/` — `StagingStore` (internal FS), `SafStorage` (writes via `DocumentFile`, batches `listFiles()`, overwrites on name collision so worker retries don't produce `" (1).jpg"`; directory creation goes through `findOrCreateDir` which re-`findFile`s after a null `createDirectory` to survive concurrent-creator races with `ensureBundleFolders`), `StorageLayout` (canonical naming — **change here, not at call sites**), `BundleCounterStore` (per-date monotonic counter).
 - `pipeline/` — `PendingBundle` (kotlinx-serializable manifest), `ManifestStore`, `WorkScheduler`, `BundleWorker`, `Stitcher` (layout math is a pure `companion` function `computeLayout` so tests don't need Bitmap allocation), `OrphanRecovery`.
-- `di/AppContainer.kt` — plain singleton, no DI framework. Constructed in `BundleCamApp.onCreate`. `configureRoot(uri)` returns a `Job` launched on an internal `appScope` (`SupervisorJob + Main.immediate`) — **do not call it from a composition-scoped `launch`**, or popping the screen mid-setup would cancel `ensureBundleFolders`.
+- `di/AppContainer.kt` — plain singleton, no DI framework. Constructed in `ReconApp.onCreate`. `configureRoot(uri)` returns a `Job` launched on an internal `appScope` (`SupervisorJob + Main.immediate`) — **do not call it from a composition-scoped `launch`**, or popping the screen mid-setup would cancel `ensureBundleFolders`.
 
-`BundleCamApp` implements `Configuration.Provider` for WorkManager; the manifest `<provider tools:node="remove">` block **disables WorkManager's default auto-init** so our provider is actually used (otherwise the default config wins the race against `Application.onCreate`).
+`ReconApp` implements `Configuration.Provider` for WorkManager; the manifest `<provider tools:node="remove">` block **disables WorkManager's default auto-init** so our provider is actually used (otherwise the default config wins the race against `Application.onCreate`).
 
 ## Testing
 
@@ -75,7 +75,7 @@ When adding logic, prefer to put the algorithmic core in a pure function on a `c
 
 ## Conventions worth knowing
 
-- **Log tag format**: `"BundleCam/<ClassName>"` as a private file constant.
+- **Log tag format**: `"Recon/<ClassName>"` as a private file constant.
 - **Error surfacing**: recoverable failures write `state.lastError` for the banner; unrecoverable shouldn't happen (or they'd crash). Don't add silent `catch` blocks.
 - **Commits across phases are atomic from the worker's view**: in `onCommitBundle`, save *all* manifests before enqueuing *any* worker — a mid-loop crash leaves no enqueued workers on partial state.
 - **Gesture zones are siblings in a `Box`, not arbitrated**: the commit/discard `EdgeZone`s stack on top of the tray and `systemGestureExclusion()` goes flush to the screen edge. Don't try to merge them into a single gesture handler.

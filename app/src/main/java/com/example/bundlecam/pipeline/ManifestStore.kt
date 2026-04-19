@@ -8,7 +8,7 @@ import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.IOException
 
-private const val TAG = "BundleCam/ManifestStore"
+private const val TAG = "Recon/ManifestStore"
 
 class ManifestStore(context: Context) {
     private val dir: File =

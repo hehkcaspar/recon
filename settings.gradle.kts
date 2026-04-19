@@ -22,5 +22,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "bundlecam"
+rootProject.name = "recon"
 include(":app")

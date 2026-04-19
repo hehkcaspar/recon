@@ -5,7 +5,7 @@ import android.util.Log
 import androidx.work.Configuration
 import com.example.bundlecam.di.AppContainer
 
-class BundleCamApp : Application(), Configuration.Provider {
+class ReconApp : Application(), Configuration.Provider {
     lateinit var container: AppContainer
         private set
 

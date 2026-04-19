@@ -1,5 +1,5 @@
 # -----------------------------------------------------------------------------
-# BundleCam / Recon R8 rules
+# Recon R8 rules
 # -----------------------------------------------------------------------------
 # Release builds enable `isMinifyEnabled = true` + `isShrinkResources = true`.
 # Keep these rules minimal: only add what R8 cannot infer.
@@ -72,7 +72,7 @@
 # -----------------------------------------------------------------------------
 # Application class (manifest-referenced by name)
 # -----------------------------------------------------------------------------
--keep class com.example.bundlecam.BundleCamApp { *; }
+-keep class com.example.bundlecam.ReconApp { *; }
 
 # -----------------------------------------------------------------------------
 # CameraX + extensions

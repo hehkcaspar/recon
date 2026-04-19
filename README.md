@@ -1,10 +1,10 @@
-# BundleCam
+# Recon
 
 Native Android camera app for capturing **bundles** of photos. A bundle produces up to two outputs in parallel — the raw photos (named and ordered) and a single vertically-stitched image — with each output independently toggleable in settings (at least one must be on). Designed for machinegun-cadence capture — shoot, shoot, swipe, shoot, shoot, swipe — with zero blocking work on the interaction path.
 
-> User-facing display name is **Recon**. Internal package/class identifiers retain `bundlecam` / `BundleCam` to avoid an invasive codebase-wide rename.
+> The Gradle `namespace` and `applicationId` remain `com.example.bundlecam` — renaming them would orphan existing installs on upgrade. Everything user-facing, every class / log tag / EXIF identifier, and every document uses **Recon**.
 
-For the user-facing product spec and interaction design, see [`bundlecam-mvp-designs.md`](./bundlecam-mvp-designs.md).
+For the user-facing product spec and interaction design, see [`recon-mvp-designs.md`](./recon-mvp-designs.md).
 
 ---
 
@@ -97,7 +97,7 @@ No DI framework — a plain singleton [`AppContainer`](./app/src/main/java/com/e
 
 **Phase 2 — Commit (single frame).** User swipes the queue. `CaptureViewModel.onCommitBundle` pivots the UI synchronously on Main — nulls `currentSession`, clears `queue` + `dividers` — so the shutter is ready on the very next frame. The actual bookkeeping (allocate bundle IDs, write [`PendingBundle`](./app/src/main/java/com/example/bundlecam/pipeline/PendingBundle.kt) manifests to disk, enqueue `BundleWorker`s) runs in a background coroutine. If the process dies before the manifest is saved, photos are still on staging and `OrphanRecovery` restores the session as a queue on next launch.
 
-**Phase 3 — Worker (seconds–tens of seconds, off the UI thread).** `BundleWorker` loads the manifest, backfills GPS EXIF on any photo lacking it (bounded 2s location refresh — covers first-capture before the location fix has resolved), stamps per-file EXIF `UserComment`s (`BundleCam:{bundleId}:p{kk}` / `:stitch`) in a single open/save, copies raw JPEGs to `bundles/{bundle-id}/` via SAF, runs [`Stitcher`](./app/src/main/java/com/example/bundlecam/pipeline/Stitcher.kt) to produce one vertical JPEG into `stitched/`, then deletes the staging session and manifest file. A process-wide `Mutex` serializes workers so stitch memory stays bounded.
+**Phase 3 — Worker (seconds–tens of seconds, off the UI thread).** `BundleWorker` loads the manifest, backfills GPS EXIF on any photo lacking it (bounded 2s location refresh — covers first-capture before the location fix has resolved), stamps per-file EXIF `UserComment`s (`Recon:{bundleId}:p{kk}` / `:stitch`) in a single open/save, copies raw JPEGs to `bundles/{bundle-id}/` via SAF, runs [`Stitcher`](./app/src/main/java/com/example/bundlecam/pipeline/Stitcher.kt) to produce one vertical JPEG into `stitched/`, then deletes the staging session and manifest file. A process-wide `Mutex` serializes workers so stitch memory stays bounded.
 
 ### Resilience
 
@@ -113,7 +113,7 @@ Package root: `com.example.bundlecam`. All files live under `app/src/main/java/c
 
 ### Entry point
 - [`MainActivity.kt`](./app/src/main/java/com/example/bundlecam/MainActivity.kt) — sets up Compose, observes `SettingsRepository.settings`, routes between `FolderPickerScreen` (first run), `CaptureScreen` (primary), `BundlePreviewScreen`, and `SettingsScreen` via a `when`-chain on two `rememberSaveable` flags.
-- [`BundleCamApp.kt`](./app/src/main/java/com/example/bundlecam/BundleCamApp.kt) — Application subclass, constructs `AppContainer`, provides `WorkManager.Configuration`.
+- [`ReconApp.kt`](./app/src/main/java/com/example/bundlecam/ReconApp.kt) — Application subclass, constructs `AppContainer`, provides `WorkManager.Configuration`.
 
 ### `ui/capture/` — the capture screen
 - `CaptureScreen.kt` — top bar (settings, camera-mode toggle, **photo-library icon opening the Bundle Preview screen**), preview, zoom, flash / shutter / lens-flip row, queue strip, overlays (undo toast, saved shimmer, error banner). GPS permission is launched from a `LaunchedEffect(Unit)` the first time the camera UI mounts (not lazily on first shutter). The error banner sits inside the queue `Box` alongside `UndoToast` / `BundleSavedShimmer` so it overlays the queue rather than pushing the shutter + queue down. A first-run `GestureTutorial` overlay is rendered last in the root `Box` when `!settings.seenGestureTutorial`, consuming all touches until dismissed.

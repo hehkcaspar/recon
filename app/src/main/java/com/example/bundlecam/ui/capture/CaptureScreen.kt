@@ -421,7 +421,7 @@ private fun PermissionRequiredScreen(
             )
             Spacer(Modifier.height(12.dp))
             Text(
-                text = "BundleCam needs the camera to capture photos. Grant permission to continue.",
+                text = "Recon needs the camera to capture photos. Grant permission to continue.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color.White.copy(alpha = 0.8f),
                 textAlign = TextAlign.Center,

@@ -8,7 +8,7 @@ import android.provider.DocumentsContract
 import android.util.Log
 import android.widget.Toast
 
-private const val TAG = "BundleCam/FolderIntent"
+private const val TAG = "Recon/FolderIntent"
 
 /**
  * Launch the system file browser rooted at [treeUri]. Hoisted out of the capture screen

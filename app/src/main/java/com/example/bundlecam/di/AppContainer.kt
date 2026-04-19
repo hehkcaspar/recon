@@ -19,7 +19,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
-private const val TAG = "BundleCam/AppContainer"
+private const val TAG = "Recon/AppContainer"
 
 class AppContainer(context: Context) {
     private val appContext: Context = context.applicationContext

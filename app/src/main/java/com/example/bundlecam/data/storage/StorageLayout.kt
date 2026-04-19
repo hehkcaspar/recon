@@ -19,8 +19,8 @@ object StorageLayout {
     val STITCHED_PATH: List<String> = listOf(STITCHED_DIR)
 
     fun photoExifComment(bundleId: String, oneBasedIndex: Int): String =
-        "BundleCam:$bundleId:p${"%02d".format(oneBasedIndex)}"
+        "Recon:$bundleId:p${"%02d".format(oneBasedIndex)}"
 
     fun stitchExifComment(bundleId: String): String =
-        "BundleCam:$bundleId:stitch"
+        "Recon:$bundleId:stitch"
 }
