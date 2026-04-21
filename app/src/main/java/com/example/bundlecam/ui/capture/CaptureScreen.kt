@@ -226,9 +226,16 @@ private fun CaptureScreenContent(
                     )
                 }
                 Spacer(Modifier.weight(1f))
+                // Lock the pill visually during an active recording so the user sees
+                // their grey state at-a-glance — `setModality` in the VM already
+                // rejects the tap, but the disabled styling is the visual cue.
                 ModalityPill(
                     current = modality,
-                    enabledModalities = setOf(Modality.PHOTO, Modality.VIDEO, Modality.VOICE),
+                    enabledModalities = if (state.busy == BusyState.Recording) {
+                        emptySet()
+                    } else {
+                        setOf(Modality.PHOTO, Modality.VIDEO, Modality.VOICE)
+                    },
                     onChange = vm::setModality,
                 )
                 Spacer(Modifier.weight(1f))
@@ -333,16 +340,22 @@ private fun CaptureScreenContent(
                     )
                     .graphicsLayer { translationX = slabOffset.value },
             ) {
+                // Always composed so CameraX stays bound — but alpha 0 in VOICE mode
+                // so the preview isn't a visual distraction underneath the overlay.
+                // The spec: "keep camera session bound across photo ↔ voice so
+                // switching back is instant" — composition is what keeps it bound,
+                // alpha is what hides it.
                 CameraPreview(
                     controller = vm.captureController,
                     mode = cameraMode,
                     lens = lensFacing,
                     onRebindingChange = vm::setRebinding,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            alpha = if (modality == Modality.VOICE) 0f else 1f
+                        },
                 )
-                // Voice modality overlay: covers the camera preview (which stays bound
-                // so switching back is instant) with a scrolling waveform visualizer
-                // fed by VoiceController's amplitude poll.
                 if (modality == Modality.VOICE) {
                     VoiceOverlay(
                         recording = state.busy == BusyState.Recording,
@@ -361,36 +374,60 @@ private fun CaptureScreenContent(
                     .padding(bottom = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
+                // Camera-only auxiliary controls: zoom + flash + lens-flip. Hidden when
+                // the active modality doesn't use the camera (voice) or when they
+                // can't meaningfully operate (no torch wiring in video yet, so flash
+                // is hidden in VIDEO too — having an icon that does nothing is worse
+                // than not having it). During a recording these are all disabled.
+                val cameraControlsVisible = modality != Modality.VOICE
+                val flashVisible = modality == Modality.PHOTO
+                val lensFlipVisible = modality != Modality.VOICE
+                val sideControlsEnabled = state.busy == BusyState.Idle
+
+                // Zoom is meaningless for voice — but we keep the composable in the
+                // tree and just alpha it out, so the shutter row stays at the same
+                // vertical position across modality switches. Otherwise the shutter
+                // visibly jumps down in VOICE (no zoom) and back up in PHOTO/VIDEO.
                 ZoomControl(
                     zoomInfo = zoomInfo,
                     onZoomChange = vm::onZoomChange,
                     contentRotation = contentRotation,
-                    modifier = Modifier.padding(bottom = 12.dp),
+                    modifier = Modifier
+                        .padding(bottom = 12.dp)
+                        .graphicsLayer { alpha = if (cameraControlsVisible) 1f else 0f },
                 )
 
                 Row(
-                    // Same translationX as the viewfinder Box above: the spec calls for
-                    // "one capture slab" moving together, so drag + spring-back apply
-                    // to both. ZoomControl (above) and the queue strip (below, outside
-                    // this Column) stay pixel-anchored.
                     modifier = Modifier
                         .fillMaxWidth()
                         .graphicsLayer { translationX = slabOffset.value },
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    IconButton(
-                        onClick = vm::onCycleFlash,
-                        modifier = Modifier.size(48.dp),
-                    ) {
-                        Icon(
-                            imageVector = flashIconFor(flashMode),
-                            contentDescription = flashContentDescription(flashMode),
-                            tint = if (flashMode == FlashMode.Off) Color.White.copy(alpha = 0.65f) else Color.White,
-                            modifier = Modifier
-                                .size(26.dp)
-                                .rotate(contentRotation),
-                        )
+                    if (flashVisible) {
+                        IconButton(
+                            onClick = vm::onCycleFlash,
+                            enabled = sideControlsEnabled,
+                            modifier = Modifier.size(48.dp),
+                        ) {
+                            Icon(
+                                imageVector = flashIconFor(flashMode),
+                                contentDescription = flashContentDescription(flashMode),
+                                tint = when {
+                                    !sideControlsEnabled -> Color.White.copy(alpha = 0.25f)
+                                    flashMode == FlashMode.Off -> Color.White.copy(alpha = 0.65f)
+                                    else -> Color.White
+                                },
+                                modifier = Modifier
+                                    .size(26.dp)
+                                    .rotate(contentRotation),
+                            )
+                        }
+                    } else {
+                        // Keep the shutter horizontally centered regardless of side-icon
+                        // visibility — an empty slot of the same width as the IconButton
+                        // (48dp) preserves the 3-slot geometry called for in the spec.
+                        Spacer(Modifier.size(48.dp))
                     }
                     Spacer(Modifier.width(56.dp))
                     when (modality) {
@@ -411,20 +448,23 @@ private fun CaptureScreenContent(
                         )
                     }
                     Spacer(Modifier.width(56.dp))
-                    val flipEnabled = state.busy == BusyState.Idle
-                    IconButton(
-                        onClick = vm::onToggleLens,
-                        enabled = flipEnabled,
-                        modifier = Modifier.size(48.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Cameraswitch,
-                            contentDescription = "Flip camera",
-                            tint = if (flipEnabled) Color.White.copy(alpha = 0.65f) else Color.White.copy(alpha = 0.35f),
-                            modifier = Modifier
-                                .size(26.dp)
-                                .rotate(contentRotation),
-                        )
+                    if (lensFlipVisible) {
+                        IconButton(
+                            onClick = vm::onToggleLens,
+                            enabled = sideControlsEnabled,
+                            modifier = Modifier.size(48.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Cameraswitch,
+                                contentDescription = "Flip camera",
+                                tint = if (sideControlsEnabled) Color.White.copy(alpha = 0.65f) else Color.White.copy(alpha = 0.25f),
+                                modifier = Modifier
+                                    .size(26.dp)
+                                    .rotate(contentRotation),
+                            )
+                        }
+                    } else {
+                        Spacer(Modifier.size(48.dp))
                     }
                 }
 

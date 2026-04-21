@@ -68,9 +68,17 @@ private fun Segment(
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
+    // Background: the selected segment always shows its white pill (dimmed when
+    // disabled) so the user can read the current modality at a glance — even
+    // during a recording when every segment is disabled for tap.
+    val background = when {
+        selected && enabled -> Color.White.copy(alpha = 0.9f)
+        selected && !enabled -> Color.White.copy(alpha = 0.35f)
+        else -> Color.Transparent
+    }
     val textColor = when {
-        !enabled -> Color.White.copy(alpha = 0.35f)
         selected -> Color.Black
+        !enabled -> Color.White.copy(alpha = 0.35f)
         else -> Color.White
     }
     Box(
@@ -82,7 +90,7 @@ private fun Segment(
                 role = Role.Tab,
                 onClick = onClick,
             )
-            .background(if (selected && enabled) Color.White.copy(alpha = 0.9f) else Color.Transparent)
+            .background(background)
             .padding(horizontal = 14.dp, vertical = 6.dp),
     ) {
         Text(
