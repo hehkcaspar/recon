@@ -97,6 +97,20 @@ fun decodeVideoPoster(file: File): ImageBitmap? {
     }
 }
 
+/**
+ * Generate a placeholder thumbnail for a voice item. The QueueThumbnail's Voice branch
+ * overlays the mic glyph + duration badge on top, so the placeholder just needs to be
+ * any ImageBitmap — a tiny tinted square is cheap and uniform. Kept here so the
+ * StagedItem contract (thumbnail: ImageBitmap) doesn't need a nullable field.
+ */
+fun decodeVoiceThumbnail(): ImageBitmap {
+    // 8x8 tinted square. Smaller than 1x1 actually isn't cheaper to allocate and 8x8
+    // side-steps any zero-size sanity check in a downstream consumer.
+    val bmp = Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888)
+    bmp.eraseColor(0xFF1F2A44.toInt()) // deep navy; the mic glyph reads well on top
+    return bmp.asImageBitmap()
+}
+
 /** True if the video at [file] has a readable duration — the sanity check OrphanRecovery uses. */
 fun isVideoPlayable(file: File): Boolean {
     if (!file.exists() || file.length() == 0L) return false

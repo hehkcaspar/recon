@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -158,6 +159,34 @@ fun QueueThumbnail(
                         .align(androidx.compose.ui.Alignment.Center),
                 )
                 // Duration badge, bottom-right.
+                Text(
+                    text = formatDuration(item.durationMs),
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier
+                        .align(androidx.compose.ui.Alignment.BottomEnd)
+                        .padding(2.dp)
+                        .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(2.dp))
+                        .padding(horizontal = 2.dp),
+                )
+            }
+            is StagedItem.Voice -> {
+                // Tinted backdrop (the "thumbnail" bitmap is a tiny tinted square —
+                // see decodeVoiceThumbnail) plus a larger mic glyph and duration badge.
+                Image(
+                    bitmap = item.thumbnail,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                Icon(
+                    imageVector = Icons.Filled.Mic,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier
+                        .size(28.dp)
+                        .align(androidx.compose.ui.Alignment.Center),
+                )
                 Text(
                     text = formatDuration(item.durationMs),
                     color = Color.White,

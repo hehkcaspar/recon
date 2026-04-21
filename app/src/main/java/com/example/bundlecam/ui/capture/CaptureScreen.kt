@@ -129,6 +129,16 @@ private fun CaptureScreenContent(
     ) { /* no-op; capture proceeds regardless */ }
     var locationAsked by rememberSaveable { mutableStateOf(false) }
 
+    val voicePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted -> vm.onVoicePermissionResult(granted) }
+    val voicePermissionNeeded by vm.voicePermissionNeeded.collectAsStateWithLifecycle()
+    LaunchedEffect(voicePermissionNeeded) {
+        if (voicePermissionNeeded) {
+            voicePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
     // Ask for GPS permission the first time the camera UI becomes available (after camera
     // permission is granted and the user is past the folder picker). We don't wait for the
     // first shutter press — getting consent up-front means the first capture can already
@@ -211,7 +221,7 @@ private fun CaptureScreenContent(
                 Spacer(Modifier.weight(1f))
                 ModalityPill(
                     current = modality,
-                    enabledModalities = setOf(Modality.PHOTO, Modality.VIDEO),
+                    enabledModalities = setOf(Modality.PHOTO, Modality.VIDEO, Modality.VOICE),
                     onChange = vm::setModality,
                 )
                 Spacer(Modifier.weight(1f))
@@ -240,6 +250,15 @@ private fun CaptureScreenContent(
                     onRebindingChange = vm::setRebinding,
                     modifier = Modifier.fillMaxSize(),
                 )
+                // Voice modality overlay: covers the camera preview (which stays bound
+                // so switching back is instant) with a dark scrim + mic glyph. Replaces
+                // the waveform visualizer from the plan — MVP scope.
+                if (modality == Modality.VOICE) {
+                    VoiceOverlay(
+                        recording = state.busy == BusyState.Recording,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.weight(1f))
@@ -288,9 +307,10 @@ private fun CaptureScreenContent(
                             progressFraction = null,
                             enabled = state.busy == BusyState.Idle || state.busy == BusyState.Recording,
                         )
-                        Modality.VOICE -> ShutterButton(
+                        Modality.VOICE -> VoiceShutterButton(
                             onClick = handleShutter,
-                            enabled = false, // Phase E wires VoiceShutterButton
+                            recording = state.busy == BusyState.Recording,
+                            enabled = state.busy == BusyState.Idle || state.busy == BusyState.Recording,
                         )
                     }
                     Spacer(Modifier.width(56.dp))

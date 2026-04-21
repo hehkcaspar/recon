@@ -40,3 +40,10 @@ data class PendingVideo(
     val rotationDegrees: Int,
     val durationMs: Long,
 ) : PendingItem()
+
+@Serializable
+@SerialName("voice")
+data class PendingVoice(
+    override val localPath: String,
+    val durationMs: Long,
+) : PendingItem()

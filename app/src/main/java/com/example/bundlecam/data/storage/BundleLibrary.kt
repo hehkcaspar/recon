@@ -48,11 +48,17 @@ class BundleLibrary(context: Context) {
                             ?.listFiles()
                             ?.count { it.isFile && it.name?.endsWith(".mp4", ignoreCase = true) == true }
                             ?: 0
+                        val voiceCount = dir.findFile(StorageLayout.AUDIO_SUBDIR)
+                            ?.takeIf { it.isDirectory }
+                            ?.listFiles()
+                            ?.count { it.isFile && it.name?.endsWith(".m4a", ignoreCase = true) == true }
+                            ?: 0
                         BundleDirEntry(
                             id = id,
                             subfolder = dir,
                             photoCount = photos.size,
                             videoCount = videoCount,
+                            voiceCount = voiceCount,
                             thumbnailPhotos = photos.take(MAX_PREVIEW_THUMBNAILS),
                         )
                     }
@@ -94,6 +100,7 @@ class BundleLibrary(context: Context) {
                 thumbnailUris = thumbnailUris,
                 photoCount = dirEntry?.photoCount ?: 0,
                 videoCount = dirEntry?.videoCount ?: 0,
+                voiceCount = dirEntry?.voiceCount ?: 0,
             )
         }
             .filter { it.modalities.isNotEmpty() }
@@ -135,6 +142,7 @@ class BundleLibrary(context: Context) {
         val subfolder: DocumentFile,
         val photoCount: Int,
         val videoCount: Int,
+        val voiceCount: Int,
         val thumbnailPhotos: List<DocumentFile>,
     )
 }

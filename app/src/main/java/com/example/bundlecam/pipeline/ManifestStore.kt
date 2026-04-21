@@ -42,6 +42,7 @@ class ManifestStore(context: Context) {
             polymorphic(PendingItem::class) {
                 subclass(PendingPhoto::class)
                 subclass(PendingVideo::class)
+                subclass(PendingVoice::class)
             }
         }
     }

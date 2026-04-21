@@ -85,7 +85,7 @@ class BundleWorker(
         Log.i(
             TAG,
             "processManifest bundleId=${manifest.bundleId} items=${manifest.orderedItems.size} " +
-                "photos=${plan.photos.size} videos=${plan.videos.size} " +
+                "photos=${plan.photos.size} videos=${plan.videos.size} voices=${plan.voices.size} " +
                 "quality=$quality individual=$saveIndividual stitched=$saveStitched",
         )
 
@@ -124,6 +124,18 @@ class BundleWorker(
             container.safStorage.copyLocalFiles(
                 rootUri = rootUri,
                 subPath = StorageLayout.bundleVideosPath(manifest.bundleId),
+                entries = entries,
+            )
+        }
+
+        if (plan.voices.isNotEmpty()) {
+            // Voice files: .m4a AAC-LC as produced by MediaRecorder. No EXIF, no stitch.
+            val entries = plan.voices.map { (voice, globalIndex) ->
+                StorageLayout.bundleAudioName(manifest.bundleId, globalIndex) to File(voice.localPath)
+            }
+            container.safStorage.copyLocalFiles(
+                rootUri = rootUri,
+                subPath = StorageLayout.bundleAudioPath(manifest.bundleId),
                 entries = entries,
             )
         }
@@ -225,14 +237,16 @@ class BundleWorker(
         fun planRouting(manifest: PendingBundle): RoutingPlan {
             val photos = mutableListOf<IndexedItem<PendingPhoto>>()
             val videos = mutableListOf<IndexedItem<PendingVideo>>()
+            val voices = mutableListOf<IndexedItem<PendingVoice>>()
             manifest.orderedItems.forEachIndexed { zeroIndex, item ->
                 val global = zeroIndex + 1
                 when (item) {
                     is PendingPhoto -> photos.add(IndexedItem(item, global))
                     is PendingVideo -> videos.add(IndexedItem(item, global))
+                    is PendingVoice -> voices.add(IndexedItem(item, global))
                 }
             }
-            return RoutingPlan(photos, videos)
+            return RoutingPlan(photos, videos, voices)
         }
     }
 }
@@ -244,4 +258,5 @@ data class IndexedItem<T>(val item: T, val globalIndex: Int)
 data class RoutingPlan(
     val photos: List<IndexedItem<PendingPhoto>>,
     val videos: List<IndexedItem<PendingVideo>>,
+    val voices: List<IndexedItem<PendingVoice>>,
 )

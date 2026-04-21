@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.bundlecam.ReconApp
+import com.example.bundlecam.data.audio.VoiceRecordingResult
 import com.example.bundlecam.data.camera.CameraMode
 import com.example.bundlecam.data.camera.CaptureController
 import com.example.bundlecam.data.camera.FlashMode
@@ -25,6 +26,7 @@ import com.example.bundlecam.pipeline.PendingBundle
 import com.example.bundlecam.pipeline.PendingItem
 import com.example.bundlecam.pipeline.PendingPhoto
 import com.example.bundlecam.pipeline.PendingVideo
+import com.example.bundlecam.pipeline.PendingVoice
 import com.example.bundlecam.pipeline.RestoredItem
 import com.example.bundlecam.ui.common.TimedSlot
 import kotlinx.coroutines.Dispatchers
@@ -74,9 +76,21 @@ sealed class StagedItem {
         val rotationDegrees: Int,
         val durationMs: Long,
     ) : StagedItem()
+
+    data class Voice(
+        override val id: String,
+        override val localFile: File,
+        override val thumbnail: ImageBitmap,
+        override val capturedAt: Long,
+        val durationMs: Long,
+    ) : StagedItem()
 }
 
 data class VideoRecordingState(
+    val startedAt: Long,
+)
+
+data class VoiceRecordingState(
     val startedAt: Long,
 )
 
@@ -129,6 +143,14 @@ class CaptureViewModel(
     private val _videoRecording = MutableStateFlow<VideoRecordingState?>(null)
     val videoRecording: StateFlow<VideoRecordingState?> = _videoRecording.asStateFlow()
 
+    private val _voiceRecording = MutableStateFlow<VoiceRecordingState?>(null)
+    val voiceRecording: StateFlow<VoiceRecordingState?> = _voiceRecording.asStateFlow()
+
+    // Set to true when the user taps the VOICE shutter and permission is missing. The
+    // CaptureScreen's permission launcher observes this and kicks off the request flow.
+    private val _voicePermissionNeeded = MutableStateFlow(false)
+    val voicePermissionNeeded: StateFlow<Boolean> = _voicePermissionNeeded.asStateFlow()
+
     private val _events = MutableSharedFlow<CaptureEvent>(extraBufferCapacity = 4)
     val events: SharedFlow<CaptureEvent> = _events.asSharedFlow()
 
@@ -161,6 +183,13 @@ class CaptureViewModel(
                                 durationMs = r.durationMs,
                                 capturedAt = r.capturedAt,
                             )
+                            is RestoredItem.Voice -> StagedItem.Voice(
+                                id = UUID.randomUUID().toString(),
+                                localFile = r.localFile,
+                                thumbnail = r.thumbnail,
+                                durationMs = r.durationMs,
+                                capturedAt = r.capturedAt,
+                            )
                         }
                     }
                     _uiState.update { it.copy(queue = stagedItems) }
@@ -187,7 +216,7 @@ class CaptureViewModel(
         when (_modality.value) {
             Modality.PHOTO -> onShutterPhoto()
             Modality.VIDEO -> onShutterVideo()
-            Modality.VOICE -> Unit // Phase E lifts this
+            Modality.VOICE -> onShutterVoice()
         }
     }
 
@@ -288,6 +317,104 @@ class CaptureViewModel(
     @Volatile
     private var videoStartRotation: Int = 0
 
+    private fun onShutterVoice() {
+        val busy = _uiState.value.busy
+        when (busy) {
+            BusyState.Idle -> startVoiceRecordingFlow()
+            BusyState.Recording -> stopVoiceRecordingFlow()
+            else -> Unit // Capturing / Rebinding: ignore
+        }
+    }
+
+    private fun startVoiceRecordingFlow() {
+        if (!container.voiceController.hasPermission()) {
+            // Hand off to CaptureScreen's permission launcher. On grant, the UI calls
+            // back into setModality(VOICE) + retry — or simpler: onVoicePermissionResult.
+            _voicePermissionNeeded.value = true
+            return
+        }
+        confirmPendingDiscardIfAny()
+        val session = currentSession ?: container.stagingStore.createSession().also {
+            currentSession = it
+        }
+        val outputFile = container.stagingStore.allocateVoiceOutput(session)
+        viewModelScope.launch {
+            container.stagingStore.appendOrderEntry(session, outputFile.name)
+            val result = container.voiceController.startRecording(outputFile)
+            when (result) {
+                is VoiceRecordingResult.Success -> {
+                    _uiState.update {
+                        it.copy(busy = BusyState.Recording, lastError = null)
+                    }
+                    _voiceRecording.value = VoiceRecordingState(System.currentTimeMillis())
+                }
+                is VoiceRecordingResult.PermissionDenied -> {
+                    _voicePermissionNeeded.value = true
+                }
+                is VoiceRecordingResult.Error -> {
+                    _uiState.update { it.copy(lastError = "Voice recording failed: ${result.message}") }
+                }
+                VoiceRecordingResult.NotRecording -> Unit // impossible on start
+            }
+        }
+    }
+
+    private fun stopVoiceRecordingFlow() {
+        val recordingState = _voiceRecording.value ?: return
+        viewModelScope.launch {
+            val result = container.voiceController.stopRecording()
+            _voiceRecording.value = null
+            when (result) {
+                is VoiceRecordingResult.Success -> {
+                    val thumbnail = withContext(Dispatchers.Default) {
+                        com.example.bundlecam.data.camera.decodeVoiceThumbnail()
+                    }
+                    val staged = StagedItem.Voice(
+                        id = UUID.randomUUID().toString(),
+                        localFile = result.file,
+                        thumbnail = thumbnail,
+                        capturedAt = recordingState.startedAt,
+                        durationMs = result.durationMs,
+                    )
+                    _uiState.update {
+                        it.copy(
+                            queue = it.queue + staged,
+                            busy = BusyState.Idle,
+                            lastError = null,
+                        )
+                    }
+                }
+                is VoiceRecordingResult.Error -> {
+                    Log.e(TAG, "Voice recording stop failed: ${result.message}", result.cause)
+                    _uiState.update {
+                        it.copy(busy = BusyState.Idle, lastError = "Voice recording failed: ${result.message}")
+                    }
+                }
+                else -> {
+                    _uiState.update { it.copy(busy = BusyState.Idle) }
+                }
+            }
+        }
+    }
+
+    /**
+     * Called by CaptureScreen after the runtime RECORD_AUDIO permission flow resolves.
+     * Clears the `voicePermissionNeeded` signal and, if granted + still in VOICE modality
+     * + still idle, auto-retries the start so the user's original tap isn't lost.
+     */
+    fun onVoicePermissionResult(granted: Boolean) {
+        _voicePermissionNeeded.value = false
+        if (!granted) {
+            _uiState.update {
+                it.copy(lastError = "Voice recording needs mic permission")
+            }
+            return
+        }
+        if (_modality.value == Modality.VOICE && _uiState.value.busy == BusyState.Idle) {
+            startVoiceRecordingFlow()
+        }
+    }
+
     private fun stopVideoRecordingFlow() {
         val recordingState = _videoRecording.value ?: return
         viewModelScope.launch {
@@ -383,6 +510,10 @@ class CaptureViewModel(
                                     is StagedItem.Video -> PendingVideo(
                                         localPath = item.localFile.absolutePath,
                                         rotationDegrees = item.rotationDegrees,
+                                        durationMs = item.durationMs,
+                                    )
+                                    is StagedItem.Voice -> PendingVoice(
+                                        localPath = item.localFile.absolutePath,
                                         durationMs = item.durationMs,
                                     )
                                 }
@@ -519,8 +650,6 @@ class CaptureViewModel(
     }
 
     fun setModality(m: Modality) {
-        // E lifts VOICE. Until then, silently reject.
-        if (m == Modality.VOICE) return
         // Mid-recording modality switches are confusing and can lose takes.
         if (_uiState.value.busy == BusyState.Recording) return
         _modality.value = m
@@ -535,9 +664,13 @@ class CaptureViewModel(
      */
     fun onLifecyclePaused() {
         if (_uiState.value.busy == BusyState.Recording) {
-            captureController.stopActiveRecordingSync()
-            // Do not clear _videoRecording here — the Finalize callback completes the
-            // deferred and stopVideoRecordingFlow's coroutine handles state reset.
+            // Stop whichever modality is recording. The modality state tells us which.
+            when (_modality.value) {
+                Modality.VIDEO -> captureController.stopActiveRecordingSync()
+                Modality.VOICE -> container.voiceController.stopRecordingSync()
+                Modality.PHOTO -> Unit
+            }
+            // Do not clear the recording state flow — the awaiting coroutine resets it.
         }
     }
 

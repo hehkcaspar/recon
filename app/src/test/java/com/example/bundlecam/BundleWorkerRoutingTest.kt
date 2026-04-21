@@ -4,6 +4,7 @@ import com.example.bundlecam.pipeline.BundleWorker
 import com.example.bundlecam.pipeline.PendingBundle
 import com.example.bundlecam.pipeline.PendingPhoto
 import com.example.bundlecam.pipeline.PendingVideo
+import com.example.bundlecam.pipeline.PendingVoice
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -22,6 +23,7 @@ class BundleWorkerRoutingTest {
     private fun photo(path: String, rotation: Int = 0) = PendingPhoto(path, rotation)
     private fun video(path: String, rotation: Int = 0, duration: Long = 1000L) =
         PendingVideo(path, rotation, duration)
+    private fun voice(path: String, duration: Long = 2500L) = PendingVoice(path, duration)
 
     @Test
     fun photoOnlyBundle_allPhotosInOrder_videosEmpty() {
@@ -82,6 +84,41 @@ class BundleWorkerRoutingTest {
         val plan = BundleWorker.planRouting(bundle(emptyList()))
         assertTrue(plan.photos.isEmpty())
         assertTrue(plan.videos.isEmpty())
+        assertTrue(plan.voices.isEmpty())
+    }
+
+    @Test
+    fun voiceOnlyBundle_allVoicesInOrder_othersEmpty() {
+        val b = bundle(listOf(voice("/v1.m4a"), voice("/v2.m4a")))
+        val plan = BundleWorker.planRouting(b)
+        assertTrue(plan.photos.isEmpty())
+        assertTrue(plan.videos.isEmpty())
+        assertEquals(2, plan.voices.size)
+        assertEquals(listOf(1, 2), plan.voices.map { it.globalIndex })
+    }
+
+    @Test
+    fun mixedThreeModalities_globalIndexPreservesOrder() {
+        // [P, V, A, P] → photos global 1, 4; video 2; voice 3
+        val b = bundle(
+            listOf(
+                photo("/p1.jpg"),
+                video("/v1.mp4"),
+                voice("/a1.m4a"),
+                photo("/p2.jpg"),
+            ),
+        )
+        val plan = BundleWorker.planRouting(b)
+        assertEquals(listOf(1, 4), plan.photos.map { it.globalIndex })
+        assertEquals(listOf(2), plan.videos.map { it.globalIndex })
+        assertEquals(listOf(3), plan.voices.map { it.globalIndex })
+    }
+
+    @Test
+    fun voiceDurationFlowsThrough() {
+        val b = bundle(listOf(voice("/v.m4a", duration = 7890L)))
+        val plan = BundleWorker.planRouting(b)
+        assertEquals(7890L, plan.voices[0].item.durationMs)
     }
 
     @Test

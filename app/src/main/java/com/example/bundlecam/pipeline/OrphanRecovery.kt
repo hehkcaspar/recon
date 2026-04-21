@@ -6,6 +6,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.exifinterface.media.ExifInterface
 import com.example.bundlecam.data.camera.decodeThumbnail
 import com.example.bundlecam.data.camera.decodeVideoPoster
+import com.example.bundlecam.data.camera.decodeVoiceThumbnail
 import com.example.bundlecam.data.camera.isVideoPlayable
 import com.example.bundlecam.data.exif.OrientationCodec
 import com.example.bundlecam.data.storage.StagingSession
@@ -33,6 +34,13 @@ sealed class RestoredItem {
         override val thumbnail: ImageBitmap,
         override val capturedAt: Long,
         val rotationDegrees: Int,
+        val durationMs: Long,
+    ) : RestoredItem()
+
+    data class Voice(
+        override val localFile: File,
+        override val thumbnail: ImageBitmap,
+        override val capturedAt: Long,
         val durationMs: Long,
     ) : RestoredItem()
 }
@@ -83,12 +91,13 @@ class OrphanRecovery(
             stale.forEach { runCatching { stagingStore.deleteSession(it) } }
         }
 
-        // Collect candidate files: jpg + mp4, skip zero-byte (recorder never flushed),
-        // skip hidden dot-files like `.order` and `.discarded`.
+        // Collect candidate files: jpg + mp4 + m4a, skip zero-byte (recorder never
+        // flushed), skip hidden dot-files like `.order` and `.discarded`.
         val candidates = mostRecent.dir.listFiles { f ->
             f.isFile && f.length() > 0 && !f.name.startsWith('.') &&
                 (f.extension.equals("jpg", ignoreCase = true) ||
-                    f.extension.equals("mp4", ignoreCase = true))
+                    f.extension.equals("mp4", ignoreCase = true) ||
+                    f.extension.equals("m4a", ignoreCase = true))
         }?.toList() ?: emptyList()
 
         if (candidates.isEmpty()) return@withContext null
@@ -132,16 +141,7 @@ class OrphanRecovery(
                         return@mapNotNull null
                     }
                     val poster = decodeVideoPoster(file) ?: return@mapNotNull null
-                    val durationMs = runCatching {
-                        val retriever = MediaMetadataRetriever()
-                        try {
-                            retriever.setDataSource(file.absolutePath)
-                            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-                                ?.toLongOrNull() ?: 0L
-                        } finally {
-                            runCatching { retriever.release() }
-                        }
-                    }.getOrDefault(0L)
+                    val durationMs = readMp4DurationMs(file)
                     RestoredItem.Video(
                         localFile = file,
                         thumbnail = poster,
@@ -149,6 +149,23 @@ class OrphanRecovery(
                         // UI treats it as 0° and relies on the container for correct
                         // playback orientation. ExifInterface on mp4 would return 0 anyway.
                         rotationDegrees = 0,
+                        durationMs = durationMs,
+                        capturedAt = file.lastModified(),
+                    )
+                }
+                file.extension.equals("m4a", ignoreCase = true) -> {
+                    // MediaRecorder has no equivalent of Media3 Muxer's crash resilience;
+                    // a killed-mid-record .m4a is typically unplayable. The retriever
+                    // probe tells us; drop torn files so the restored queue is clean.
+                    if (!isVideoPlayable(file)) {
+                        Log.w(TAG, "Dropping unplayable m4a from orphan session: ${file.name}")
+                        runCatching { file.delete() }
+                        return@mapNotNull null
+                    }
+                    val durationMs = readMp4DurationMs(file)
+                    RestoredItem.Voice(
+                        localFile = file,
+                        thumbnail = decodeVoiceThumbnail(),
                         durationMs = durationMs,
                         capturedAt = file.lastModified(),
                     )
@@ -162,6 +179,17 @@ class OrphanRecovery(
         Log.i(TAG, "Restoring queue from orphan session ${mostRecent.id} (${items.size} items)")
         RestoredQueue(session = mostRecent, items = items)
     }
+
+    private fun readMp4DurationMs(file: File): Long = runCatching {
+        val retriever = MediaMetadataRetriever()
+        try {
+            retriever.setDataSource(file.absolutePath)
+            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                ?.toLongOrNull() ?: 0L
+        } finally {
+            runCatching { retriever.release() }
+        }
+    }.getOrDefault(0L)
 
     private fun readExifRotation(file: File): Int {
         val orientation = runCatching {
