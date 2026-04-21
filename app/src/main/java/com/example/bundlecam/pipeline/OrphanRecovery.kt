@@ -7,7 +7,7 @@ import androidx.exifinterface.media.ExifInterface
 import com.example.bundlecam.data.camera.decodeThumbnail
 import com.example.bundlecam.data.camera.decodeVideoPoster
 import com.example.bundlecam.data.camera.decodeVoiceThumbnail
-import com.example.bundlecam.data.camera.isVideoPlayable
+import com.example.bundlecam.data.camera.isMediaFileReadable
 import com.example.bundlecam.data.exif.OrientationCodec
 import com.example.bundlecam.data.storage.StagingSession
 import com.example.bundlecam.data.storage.StagingStore
@@ -135,7 +135,7 @@ class OrphanRecovery(
                     // playable; when it doesn't (edge case, very early kill), the
                     // retriever probe fails and we drop the file so the queue isn't
                     // polluted with a dead entry.
-                    if (!isVideoPlayable(file)) {
+                    if (!isMediaFileReadable(file)) {
                         Log.w(TAG, "Dropping unplayable mp4 from orphan session: ${file.name}")
                         runCatching { file.delete() }
                         return@mapNotNull null
@@ -157,7 +157,7 @@ class OrphanRecovery(
                     // MediaRecorder has no equivalent of Media3 Muxer's crash resilience;
                     // a killed-mid-record .m4a is typically unplayable. The retriever
                     // probe tells us; drop torn files so the restored queue is clean.
-                    if (!isVideoPlayable(file)) {
+                    if (!isMediaFileReadable(file)) {
                         Log.w(TAG, "Dropping unplayable m4a from orphan session: ${file.name}")
                         runCatching { file.delete() }
                         return@mapNotNull null

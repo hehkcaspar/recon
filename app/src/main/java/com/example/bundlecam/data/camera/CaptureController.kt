@@ -277,15 +277,6 @@ class CaptureController(context: Context) {
         return result
     }
 
-    /**
-     * Best-effort fire-and-forget stop. Called from `CaptureScreen`'s `LifecycleEventEffect`
-     * when the Activity pauses — the finalize event still fires asynchronously, but the
-     * UI is going away anyway. The coroutine that was awaiting `stopVideoRecording()`
-     * (if any) will see the finalize complete its deferred and wake up cleanly on resume.
-     */
-    fun stopActiveRecordingSync() {
-        activeRecording?.stop()
-    }
 
     fun setFlashMode(mode: FlashMode) {
         currentFlashMode = mode

@@ -111,8 +111,13 @@ fun decodeVoiceThumbnail(): ImageBitmap {
     return bmp.asImageBitmap()
 }
 
-/** True if the video at [file] has a readable duration — the sanity check OrphanRecovery uses. */
-fun isVideoPlayable(file: File): Boolean {
+/**
+ * True if the MP4/M4A at [file] exposes a readable duration via MediaMetadataRetriever.
+ * OrphanRecovery uses this as the torn-file probe for both video (`.mp4`, Media3 Muxer
+ * written by CameraX Recorder) and voice (`.m4a`, MediaRecorder AAC-LC). A killed
+ * recording typically leaves the file unreadable — this check drops those.
+ */
+fun isMediaFileReadable(file: File): Boolean {
     if (!file.exists() || file.length() == 0L) return false
     val retriever = MediaMetadataRetriever()
     return try {

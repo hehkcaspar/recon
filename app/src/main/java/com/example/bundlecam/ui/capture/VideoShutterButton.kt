@@ -3,7 +3,6 @@ package com.example.bundlecam.ui.capture
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -53,12 +52,11 @@ fun VideoShutterButton(
         ),
         label = "video-shutter-pulse-alpha",
     )
-    val innerScale by animateFloatAsState(
-        targetValue = if (recording) 0.68f else 1f,
-        animationSpec = tween(durationMillis = 220),
-        label = "video-shutter-inner-scale",
-    )
-    val fillAlpha = if (!enabled) 0.45f else if (recording) pulseAlpha else 1f
+    val fillAlpha = when {
+        !enabled -> 0.45f
+        recording -> pulseAlpha
+        else -> 1f
+    }
 
     Box(
         modifier = modifier
@@ -85,7 +83,7 @@ fun VideoShutterButton(
         // Progress arc on the outer ring, only when recording with a max-duration cap.
         if (recording && progressFraction != null) {
             Canvas(modifier = Modifier.fillMaxSize()) {
-                val sweep = (progressFraction.coerceIn(0f, 1f)) * 360f
+                val sweep = progressFraction.coerceIn(0f, 1f) * 360f
                 // Start at 12 o'clock (-90°), sweep clockwise.
                 drawArc(
                     color = Color.White,
@@ -98,7 +96,5 @@ fun VideoShutterButton(
                 )
             }
         }
-        // Unused geometry params silence Kotlin compiler warnings on the above math.
-        @Suppress("unused") val _innerScale = innerScale
     }
 }

@@ -273,11 +273,22 @@ class CaptureViewModel(
     }
 
     private fun onShutterVideo() {
-        val busy = _uiState.value.busy
-        when (busy) {
-            BusyState.Idle -> startVideoRecordingFlow()
-            BusyState.Recording -> stopVideoRecordingFlow()
-            else -> Unit // Capturing / Rebinding: ignore
+        when (_uiState.value.busy) {
+            BusyState.Idle -> {
+                // Sync-flip to a transient busy state so a rapid double-tap can't launch
+                // two start coroutines. The shutter button's `enabled` gate reads
+                // `Idle || Recording`, so Capturing disables it until the async work
+                // settles on either Recording (success) or Idle (failure).
+                _uiState.update { it.copy(busy = BusyState.Capturing) }
+                startVideoRecordingFlow()
+            }
+            BusyState.Recording -> {
+                // Mirror guard: sync-flip blocks re-entrant stop taps from calling
+                // CameraX Recording.stop() twice (the second throws).
+                _uiState.update { it.copy(busy = BusyState.Capturing) }
+                stopVideoRecordingFlow()
+            }
+            else -> Unit // Capturing / Rebinding: ignore.
         }
     }
 
@@ -287,10 +298,11 @@ class CaptureViewModel(
             currentSession = it
         }
         val outputFile = container.stagingStore.allocateVideoOutput(session)
-        // Capture orientation at start-time. CameraX freezes VideoCapture.targetRotation
-        // at start(); we mirror the frozen value into the StagedItem so UI can render the
-        // poster thumbnail correctly even before MediaMetadataRetriever reports rotation.
-        val rotationAtStart = deviceOrientation.value
+        // Capture orientation at start-time and store synchronously on Main — the stop
+        // coroutine reads this field when building StagedItem.Video, and we need the
+        // write to happen before the busy state flips to Recording (which unblocks
+        // stop-taps).
+        videoStartRotation = deviceOrientation.value
         viewModelScope.launch {
             // Append to order log before start — if the process dies mid-record, the log
             // still carries the correct order. OrphanRecovery skips entries whose files
@@ -305,12 +317,15 @@ class CaptureViewModel(
                     startedAt = System.currentTimeMillis(),
                 )
             } else {
+                // Recorder wasn't bound (fallback device). Reset busy from Capturing
+                // back to Idle and surface the banner.
                 _uiState.update {
-                    it.copy(lastError = "Video recording unavailable on this device")
+                    it.copy(
+                        busy = BusyState.Idle,
+                        lastError = "Video recording unavailable on this device",
+                    )
                 }
             }
-            // Stash rotationAtStart alongside the recording for the stop handler.
-            videoStartRotation = rotationAtStart
         }
     }
 
@@ -318,21 +333,28 @@ class CaptureViewModel(
     private var videoStartRotation: Int = 0
 
     private fun onShutterVoice() {
-        val busy = _uiState.value.busy
-        when (busy) {
-            BusyState.Idle -> startVoiceRecordingFlow()
-            BusyState.Recording -> stopVoiceRecordingFlow()
-            else -> Unit // Capturing / Rebinding: ignore
+        when (_uiState.value.busy) {
+            BusyState.Idle -> {
+                // Permission pre-check stays synchronous: if mic isn't granted, we surface
+                // the launcher signal without flipping busy (so the start can retry).
+                if (!container.voiceController.hasPermission()) {
+                    _voicePermissionNeeded.value = true
+                    return
+                }
+                _uiState.update { it.copy(busy = BusyState.Capturing) }
+                startVoiceRecordingFlow()
+            }
+            BusyState.Recording -> {
+                _uiState.update { it.copy(busy = BusyState.Capturing) }
+                stopVoiceRecordingFlow()
+            }
+            else -> Unit
         }
     }
 
     private fun startVoiceRecordingFlow() {
-        if (!container.voiceController.hasPermission()) {
-            // Hand off to CaptureScreen's permission launcher. On grant, the UI calls
-            // back into setModality(VOICE) + retry — or simpler: onVoicePermissionResult.
-            _voicePermissionNeeded.value = true
-            return
-        }
+        // Permission is guaranteed by onShutterVoice's pre-check or by onVoicePermissionResult's
+        // auto-retry path. VoiceController.startRecording() rechecks defensively.
         confirmPendingDiscardIfAny()
         val session = currentSession ?: container.stagingStore.createSession().also {
             currentSession = it
@@ -349,12 +371,17 @@ class CaptureViewModel(
                     _voiceRecording.value = VoiceRecordingState(System.currentTimeMillis())
                 }
                 is VoiceRecordingResult.PermissionDenied -> {
+                    _uiState.update { it.copy(busy = BusyState.Idle) }
                     _voicePermissionNeeded.value = true
                 }
                 is VoiceRecordingResult.Error -> {
-                    _uiState.update { it.copy(lastError = "Voice recording failed: ${result.message}") }
+                    _uiState.update {
+                        it.copy(busy = BusyState.Idle, lastError = "Voice recording failed: ${result.message}")
+                    }
                 }
-                VoiceRecordingResult.NotRecording -> Unit // impossible on start
+                VoiceRecordingResult.NotRecording -> {
+                    _uiState.update { it.copy(busy = BusyState.Idle) }
+                }
             }
         }
     }
@@ -453,7 +480,6 @@ class CaptureViewModel(
                 }
                 is RecordingResult.Error -> {
                     Log.e(TAG, "Video recording failed code=${result.code}", result.cause)
-                    runCatching { result.cause }
                     _uiState.update {
                         it.copy(busy = BusyState.Idle, lastError = "Video recording failed (${result.code})")
                     }
@@ -654,27 +680,36 @@ class CaptureViewModel(
     }
 
     fun setModality(m: Modality) {
-        // Mid-recording modality switches are confusing and can lose takes.
-        if (_uiState.value.busy == BusyState.Recording) return
+        // Any non-Idle busy state (Capturing mid-shutter, Recording, Rebinding)
+        // means a modality change would conflict with in-flight work. The swipe
+        // handler in CaptureScreen applies the same gate.
+        if (_uiState.value.busy != BusyState.Idle) return
         _modality.value = m
     }
 
     /**
-     * Lifecycle pause hook. If a video recording is live when the Activity pauses,
-     * stop it best-effort; the finalize event fires asynchronously and the coroutine
-     * awaiting `stopVideoRecording()` will wake up cleanly — but the user's intent to
-     * pause wins over the recording continuing in the background. Called from
-     * `CaptureScreen`'s LifecycleEventEffect.
+     * Lifecycle pause hook. If a video or voice recording is live when the Activity
+     * pauses, route through the normal async stop flow so the recorded file ends up
+     * on the queue and VM state transitions cleanly to Idle. viewModelScope outlives
+     * Activity pause, so the awaiting coroutine continues and wakes up when Finalize
+     * fires (video) or MediaRecorder.stop() returns (voice).
+     *
+     * An earlier variant called sync-stop methods directly, which produced a stuck
+     * `BusyState.Recording` after resume because nothing cleared `_videoRecording`
+     * / `_voiceRecording` or re-entered the state machine.
      */
     fun onLifecyclePaused() {
-        if (_uiState.value.busy == BusyState.Recording) {
-            // Stop whichever modality is recording. The modality state tells us which.
-            when (_modality.value) {
-                Modality.VIDEO -> captureController.stopActiveRecordingSync()
-                Modality.VOICE -> container.voiceController.stopRecordingSync()
-                Modality.PHOTO -> Unit
+        if (_uiState.value.busy != BusyState.Recording) return
+        when (_modality.value) {
+            Modality.VIDEO -> {
+                _uiState.update { it.copy(busy = BusyState.Capturing) }
+                stopVideoRecordingFlow()
             }
-            // Do not clear the recording state flow — the awaiting coroutine resets it.
+            Modality.VOICE -> {
+                _uiState.update { it.copy(busy = BusyState.Capturing) }
+                stopVoiceRecordingFlow()
+            }
+            Modality.PHOTO -> Unit
         }
     }
 

@@ -123,12 +123,4 @@ class VoiceController(context: Context) {
         VoiceRecordingResult.Success(output, durationMs)
     }
 
-    /** Best-effort fire-and-forget stop for LifecycleEventEffect(ON_PAUSE). */
-    fun stopRecordingSync() {
-        val mr = recorder ?: return
-        runCatching { mr.stop() }
-        runCatching { mr.release() }
-        recorder = null
-        currentOutput = null
-    }
 }

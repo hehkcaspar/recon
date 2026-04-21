@@ -75,9 +75,9 @@ fun GestureTutorial(
         TutorialStep.entries.filter { it.id !in seenStepIds }
     }
     if (steps.isEmpty()) {
-        // Nothing to show — immediately dismiss so the parent's conditional doesn't
-        // keep re-rendering an empty overlay.
-        androidx.compose.runtime.LaunchedEffect(Unit) { onDismiss(emptySet()) }
+        // Nothing to show — render nothing. Caller is expected to always wire this
+        // composable into the tree; the empty-set case is the steady-state for users
+        // who've dismissed every step (the common case after first launch).
         return
     }
     var stepIndex by remember { mutableIntStateOf(0) }
