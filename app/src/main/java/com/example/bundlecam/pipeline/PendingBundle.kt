@@ -32,3 +32,11 @@ data class PendingPhoto(
     override val localPath: String,
     val rotationDegrees: Int,
 ) : PendingItem()
+
+@Serializable
+@SerialName("video")
+data class PendingVideo(
+    override val localPath: String,
+    val rotationDegrees: Int,
+    val durationMs: Long,
+) : PendingItem()

@@ -57,6 +57,8 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.bundlecam.data.camera.FlashMode
@@ -144,6 +146,12 @@ private fun CaptureScreenContent(
         }
     }
 
+    // Stop any in-flight video/voice recording when the Activity pauses. The recorder's
+    // Finalize event fires asynchronously and the awaiting coroutine resumes cleanly.
+    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
+        vm.onLifecyclePaused()
+    }
+
     val handleShutter = {
         view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
         if (settings.shutterSoundOn) {
@@ -203,7 +211,7 @@ private fun CaptureScreenContent(
                 Spacer(Modifier.weight(1f))
                 ModalityPill(
                     current = modality,
-                    enabledModalities = setOf(Modality.PHOTO),
+                    enabledModalities = setOf(Modality.PHOTO, Modality.VIDEO),
                     onChange = vm::setModality,
                 )
                 Spacer(Modifier.weight(1f))
@@ -269,10 +277,22 @@ private fun CaptureScreenContent(
                         )
                     }
                     Spacer(Modifier.width(56.dp))
-                    ShutterButton(
-                        onClick = handleShutter,
-                        enabled = state.busy == BusyState.Idle,
-                    )
+                    when (modality) {
+                        Modality.PHOTO -> ShutterButton(
+                            onClick = handleShutter,
+                            enabled = state.busy == BusyState.Idle,
+                        )
+                        Modality.VIDEO -> VideoShutterButton(
+                            onClick = handleShutter,
+                            recording = state.busy == BusyState.Recording,
+                            progressFraction = null,
+                            enabled = state.busy == BusyState.Idle || state.busy == BusyState.Recording,
+                        )
+                        Modality.VOICE -> ShutterButton(
+                            onClick = handleShutter,
+                            enabled = false, // Phase E wires VoiceShutterButton
+                        )
+                    }
                     Spacer(Modifier.width(56.dp))
                     val flipEnabled = state.busy == BusyState.Idle
                     IconButton(

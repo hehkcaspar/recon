@@ -43,10 +43,16 @@ class BundleLibrary(context: Context) {
                         val photos = photosSource.listFiles()
                             .filter { it.isFile && it.name?.endsWith(".jpg", ignoreCase = true) == true }
                             .sortedBy { it.name }
+                        val videoCount = dir.findFile(StorageLayout.VIDEOS_SUBDIR)
+                            ?.takeIf { it.isDirectory }
+                            ?.listFiles()
+                            ?.count { it.isFile && it.name?.endsWith(".mp4", ignoreCase = true) == true }
+                            ?: 0
                         BundleDirEntry(
                             id = id,
                             subfolder = dir,
                             photoCount = photos.size,
+                            videoCount = videoCount,
                             thumbnailPhotos = photos.take(MAX_PREVIEW_THUMBNAILS),
                         )
                     }
@@ -87,6 +93,7 @@ class BundleLibrary(context: Context) {
                 stitchUri = stitch?.uri,
                 thumbnailUris = thumbnailUris,
                 photoCount = dirEntry?.photoCount ?: 0,
+                videoCount = dirEntry?.videoCount ?: 0,
             )
         }
             .filter { it.modalities.isNotEmpty() }
@@ -127,6 +134,7 @@ class BundleLibrary(context: Context) {
         val id: String,
         val subfolder: DocumentFile,
         val photoCount: Int,
+        val videoCount: Int,
         val thumbnailPhotos: List<DocumentFile>,
     )
 }

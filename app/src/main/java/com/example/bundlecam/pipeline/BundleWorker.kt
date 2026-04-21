@@ -74,32 +74,39 @@ class BundleWorker(
             .getOrDefault(StitchQuality.STANDARD)
         val saveIndividual = manifest.saveIndividualPhotos
         val saveStitched = manifest.saveStitchedImage
-        val photos = manifest.orderedItems.filterIsInstance<PendingPhoto>()
+
+        // Global capture-order index: each item in orderedItems gets a 1-based index
+        // computed from its position in the ordered list. A mixed queue
+        // `[Photo, Video, Photo]` produces files `-p-001, -v-002, -p-003` — sparse per
+        // modality, dense across modalities. Downstream tools that list the bundle
+        // folder recursively see chronological order from filenames alone.
+        val plan = planRouting(manifest)
 
         Log.i(
             TAG,
             "processManifest bundleId=${manifest.bundleId} items=${manifest.orderedItems.size} " +
-                "photos=${photos.size} quality=$quality individual=$saveIndividual stitched=$saveStitched",
+                "photos=${plan.photos.size} videos=${plan.videos.size} " +
+                "quality=$quality individual=$saveIndividual stitched=$saveStitched",
         )
 
-        if (saveIndividual && photos.isNotEmpty()) {
+        if (saveIndividual && plan.photos.isNotEmpty()) {
             // Bounded-wait location refresh so photos captured before the first fix still
             // get GPS. Scoped to the raw-copy branch because only per-photo EXIF uses it;
             // the stitched JPEG is canvas-rendered and never carried GPS.
             withTimeoutOrNull(LOCATION_REFRESH_TIMEOUT_MS) { container.locationProvider.refresh() }
             val backfillLocation = container.locationProvider.getCachedOrNull()
 
-            photos.forEachIndexed { index, photo ->
+            plan.photos.forEach { (photo, globalIndex) ->
                 val file = File(photo.localPath)
                 container.exifWriter.stampFinalMetadata(
                     file = file,
-                    comment = StorageLayout.photoExifComment(manifest.bundleId, index + 1),
+                    comment = StorageLayout.photoExifComment(manifest.bundleId, globalIndex),
                     backfillLocation = backfillLocation,
                 )
             }
 
-            val entries = photos.mapIndexed { index, photo ->
-                StorageLayout.bundlePhotoName(manifest.bundleId, index + 1) to File(photo.localPath)
+            val entries = plan.photos.map { (photo, globalIndex) ->
+                StorageLayout.bundlePhotoName(manifest.bundleId, globalIndex) to File(photo.localPath)
             }
             container.safStorage.copyLocalFiles(
                 rootUri = rootUri,
@@ -108,15 +115,28 @@ class BundleWorker(
             )
         }
 
-        if (saveStitched && photos.isNotEmpty()) {
+        if (plan.videos.isNotEmpty()) {
+            // Video files are stored as-is: no EXIF pass (MP4 uses `tkhd.matrix` for
+            // rotation, already set by CameraX Recorder at start-time), no stitch.
+            val entries = plan.videos.map { (video, globalIndex) ->
+                StorageLayout.bundleVideoName(manifest.bundleId, globalIndex) to File(video.localPath)
+            }
+            container.safStorage.copyLocalFiles(
+                rootUri = rootUri,
+                subPath = StorageLayout.bundleVideosPath(manifest.bundleId),
+                entries = entries,
+            )
+        }
+
+        if (saveStitched && plan.photos.isNotEmpty()) {
             val stitcher = Stitcher()
             val stitchFile = File(
                 applicationContext.cacheDir,
                 StorageLayout.stitchFileName(manifest.bundleId),
             )
             try {
-                val sources = photos.map {
-                    StitchSource(File(it.localPath), it.rotationDegrees)
+                val sources = plan.photos.map { (photo, _) ->
+                    StitchSource(File(photo.localPath), photo.rotationDegrees)
                 }
                 stitcher.stitch(sources, quality, stitchFile)
 
@@ -195,5 +215,33 @@ class BundleWorker(
 
         // Process-wide single-concurrency gate for bundle workers.
         private val workMutex = Mutex()
+
+        /**
+         * Pure routing plan: partition [manifest.orderedItems] by type, assigning each a
+         * 1-based global capture-order index derived from its position in the list.
+         * Extracted as a companion so [BundleWorkerRoutingTest] can exercise it without
+         * touching SAF or any Android dependency.
+         */
+        fun planRouting(manifest: PendingBundle): RoutingPlan {
+            val photos = mutableListOf<IndexedItem<PendingPhoto>>()
+            val videos = mutableListOf<IndexedItem<PendingVideo>>()
+            manifest.orderedItems.forEachIndexed { zeroIndex, item ->
+                val global = zeroIndex + 1
+                when (item) {
+                    is PendingPhoto -> photos.add(IndexedItem(item, global))
+                    is PendingVideo -> videos.add(IndexedItem(item, global))
+                }
+            }
+            return RoutingPlan(photos, videos)
+        }
     }
 }
+
+/** Item plus its global 1-based capture-order index within the bundle. */
+data class IndexedItem<T>(val item: T, val globalIndex: Int)
+
+/** Typed partition of a manifest's ordered items. */
+data class RoutingPlan(
+    val photos: List<IndexedItem<PendingPhoto>>,
+    val videos: List<IndexedItem<PendingVideo>>,
+)

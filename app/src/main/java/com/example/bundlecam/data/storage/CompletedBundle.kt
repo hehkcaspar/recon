@@ -20,6 +20,12 @@ data class CompletedBundle(
      */
     val thumbnailUris: List<Uri>,
     val photoCount: Int,
+    // Defaults keep the pre-Phase-D read sites compiling unchanged. `BundleModality`
+    // stays at {Subfolder, Stitch} — `Subfolder` already generalizes to "any raw
+    // modality content under bundles/{id}/", and the per-modality count fields surface
+    // the detail for Bundle Preview row rendering.
+    val videoCount: Int = 0,
+    val voiceCount: Int = 0,
 )
 
 enum class BundleModality {

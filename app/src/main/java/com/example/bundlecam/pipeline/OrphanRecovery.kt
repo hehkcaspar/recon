@@ -1,9 +1,12 @@
 package com.example.bundlecam.pipeline
 
+import android.media.MediaMetadataRetriever
 import android.util.Log
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.exifinterface.media.ExifInterface
 import com.example.bundlecam.data.camera.decodeThumbnail
+import com.example.bundlecam.data.camera.decodeVideoPoster
+import com.example.bundlecam.data.camera.isVideoPlayable
 import com.example.bundlecam.data.exif.OrientationCodec
 import com.example.bundlecam.data.storage.StagingSession
 import com.example.bundlecam.data.storage.StagingStore
@@ -13,16 +16,30 @@ import java.io.File
 
 private const val TAG = "Recon/OrphanRecovery"
 
-data class RestoredPhoto(
-    val localFile: File,
-    val thumbnail: ImageBitmap,
-    val rotationDegrees: Int,
-    val capturedAt: Long,
-)
+sealed class RestoredItem {
+    abstract val localFile: File
+    abstract val thumbnail: ImageBitmap
+    abstract val capturedAt: Long
+
+    data class Photo(
+        override val localFile: File,
+        override val thumbnail: ImageBitmap,
+        override val capturedAt: Long,
+        val rotationDegrees: Int,
+    ) : RestoredItem()
+
+    data class Video(
+        override val localFile: File,
+        override val thumbnail: ImageBitmap,
+        override val capturedAt: Long,
+        val rotationDegrees: Int,
+        val durationMs: Long,
+    ) : RestoredItem()
+}
 
 data class RestoredQueue(
     val session: StagingSession,
-    val items: List<RestoredPhoto>,
+    val items: List<RestoredItem>,
 )
 
 class OrphanRecovery(
@@ -66,23 +83,83 @@ class OrphanRecovery(
             stale.forEach { runCatching { stagingStore.deleteSession(it) } }
         }
 
-        val files = mostRecent.dir.listFiles { f -> f.extension == "jpg" }
-            ?.sortedBy { it.lastModified() }
-            ?: return@withContext null
+        // Collect candidate files: jpg + mp4, skip zero-byte (recorder never flushed),
+        // skip hidden dot-files like `.order` and `.discarded`.
+        val candidates = mostRecent.dir.listFiles { f ->
+            f.isFile && f.length() > 0 && !f.name.startsWith('.') &&
+                (f.extension.equals("jpg", ignoreCase = true) ||
+                    f.extension.equals("mp4", ignoreCase = true))
+        }?.toList() ?: emptyList()
 
-        if (files.isEmpty()) return@withContext null
+        if (candidates.isEmpty()) return@withContext null
 
-        val items = files.map { file ->
-            val rotationDegrees = readExifRotation(file)
-            RestoredPhoto(
-                localFile = file,
-                thumbnail = decodeThumbnail(file, rotationDegrees),
-                rotationDegrees = rotationDegrees,
-                capturedAt = file.lastModified(),
-            )
+        // Prefer the .order log for queue order (photo lastModified ≈ capture time,
+        // but video lastModified = stop() time — mixing them via mtime scrambles order).
+        // Fall back to mtime sort for pre-Phase-D sessions without an order log.
+        val orderedCandidates = run {
+            val logNames = stagingStore.readOrderLog(mostRecent)
+            if (logNames != null) {
+                val byName = candidates.associateBy { it.name }
+                val logOrdered = logNames.mapNotNull { byName[it] }
+                // Any files present but not in the log (shouldn't happen, but be safe):
+                // append them in mtime order at the end.
+                val logged = logOrdered.toSet()
+                logOrdered + candidates.filter { it !in logged }.sortedBy { it.lastModified() }
+            } else {
+                candidates.sortedBy { it.lastModified() }
+            }
         }
 
-        Log.i(TAG, "Restoring queue from orphan session ${mostRecent.id} (${items.size} photos)")
+        val items = orderedCandidates.mapNotNull { file ->
+            when {
+                file.extension.equals("jpg", ignoreCase = true) -> {
+                    val rotation = readExifRotation(file)
+                    RestoredItem.Photo(
+                        localFile = file,
+                        thumbnail = decodeThumbnail(file, rotation),
+                        rotationDegrees = rotation,
+                        capturedAt = file.lastModified(),
+                    )
+                }
+                file.extension.equals("mp4", ignoreCase = true) -> {
+                    // CameraX 1.6 Media3 Muxer makes killed-mid-record mp4s usually
+                    // playable; when it doesn't (edge case, very early kill), the
+                    // retriever probe fails and we drop the file so the queue isn't
+                    // polluted with a dead entry.
+                    if (!isVideoPlayable(file)) {
+                        Log.w(TAG, "Dropping unplayable mp4 from orphan session: ${file.name}")
+                        runCatching { file.delete() }
+                        return@mapNotNull null
+                    }
+                    val poster = decodeVideoPoster(file) ?: return@mapNotNull null
+                    val durationMs = runCatching {
+                        val retriever = MediaMetadataRetriever()
+                        try {
+                            retriever.setDataSource(file.absolutePath)
+                            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                                ?.toLongOrNull() ?: 0L
+                        } finally {
+                            runCatching { retriever.release() }
+                        }
+                    }.getOrDefault(0L)
+                    RestoredItem.Video(
+                        localFile = file,
+                        thumbnail = poster,
+                        // Rotation is baked into the MP4 container (tkhd.matrix), so
+                        // UI treats it as 0° and relies on the container for correct
+                        // playback orientation. ExifInterface on mp4 would return 0 anyway.
+                        rotationDegrees = 0,
+                        durationMs = durationMs,
+                        capturedAt = file.lastModified(),
+                    )
+                }
+                else -> null
+            }
+        }
+
+        if (items.isEmpty()) return@withContext null
+
+        Log.i(TAG, "Restoring queue from orphan session ${mostRecent.id} (${items.size} items)")
         RestoredQueue(session = mostRecent, items = items)
     }
 

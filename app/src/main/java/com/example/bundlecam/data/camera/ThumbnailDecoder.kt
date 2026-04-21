@@ -1,7 +1,9 @@
 package com.example.bundlecam.data.camera
 
 import android.content.ContentResolver
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -63,4 +65,49 @@ private fun sampleSizeFor(w: Int, h: Int): Int {
     var sample = 1
     while (w / sample > TARGET_PX * 2 || h / sample > TARGET_PX * 2) sample *= 2
     return sample
+}
+
+/**
+ * Extract a poster frame from an MP4 via MediaMetadataRetriever. Used both when pushing
+ * a freshly-recorded video onto the queue and by OrphanRecovery when restoring a video
+ * from a killed-mid-session staging folder. Returns null if the file is unreadable or
+ * corrupt (e.g., zero-byte from a process kill before the muxer flushed).
+ */
+fun decodeVideoPoster(file: File): ImageBitmap? {
+    if (!file.exists() || file.length() == 0L) return null
+    val retriever = MediaMetadataRetriever()
+    return try {
+        retriever.setDataSource(file.absolutePath)
+        val frame = retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+            ?: return null
+        val scaled = if (frame.width > TARGET_PX * 2 || frame.height > TARGET_PX * 2) {
+            val ratio = minOf(TARGET_PX * 2f / frame.width, TARGET_PX * 2f / frame.height)
+            Bitmap.createScaledBitmap(
+                frame,
+                (frame.width * ratio).toInt().coerceAtLeast(1),
+                (frame.height * ratio).toInt().coerceAtLeast(1),
+                true,
+            ).also { if (it !== frame) frame.recycle() }
+        } else frame
+        scaled.asImageBitmap()
+    } catch (t: Throwable) {
+        null
+    } finally {
+        runCatching { retriever.release() }
+    }
+}
+
+/** True if the video at [file] has a readable duration — the sanity check OrphanRecovery uses. */
+fun isVideoPlayable(file: File): Boolean {
+    if (!file.exists() || file.length() == 0L) return false
+    val retriever = MediaMetadataRetriever()
+    return try {
+        retriever.setDataSource(file.absolutePath)
+        val duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+        duration != null
+    } catch (t: Throwable) {
+        false
+    } finally {
+        runCatching { retriever.release() }
+    }
 }

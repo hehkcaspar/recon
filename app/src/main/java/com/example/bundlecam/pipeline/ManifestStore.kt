@@ -41,6 +41,7 @@ class ManifestStore(context: Context) {
         serializersModule = SerializersModule {
             polymorphic(PendingItem::class) {
                 subclass(PendingPhoto::class)
+                subclass(PendingVideo::class)
             }
         }
     }

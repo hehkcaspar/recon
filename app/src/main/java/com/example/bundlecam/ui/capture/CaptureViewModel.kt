@@ -14,14 +14,18 @@ import com.example.bundlecam.data.camera.CameraMode
 import com.example.bundlecam.data.camera.CaptureController
 import com.example.bundlecam.data.camera.FlashMode
 import com.example.bundlecam.data.camera.LensFacing
+import com.example.bundlecam.data.camera.RecordingResult
 import com.example.bundlecam.data.camera.ZoomInfo
 import com.example.bundlecam.data.camera.decodeThumbnail
+import com.example.bundlecam.data.camera.decodeVideoPoster
 import com.example.bundlecam.data.settings.SettingsState
 import com.example.bundlecam.data.storage.StagingSession
 import com.example.bundlecam.di.AppContainer
 import com.example.bundlecam.pipeline.PendingBundle
 import com.example.bundlecam.pipeline.PendingItem
 import com.example.bundlecam.pipeline.PendingPhoto
+import com.example.bundlecam.pipeline.PendingVideo
+import com.example.bundlecam.pipeline.RestoredItem
 import com.example.bundlecam.ui.common.TimedSlot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -61,7 +65,20 @@ sealed class StagedItem {
         override val capturedAt: Long,
         val rotationDegrees: Int,
     ) : StagedItem()
+
+    data class Video(
+        override val id: String,
+        override val localFile: File,
+        override val thumbnail: ImageBitmap,
+        override val capturedAt: Long,
+        val rotationDegrees: Int,
+        val durationMs: Long,
+    ) : StagedItem()
 }
+
+data class VideoRecordingState(
+    val startedAt: Long,
+)
 
 data class PendingDiscard(
     val items: List<StagedItem>,
@@ -109,6 +126,9 @@ class CaptureViewModel(
     private val _modality = MutableStateFlow(Modality.PHOTO)
     val modality: StateFlow<Modality> = _modality.asStateFlow()
 
+    private val _videoRecording = MutableStateFlow<VideoRecordingState?>(null)
+    val videoRecording: StateFlow<VideoRecordingState?> = _videoRecording.asStateFlow()
+
     private val _events = MutableSharedFlow<CaptureEvent>(extraBufferCapacity = 4)
     val events: SharedFlow<CaptureEvent> = _events.asSharedFlow()
 
@@ -124,17 +144,27 @@ class CaptureViewModel(
                 val restored = container.orphanRecovery.recover()
                 if (restored != null) {
                     currentSession = restored.session
-                    val stagedItems = restored.items.map { r ->
-                        StagedItem.Photo(
-                            id = UUID.randomUUID().toString(),
-                            localFile = r.localFile,
-                            thumbnail = r.thumbnail,
-                            rotationDegrees = r.rotationDegrees,
-                            capturedAt = r.capturedAt,
-                        )
+                    val stagedItems = restored.items.map<RestoredItem, StagedItem> { r ->
+                        when (r) {
+                            is RestoredItem.Photo -> StagedItem.Photo(
+                                id = UUID.randomUUID().toString(),
+                                localFile = r.localFile,
+                                thumbnail = r.thumbnail,
+                                rotationDegrees = r.rotationDegrees,
+                                capturedAt = r.capturedAt,
+                            )
+                            is RestoredItem.Video -> StagedItem.Video(
+                                id = UUID.randomUUID().toString(),
+                                localFile = r.localFile,
+                                thumbnail = r.thumbnail,
+                                rotationDegrees = r.rotationDegrees,
+                                durationMs = r.durationMs,
+                                capturedAt = r.capturedAt,
+                            )
+                        }
                     }
                     _uiState.update { it.copy(queue = stagedItems) }
-                    Log.i(TAG, "Restored ${stagedItems.size} photos from orphan session")
+                    Log.i(TAG, "Restored ${stagedItems.size} items from orphan session")
                 }
             }.onFailure { Log.w(TAG, "Orphan recovery failed", it) }
         }
@@ -154,6 +184,14 @@ class CaptureViewModel(
     }
 
     fun onShutter() {
+        when (_modality.value) {
+            Modality.PHOTO -> onShutterPhoto()
+            Modality.VIDEO -> onShutterVideo()
+            Modality.VOICE -> Unit // Phase E lifts this
+        }
+    }
+
+    private fun onShutterPhoto() {
         if (_uiState.value.busy != BusyState.Idle) return
         _uiState.update { it.copy(busy = BusyState.Capturing) }
         confirmPendingDiscardIfAny()
@@ -168,6 +206,7 @@ class CaptureViewModel(
                 val photo = captureController.takePicture()
                 val capturedAt = System.currentTimeMillis()
                 val file = container.stagingStore.writePhoto(session, photo.jpegBytes)
+                container.stagingStore.appendOrderEntry(session, file.name)
 
                 withContext(Dispatchers.IO) {
                     container.exifWriter.stamp(
@@ -199,6 +238,98 @@ class CaptureViewModel(
                 Log.e(TAG, "Capture failed", t)
                 _uiState.update {
                     it.copy(busy = BusyState.Idle, lastError = "Capture failed: ${t.message}")
+                }
+            }
+        }
+    }
+
+    private fun onShutterVideo() {
+        val busy = _uiState.value.busy
+        when (busy) {
+            BusyState.Idle -> startVideoRecordingFlow()
+            BusyState.Recording -> stopVideoRecordingFlow()
+            else -> Unit // Capturing / Rebinding: ignore
+        }
+    }
+
+    private fun startVideoRecordingFlow() {
+        confirmPendingDiscardIfAny()
+        val session = currentSession ?: container.stagingStore.createSession().also {
+            currentSession = it
+        }
+        val outputFile = container.stagingStore.allocateVideoOutput(session)
+        // Capture orientation at start-time. CameraX freezes VideoCapture.targetRotation
+        // at start(); we mirror the frozen value into the StagedItem so UI can render the
+        // poster thumbnail correctly even before MediaMetadataRetriever reports rotation.
+        val rotationAtStart = deviceOrientation.value
+        viewModelScope.launch {
+            // Append to order log before start — if the process dies mid-record, the log
+            // still carries the correct order. OrphanRecovery skips entries whose files
+            // never materialized or are zero-byte.
+            container.stagingStore.appendOrderEntry(session, outputFile.name)
+            val started = captureController.startVideoRecording(outputFile)
+            if (started) {
+                _uiState.update {
+                    it.copy(busy = BusyState.Recording, lastError = null)
+                }
+                _videoRecording.value = VideoRecordingState(
+                    startedAt = System.currentTimeMillis(),
+                )
+            } else {
+                _uiState.update {
+                    it.copy(lastError = "Video recording unavailable on this device")
+                }
+            }
+            // Stash rotationAtStart alongside the recording for the stop handler.
+            videoStartRotation = rotationAtStart
+        }
+    }
+
+    @Volatile
+    private var videoStartRotation: Int = 0
+
+    private fun stopVideoRecordingFlow() {
+        val recordingState = _videoRecording.value ?: return
+        viewModelScope.launch {
+            val result = captureController.stopVideoRecording()
+            _videoRecording.value = null
+            when (result) {
+                is RecordingResult.Success -> {
+                    val poster = withContext(Dispatchers.Default) {
+                        decodeVideoPoster(result.file)
+                    }
+                    if (poster == null) {
+                        // Muxer finalized but MediaMetadataRetriever couldn't read a frame —
+                        // very unlikely with 1.6.0 Media3 Muxer, but handle it by dropping
+                        // the torn file and surfacing the error.
+                        runCatching { result.file.delete() }
+                        _uiState.update {
+                            it.copy(busy = BusyState.Idle, lastError = "Video could not be finalized")
+                        }
+                        return@launch
+                    }
+                    val staged = StagedItem.Video(
+                        id = UUID.randomUUID().toString(),
+                        localFile = result.file,
+                        thumbnail = poster,
+                        capturedAt = recordingState.startedAt,
+                        rotationDegrees = videoStartRotation,
+                        durationMs = result.durationMs,
+                    )
+                    _uiState.update {
+                        it.copy(
+                            queue = it.queue + staged,
+                            busy = BusyState.Idle,
+                            lastError = null,
+                        )
+                    }
+                }
+                is RecordingResult.Error -> {
+                    Log.e(TAG, "Video recording failed code=${result.code}", result.cause)
+                    runCatching { result.cause }
+                    _uiState.update {
+                        it.copy(busy = BusyState.Idle, lastError = "Video recording failed (${result.code})")
+                    }
                 }
             }
         }
@@ -248,6 +379,11 @@ class CaptureViewModel(
                                     is StagedItem.Photo -> PendingPhoto(
                                         localPath = item.localFile.absolutePath,
                                         rotationDegrees = item.rotationDegrees,
+                                    )
+                                    is StagedItem.Video -> PendingVideo(
+                                        localPath = item.localFile.absolutePath,
+                                        rotationDegrees = item.rotationDegrees,
+                                        durationMs = item.durationMs,
                                     )
                                 }
                             },
@@ -383,9 +519,26 @@ class CaptureViewModel(
     }
 
     fun setModality(m: Modality) {
-        // Phase C gate: only PHOTO is live. D lifts VIDEO, E lifts VOICE.
-        if (m != Modality.PHOTO) return
+        // E lifts VOICE. Until then, silently reject.
+        if (m == Modality.VOICE) return
+        // Mid-recording modality switches are confusing and can lose takes.
+        if (_uiState.value.busy == BusyState.Recording) return
         _modality.value = m
+    }
+
+    /**
+     * Lifecycle pause hook. If a video recording is live when the Activity pauses,
+     * stop it best-effort; the finalize event fires asynchronously and the coroutine
+     * awaiting `stopVideoRecording()` will wake up cleanly — but the user's intent to
+     * pause wins over the recording continuing in the background. Called from
+     * `CaptureScreen`'s LifecycleEventEffect.
+     */
+    fun onLifecyclePaused() {
+        if (_uiState.value.busy == BusyState.Recording) {
+            captureController.stopActiveRecordingSync()
+            // Do not clear _videoRecording here — the Finalize callback completes the
+            // deferred and stopVideoRecordingFlow's coroutine handles state reset.
+        }
     }
 
     fun onToggleLens() {
