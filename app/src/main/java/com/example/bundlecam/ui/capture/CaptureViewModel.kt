@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -43,7 +44,9 @@ import java.util.UUID
 private const val TAG = "Recon/CaptureVM"
 private const val UNDO_WINDOW_MS = 3000L
 
-enum class BusyState { Idle, Capturing }
+enum class BusyState { Idle, Capturing, Recording, Rebinding }
+
+enum class Modality { PHOTO, VIDEO, VOICE }
 
 sealed class StagedItem {
     abstract val id: String
@@ -90,8 +93,11 @@ class CaptureViewModel(
     val settings: StateFlow<SettingsState> = container.settingsRepository.settings
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SettingsState())
 
-    private val _cameraMode = MutableStateFlow(CameraMode.ZSL)
-    val cameraMode: StateFlow<CameraMode> = _cameraMode.asStateFlow()
+    // Projection from settings: live-applied preference, edited from the Settings screen.
+    // Change triggers CameraPreview's LaunchedEffect(mode, ...) to rebind under bindMutex.
+    val cameraMode: StateFlow<CameraMode> = settings
+        .map { it.cameraMode }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), CameraMode.ZSL)
 
     private val _lensFacing = MutableStateFlow(LensFacing.Back)
     val lensFacing: StateFlow<LensFacing> = _lensFacing.asStateFlow()
@@ -99,8 +105,9 @@ class CaptureViewModel(
     private val _flashMode = MutableStateFlow(FlashMode.Off)
     val flashMode: StateFlow<FlashMode> = _flashMode.asStateFlow()
 
-    private val _isRebinding = MutableStateFlow(false)
-    val isRebinding: StateFlow<Boolean> = _isRebinding.asStateFlow()
+    // Modality selector. Phase C gates non-PHOTO to no-op; D and E lift the gate.
+    private val _modality = MutableStateFlow(Modality.PHOTO)
+    val modality: StateFlow<Modality> = _modality.asStateFlow()
 
     private val _events = MutableSharedFlow<CaptureEvent>(extraBufferCapacity = 4)
     val events: SharedFlow<CaptureEvent> = _events.asSharedFlow()
@@ -375,14 +382,16 @@ class CaptureViewModel(
         }
     }
 
-    fun onCameraModeChange(mode: CameraMode) {
-        _cameraMode.value = mode
+    fun setModality(m: Modality) {
+        // Phase C gate: only PHOTO is live. D lifts VIDEO, E lifts VOICE.
+        if (m != Modality.PHOTO) return
+        _modality.value = m
     }
 
     fun onToggleLens() {
-        if (_isRebinding.value) return
-        // Mid-capture lens flip would unbind ImageCapture while takePicture() is still
-        // awaiting, surfacing a spurious "Capture failed" error to the user.
+        // Mid-capture / mid-rebind lens flip would unbind ImageCapture while takePicture()
+        // is still awaiting, surfacing a spurious "Capture failed" error to the user.
+        // BusyState.Rebinding and .Capturing both block here; Idle is the only entry.
         if (_uiState.value.busy != BusyState.Idle) return
         _lensFacing.update { if (it == LensFacing.Back) LensFacing.Front else LensFacing.Back }
     }
@@ -397,8 +406,15 @@ class CaptureViewModel(
         }
     }
 
+    // Called from `CameraPreview`'s bind LaunchedEffect around `CaptureController.bind()`.
+    // Collapses what used to be a separate `isRebinding` StateFlow into BusyState — so UI
+    // guards can be the single predicate `busy == Idle`. Invariant: the caller only flips
+    // this while busy is Idle (no capture/record in flight). If we ever allow overlapping,
+    // this needs to become a stack-like counter.
     fun setRebinding(rebinding: Boolean) {
-        _isRebinding.value = rebinding
+        _uiState.update {
+            it.copy(busy = if (rebinding) BusyState.Rebinding else BusyState.Idle)
+        }
     }
 
     fun onZoomChange(ratio: Float) {

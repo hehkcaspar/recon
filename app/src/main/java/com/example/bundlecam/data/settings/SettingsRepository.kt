@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.example.bundlecam.data.camera.CameraMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -31,6 +32,9 @@ data class SettingsState(
     val deleteDelaySeconds: Int = DEFAULT_DELETE_DELAY_SECONDS,
     val deleteConfirmEnabled: Boolean = true,
     val seenGestureTutorial: Boolean = false,
+    // Live-applied camera hardware mode. Demoted from the top-bar EXT/ZSL toggle to a
+    // Settings row in Phase C; behaves like shutterSoundOn — not frozen into manifests.
+    val cameraMode: CameraMode = CameraMode.ZSL,
 )
 
 const val DEFAULT_DELETE_DELAY_SECONDS: Int = 5
@@ -46,6 +50,7 @@ private object Keys {
     val DELETE_DELAY_SECONDS = intPreferencesKey("delete_delay_seconds")
     val DELETE_CONFIRM_ENABLED = booleanPreferencesKey("delete_confirm_enabled")
     val SEEN_GESTURE_TUTORIAL = booleanPreferencesKey("seen_gesture_tutorial")
+    val CAMERA_MODE = stringPreferencesKey("camera_mode")
 }
 
 class SettingsRepository(context: Context) {
@@ -71,6 +76,9 @@ class SettingsRepository(context: Context) {
                     .coerceIn(MIN_DELETE_DELAY_SECONDS, MAX_DELETE_DELAY_SECONDS),
                 deleteConfirmEnabled = prefs[Keys.DELETE_CONFIRM_ENABLED] ?: true,
                 seenGestureTutorial = prefs[Keys.SEEN_GESTURE_TUTORIAL] ?: false,
+                cameraMode = prefs[Keys.CAMERA_MODE]
+                    ?.let { runCatching { CameraMode.valueOf(it) }.getOrNull() }
+                    ?: CameraMode.ZSL,
             )
         }
         .distinctUntilChanged()
@@ -104,6 +112,10 @@ class SettingsRepository(context: Context) {
 
     suspend fun setSeenGestureTutorial(seen: Boolean) {
         store.edit { it[Keys.SEEN_GESTURE_TUTORIAL] = seen }
+    }
+
+    suspend fun setCameraMode(mode: CameraMode) {
+        store.edit { it[Keys.CAMERA_MODE] = mode.name }
     }
 
     // Peer read + self write live in one edit{} so DataStore serializes concurrent toggles

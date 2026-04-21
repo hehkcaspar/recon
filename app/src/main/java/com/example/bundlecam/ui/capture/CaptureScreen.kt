@@ -114,7 +114,7 @@ private fun CaptureScreenContent(
     val cameraMode by vm.cameraMode.collectAsStateWithLifecycle()
     val lensFacing by vm.lensFacing.collectAsStateWithLifecycle()
     val flashMode by vm.flashMode.collectAsStateWithLifecycle()
-    val isRebinding by vm.isRebinding.collectAsStateWithLifecycle()
+    val modality by vm.modality.collectAsStateWithLifecycle()
     val zoomInfo by vm.zoomInfo.collectAsStateWithLifecycle()
     val deviceOrientation by vm.deviceOrientation.collectAsStateWithLifecycle()
     val contentRotation = rememberContentRotation(deviceOrientation)
@@ -201,9 +201,10 @@ private fun CaptureScreenContent(
                     )
                 }
                 Spacer(Modifier.weight(1f))
-                CameraModeToggle(
-                    current = cameraMode,
-                    onChange = vm::onCameraModeChange,
+                ModalityPill(
+                    current = modality,
+                    enabledModalities = setOf(Modality.PHOTO),
+                    onChange = vm::setModality,
                 )
                 Spacer(Modifier.weight(1f))
                 IconButton(
@@ -270,10 +271,10 @@ private fun CaptureScreenContent(
                     Spacer(Modifier.width(56.dp))
                     ShutterButton(
                         onClick = handleShutter,
-                        enabled = state.busy == BusyState.Idle && !isRebinding,
+                        enabled = state.busy == BusyState.Idle,
                     )
                     Spacer(Modifier.width(56.dp))
-                    val flipEnabled = !isRebinding && state.busy == BusyState.Idle
+                    val flipEnabled = state.busy == BusyState.Idle
                     IconButton(
                         onClick = vm::onToggleLens,
                         enabled = flipEnabled,
