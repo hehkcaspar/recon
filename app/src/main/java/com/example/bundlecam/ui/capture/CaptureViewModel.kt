@@ -642,10 +642,14 @@ class CaptureViewModel(
 
     fun hasLocationPermission(): Boolean = container.locationProvider.hasPermission()
 
-    fun onDismissGestureTutorial() {
+    fun onDismissGestureTutorial(shownStepIds: Set<String>) {
         viewModelScope.launch {
-            runCatching { container.settingsRepository.setSeenGestureTutorial(true) }
-                .onFailure { Log.w(TAG, "Failed to persist gesture tutorial flag", it) }
+            runCatching {
+                // Merge with whatever's already persisted (legacy v1 seeding, or a
+                // previous partial dismissal).
+                val existing = settings.value.seenTutorialSteps
+                container.settingsRepository.setSeenTutorialSteps(existing + shownStepIds)
+            }.onFailure { Log.w(TAG, "Failed to persist gesture tutorial steps", it) }
         }
     }
 

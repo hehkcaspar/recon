@@ -8,8 +8,10 @@ import android.view.HapticFeedbackConstants
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -44,6 +46,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -238,10 +241,63 @@ private fun CaptureScreenContent(
                 }
             }
 
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            val swipeThresholdPx = with(density) { 80.dp.toPx() }
+            val swipeVelocityThresholdPxPerSec = with(density) { 400.dp.toPx() }
+            // Track cumulative drag and a simple velocity estimate between onDrag calls
+            // so the gesture-end decision uses both distance and flick-speed criteria.
+            var accumulatedDragPx by remember { mutableFloatStateOf(0f) }
+            var lastDragTimeMs by remember { mutableLongStateOf(0L) }
+            var velocityPxPerSec by remember { mutableFloatStateOf(0f) }
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(3f / 4f),
+                    .aspectRatio(3f / 4f)
+                    .pointerInput(modality, state.busy) {
+                        // Only accept modality-switch swipes when idle. During
+                        // capture/record/rebind, the gesture is a no-op.
+                        if (state.busy != BusyState.Idle) return@pointerInput
+                        detectHorizontalDragGestures(
+                            onDragStart = {
+                                accumulatedDragPx = 0f
+                                velocityPxPerSec = 0f
+                                lastDragTimeMs = System.currentTimeMillis()
+                            },
+                            onHorizontalDrag = { _, delta ->
+                                accumulatedDragPx += delta
+                                val now = System.currentTimeMillis()
+                                val dt = (now - lastDragTimeMs).coerceAtLeast(1L)
+                                // Exponential smoothing so a single stray sample doesn't
+                                // dominate the velocity estimate.
+                                velocityPxPerSec = 0.6f * velocityPxPerSec +
+                                    0.4f * (delta * 1000f / dt)
+                                lastDragTimeMs = now
+                            },
+                            onDragEnd = {
+                                val dragDp = with(density) { accumulatedDragPx.toDp().value }
+                                val velocityDpPerSec = with(density) {
+                                    velocityPxPerSec.toDp().value
+                                }
+                                val target = ModalitySwipeMath.resolveTarget(
+                                    current = modality,
+                                    dragDp = dragDp,
+                                    velocityDpPerSecond = velocityDpPerSec,
+                                    thresholdDp = with(density) { swipeThresholdPx.toDp().value },
+                                    velocityThresholdDpPerSecond = with(density) {
+                                        swipeVelocityThresholdPxPerSec.toDp().value
+                                    },
+                                )
+                                if (target != modality) vm.setModality(target)
+                                accumulatedDragPx = 0f
+                                velocityPxPerSec = 0f
+                            },
+                            onDragCancel = {
+                                accumulatedDragPx = 0f
+                                velocityPxPerSec = 0f
+                            },
+                        )
+                    },
             ) {
                 CameraPreview(
                     controller = vm.captureController,
@@ -392,9 +448,10 @@ private fun CaptureScreenContent(
         // First-run gesture tutorial overlay. Shown only until the user dismisses it;
         // declared last so it draws on top of the entire capture UI (including status +
         // navigation bar regions) and consumes all touches.
-        if (!settings.seenGestureTutorial) {
-            GestureTutorial(onDismiss = vm::onDismissGestureTutorial)
-        }
+        GestureTutorial(
+            seenStepIds = settings.seenTutorialSteps,
+            onDismiss = vm::onDismissGestureTutorial,
+        )
     }
 }
 

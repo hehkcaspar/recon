@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.bundlecam.data.camera.CameraMode
 import kotlinx.coroutines.flow.Flow
@@ -31,11 +32,18 @@ data class SettingsState(
     val saveStitchedImage: Boolean = true,
     val deleteDelaySeconds: Int = DEFAULT_DELETE_DELAY_SECONDS,
     val deleteConfirmEnabled: Boolean = true,
-    val seenGestureTutorial: Boolean = false,
+    // Set of tutorial step IDs the user has dismissed. Empty = show all steps on next
+    // launch. Phase F replaced the Boolean v1 field with a set-based scheme so adding
+    // new tutorial steps in later releases doesn't force returning users through the
+    // whole flow — only unseen steps appear.
+    val seenTutorialSteps: Set<String> = emptySet(),
     // Live-applied camera hardware mode. Demoted from the top-bar EXT/ZSL toggle to a
     // Settings row in Phase C; behaves like shutterSoundOn — not frozen into manifests.
     val cameraMode: CameraMode = CameraMode.ZSL,
 )
+
+/** Ids of the v1 tutorial steps — used to seed the seen-set on upgrade from Phase C- era. */
+val V1_TUTORIAL_STEP_IDS: Set<String> = setOf("commit", "discard", "deleteOne", "reorder", "divide")
 
 const val DEFAULT_DELETE_DELAY_SECONDS: Int = 5
 const val MIN_DELETE_DELAY_SECONDS: Int = 0
@@ -50,6 +58,7 @@ private object Keys {
     val DELETE_DELAY_SECONDS = intPreferencesKey("delete_delay_seconds")
     val DELETE_CONFIRM_ENABLED = booleanPreferencesKey("delete_confirm_enabled")
     val SEEN_GESTURE_TUTORIAL = booleanPreferencesKey("seen_gesture_tutorial")
+    val SEEN_TUTORIAL_STEPS = stringSetPreferencesKey("seen_tutorial_steps")
     val CAMERA_MODE = stringPreferencesKey("camera_mode")
 }
 
@@ -75,7 +84,13 @@ class SettingsRepository(context: Context) {
                 deleteDelaySeconds = (prefs[Keys.DELETE_DELAY_SECONDS] ?: DEFAULT_DELETE_DELAY_SECONDS)
                     .coerceIn(MIN_DELETE_DELAY_SECONDS, MAX_DELETE_DELAY_SECONDS),
                 deleteConfirmEnabled = prefs[Keys.DELETE_CONFIRM_ENABLED] ?: true,
-                seenGestureTutorial = prefs[Keys.SEEN_GESTURE_TUTORIAL] ?: false,
+                // Upgrade fallback: if the new set key is absent but the v1 boolean
+                // was true, seed the seen-set with the v1 step IDs so returning users
+                // don't re-see what they've already dismissed. Pure read-side — no
+                // DataStore write is needed for the migration itself.
+                seenTutorialSteps = prefs[Keys.SEEN_TUTORIAL_STEPS]
+                    ?: if (prefs[Keys.SEEN_GESTURE_TUTORIAL] == true) V1_TUTORIAL_STEP_IDS
+                    else emptySet(),
                 cameraMode = prefs[Keys.CAMERA_MODE]
                     ?.let { runCatching { CameraMode.valueOf(it) }.getOrNull() }
                     ?: CameraMode.ZSL,
@@ -110,8 +125,29 @@ class SettingsRepository(context: Context) {
         store.edit { it[Keys.DELETE_CONFIRM_ENABLED] = on }
     }
 
+    /**
+     * "Show tutorial again" resets the seen-set to empty so every step appears on
+     * next launch. The v1 boolean key is also cleared to avoid phantom-seeding if a
+     * future downgrade happens. Preserved as a single-arg API matching the existing
+     * Settings row `TextButton("Show")` call site.
+     */
     suspend fun setSeenGestureTutorial(seen: Boolean) {
-        store.edit { it[Keys.SEEN_GESTURE_TUTORIAL] = seen }
+        store.edit {
+            if (seen) {
+                // Mark "all currently-known steps as seen" is not a useful API —
+                // callers pass `seen = true` only to persist that the tutorial was
+                // dismissed at the end, which is what `setSeenTutorialSteps` handles.
+                // Keep the boolean write for back-compat but don't rely on it.
+                it[Keys.SEEN_GESTURE_TUTORIAL] = true
+            } else {
+                it.remove(Keys.SEEN_GESTURE_TUTORIAL)
+                it.remove(Keys.SEEN_TUTORIAL_STEPS)
+            }
+        }
+    }
+
+    suspend fun setSeenTutorialSteps(steps: Set<String>) {
+        store.edit { it[Keys.SEEN_TUTORIAL_STEPS] = steps }
     }
 
     suspend fun setCameraMode(mode: CameraMode) {
