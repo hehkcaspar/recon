@@ -2,16 +2,17 @@ package com.example.bundlecam.ui.capture
 
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,11 +29,9 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 
 /**
- * Shutter sibling for VOICE modality. Same 80dp outer ring + 8dp padding geometry as
- * [ShutterButton] so the hit target is identical. Idle state shows a mic glyph on a
- * white fill; recording state morphs to a red rounded-square (stop glyph) with a subtle
- * alpha pulse. Elapsed time is rendered in the control row (to the right of the shutter),
- * not on the button itself — keeping the shutter's job clear: tap to start, tap to stop.
+ * Shutter sibling for VOICE modality. 80dp outer ring, white fill + mic glyph when
+ * idle (large interaction target), red dot→rounded-square when recording — mirrors
+ * the video shutter's morph but starts from a white circle rather than a red one.
  */
 @Composable
 fun VoiceShutterButton(
@@ -43,13 +42,26 @@ fun VoiceShutterButton(
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "voice-shutter-pulse")
     val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.9f,
-        targetValue = 0.55f,
+        initialValue = 0.95f,
+        targetValue = 0.65f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 700, easing = FastOutSlowInEasing),
+            animation = tween(durationMillis = 800, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse,
         ),
         label = "voice-shutter-pulse-alpha",
+    )
+    val fillSize by animateDpAsState(
+        targetValue = if (recording) 28.dp else 58.dp,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "voice-shutter-fill-size",
+    )
+    val fillCorner by animateDpAsState(
+        targetValue = if (recording) 6.dp else 50.dp,
+        animationSpec = tween(durationMillis = 220),
+        label = "voice-shutter-fill-corner",
     )
 
     Box(
@@ -62,34 +74,29 @@ fun VoiceShutterButton(
                 onClickLabel = if (recording) "Stop voice recording" else "Start voice recording",
                 role = Role.Button,
                 onClick = onClick,
-            )
-            .padding(8.dp),
+            ),
+        contentAlignment = Alignment.Center,
     ) {
         if (recording) {
-            // Red stop-square, pulsing.
             Box(
                 modifier = Modifier
-                    .align(Alignment.Center)
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(8.dp))
+                    .size(fillSize)
+                    .clip(RoundedCornerShape(fillCorner))
                     .background(Color(0xFFEF5350).copy(alpha = pulseAlpha)),
             )
         } else {
-            // White fill with mic glyph.
             Box(
                 modifier = Modifier
-                    .align(Alignment.Center)
-                    .fillMaxSize()
-                    .clip(CircleShape)
+                    .size(fillSize)
+                    .clip(RoundedCornerShape(fillCorner))
                     .background(if (enabled) Color.White else Color.White.copy(alpha = 0.5f)),
+                contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = Icons.Filled.Mic,
                     contentDescription = null,
                     tint = Color.Black,
-                    modifier = Modifier
-                        .size(28.dp)
-                        .align(Alignment.Center),
+                    modifier = Modifier.size(24.dp),
                 )
             }
         }

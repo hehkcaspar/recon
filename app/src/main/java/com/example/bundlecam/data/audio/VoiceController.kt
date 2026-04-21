@@ -8,7 +8,16 @@ import android.os.Build
 import android.os.SystemClock
 import android.util.Log
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -44,6 +53,16 @@ class VoiceController(context: Context) {
 
     @Volatile
     private var startedAtElapsedRealtime: Long = 0L
+
+    // Amplitude polling: MediaRecorder.getMaxAmplitude() returns the peak absolute
+    // sample value since the previous call. Polling at ~30Hz yields a 33ms-window
+    // envelope that's enough for a visual scrolling-bar waveform. The value is 0
+    // whenever not recording, so the overlay can render a flat centerline during idle.
+    private val amplitudeScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private var amplitudeJob: Job? = null
+
+    private val _amplitudeFlow = MutableStateFlow(0)
+    val amplitudeFlow: StateFlow<Int> = _amplitudeFlow.asStateFlow()
 
     fun hasPermission(): Boolean = ContextCompat.checkSelfPermission(
         appContext,
@@ -92,6 +111,17 @@ class VoiceController(context: Context) {
         recorder = mr
         currentOutput = outputFile
         startedAtElapsedRealtime = SystemClock.elapsedRealtime()
+        amplitudeJob = amplitudeScope.launch {
+            // Tiny grace period so MediaRecorder has settled before first getMaxAmplitude.
+            delay(50)
+            while (isActive) {
+                val snapshot = recorder ?: break
+                val amp = runCatching { snapshot.maxAmplitude }.getOrDefault(0)
+                _amplitudeFlow.value = amp
+                delay(33)
+            }
+            _amplitudeFlow.value = 0
+        }
         Log.i(TAG, "Voice recording started → ${outputFile.absolutePath}")
         VoiceRecordingResult.Success(outputFile, 0L)
     }
@@ -105,6 +135,9 @@ class VoiceController(context: Context) {
         val mr = recorder ?: return@withContext VoiceRecordingResult.NotRecording
         val output = currentOutput ?: return@withContext VoiceRecordingResult.NotRecording
         val durationMs = SystemClock.elapsedRealtime() - startedAtElapsedRealtime
+        amplitudeJob?.cancel()
+        amplitudeJob = null
+        _amplitudeFlow.value = 0
         val stopResult = runCatching { mr.stop() }
         runCatching { mr.release() }
         recorder = null

@@ -146,6 +146,11 @@ class CaptureViewModel(
     private val _voiceRecording = MutableStateFlow<VoiceRecordingState?>(null)
     val voiceRecording: StateFlow<VoiceRecordingState?> = _voiceRecording.asStateFlow()
 
+    // Live mic amplitude from VoiceController's getMaxAmplitude() poll. Passes through
+    // as-is — 0 whenever not recording; sampled at ~30Hz during a take. Consumed by
+    // VoiceOverlay to render the scrolling waveform.
+    val voiceAmplitudeFlow: StateFlow<Int> = container.voiceController.amplitudeFlow
+
     // Set to true when the user taps the VOICE shutter and permission is missing. The
     // CaptureScreen's permission launcher observes this and kicks off the request flow.
     private val _voicePermissionNeeded = MutableStateFlow(false)

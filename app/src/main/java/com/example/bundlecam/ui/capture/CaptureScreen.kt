@@ -47,6 +47,9 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -244,18 +247,18 @@ private fun CaptureScreenContent(
             val density = androidx.compose.ui.platform.LocalDensity.current
             val swipeThresholdDp = 64f
             val swipeVelocityThresholdDpPerSec = 300f
-            // Track cumulative drag in pixels. onDragStopped reports release velocity
-            // in px/s which we convert to dp/s for the pure ModalitySwipeMath.
-            var accumulatedDragPx by remember { mutableFloatStateOf(0f) }
-            // Modifier.draggable cooperates with nested tap/pinch detectors out of the
-            // box: it waits for horizontal touch slop before claiming the pointer, and
-            // during that window the child CameraPreview's detectTapGestures can still
-            // fire a tap-to-focus (short press without drag). An earlier
-            // `detectHorizontalDragGestures` setup inside a raw pointerInput block
-            // never received events on device — the child's tap/pinch detectors
-            // claimed the down event first.
+            // Slab offset is an Animatable so we can (a) snapTo during drag for
+            // pixel-perfect finger-tracking, (b) animateTo with a spring on release to
+            // either return to rest (sub-threshold) or continue the slide-in (commit).
+            // Applied via graphicsLayer.translationX on BOTH the viewfinder Box below
+            // and the control row further down — they're siblings in the Column with
+            // other UI between them, and the spec says they move "as one slab". The
+            // queue strip + zoom control stay put (pixel-anchored queue).
+            val slabOffset = remember { androidx.compose.animation.core.Animatable(0f) }
+            val swipeScope = rememberCoroutineScope()
+
             val dragState = rememberDraggableState { delta ->
-                accumulatedDragPx += delta
+                swipeScope.launch { slabOffset.snapTo(slabOffset.value + delta) }
             }
 
             Box(
@@ -267,10 +270,10 @@ private fun CaptureScreenContent(
                         orientation = Orientation.Horizontal,
                         enabled = state.busy == BusyState.Idle,
                         onDragStarted = {
-                            accumulatedDragPx = 0f
+                            slabOffset.snapTo(0f)
                         },
                         onDragStopped = { velocityPx ->
-                            val dragDp = with(density) { accumulatedDragPx.toDp().value }
+                            val dragDp = with(density) { slabOffset.value.toDp().value }
                             val velocityDpPerSec = with(density) { velocityPx.toDp().value }
                             val target = ModalitySwipeMath.resolveTarget(
                                 current = modality,
@@ -280,9 +283,22 @@ private fun CaptureScreenContent(
                                 velocityThresholdDpPerSecond = swipeVelocityThresholdDpPerSec,
                             )
                             if (target != modality) vm.setModality(target)
-                            accumulatedDragPx = 0f
+                            // Spring the slab back to 0 regardless of whether modality
+                            // actually changed. If it did, the viewport's new content is
+                            // already the new modality; the recovery animation makes it
+                            // "slide in" from the dragged direction. If not, it's a
+                            // bounce-back to the current modality.
+                            slabOffset.animateTo(
+                                targetValue = 0f,
+                                animationSpec = androidx.compose.animation.core.spring(
+                                    dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                                    stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow,
+                                ),
+                                initialVelocity = velocityPx,
+                            )
                         },
-                    ),
+                    )
+                    .graphicsLayer { translationX = slabOffset.value },
             ) {
                 CameraPreview(
                     controller = vm.captureController,
@@ -292,11 +308,12 @@ private fun CaptureScreenContent(
                     modifier = Modifier.fillMaxSize(),
                 )
                 // Voice modality overlay: covers the camera preview (which stays bound
-                // so switching back is instant) with a dark scrim + mic glyph. Replaces
-                // the waveform visualizer from the plan — MVP scope.
+                // so switching back is instant) with a scrolling waveform visualizer
+                // fed by VoiceController's amplitude poll.
                 if (modality == Modality.VOICE) {
                     VoiceOverlay(
                         recording = state.busy == BusyState.Recording,
+                        amplitudeFlow = vm.voiceAmplitudeFlow,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
@@ -319,7 +336,13 @@ private fun CaptureScreenContent(
                 )
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    // Same translationX as the viewfinder Box above: the spec calls for
+                    // "one capture slab" moving together, so drag + spring-back apply
+                    // to both. ZoomControl (above) and the queue strip (below, outside
+                    // this Column) stay pixel-anchored.
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .graphicsLayer { translationX = slabOffset.value },
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {

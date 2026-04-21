@@ -2,9 +2,12 @@ package com.example.bundlecam.ui.capture
 
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -12,7 +15,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,11 +30,10 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 
 /**
- * Shutter sibling for VIDEO modality. Same 80dp outer ring + 8dp padding geometry as
- * [ShutterButton] so the hit target is identical. When idle: shows a small red fill in
- * the center. When recording: inner fill pulses red and a CW progress arc sweeps along
- * the outer ring, keyed on [progressFraction] (0..1 when capped by max duration, else
- * unused — pass null for an unlimited recording).
+ * Shutter sibling for VIDEO modality. 80dp outer ring matches [ShutterButton]'s hit
+ * target. Idle state: a red dot (~42dp) centered in the ring. Recording: the dot
+ * shrinks and morphs into a rounded square (~28dp) with subtle alpha pulse — the
+ * iconic "now recording, tap to stop" form factor. The ring itself never changes size.
  */
 @Composable
 fun VideoShutterButton(
@@ -44,10 +45,10 @@ fun VideoShutterButton(
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "video-shutter-pulse")
     val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.85f,
-        targetValue = 0.55f,
+        initialValue = 0.95f,
+        targetValue = 0.65f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 700, easing = FastOutSlowInEasing),
+            animation = tween(durationMillis = 800, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse,
         ),
         label = "video-shutter-pulse-alpha",
@@ -57,6 +58,22 @@ fun VideoShutterButton(
         recording -> pulseAlpha
         else -> 1f
     }
+    // Morph the inner fill between a record-dot (large red circle) and a stop-square
+    // (smaller red rounded-rect). Both are well inside the 80dp ring — leaving
+    // breathing room so the ring reads as a distinct outline.
+    val fillSize by animateDpAsState(
+        targetValue = if (recording) 28.dp else 42.dp,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "video-shutter-fill-size",
+    )
+    val fillCorner by animateDpAsState(
+        targetValue = if (recording) 6.dp else 50.dp,
+        animationSpec = tween(durationMillis = 220),
+        label = "video-shutter-fill-corner",
+    )
 
     Box(
         modifier = modifier
@@ -68,23 +85,19 @@ fun VideoShutterButton(
                 onClickLabel = if (recording) "Stop recording" else "Start recording",
                 role = Role.Button,
                 onClick = onClick,
-            )
-            .padding(8.dp),
+            ),
+        contentAlignment = Alignment.Center,
     ) {
-        // Inner fill: red dot that morphs into a stop-square shape when recording.
-        val cornerDp = if (recording) 8.dp else 40.dp
         Box(
             modifier = Modifier
-                .align(Alignment.Center)
-                .fillMaxSize()
-                .clip(RoundedCornerShape(cornerDp))
+                .size(fillSize)
+                .clip(RoundedCornerShape(fillCorner))
                 .background(Color(0xFFEF5350).copy(alpha = fillAlpha)),
         )
         // Progress arc on the outer ring, only when recording with a max-duration cap.
         if (recording && progressFraction != null) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val sweep = progressFraction.coerceIn(0f, 1f) * 360f
-                // Start at 12 o'clock (-90°), sweep clockwise.
                 drawArc(
                     color = Color.White,
                     startAngle = -90f,
