@@ -35,7 +35,12 @@ class BundleLibrary(context: Context) {
                 .map { dir ->
                     async {
                         val id = dir.name ?: return@async null
-                        val photos = dir.listFiles()
+                        // Prefer the nested `photos/` subdir (Phase B+); fall back to the
+                        // flat layout for legacy bundles written before the Phase B cutover.
+                        val photosSource =
+                            dir.findFile(StorageLayout.PHOTOS_SUBDIR)?.takeIf { it.isDirectory }
+                                ?: dir
+                        val photos = photosSource.listFiles()
                             .filter { it.isFile && it.name?.endsWith(".jpg", ignoreCase = true) == true }
                             .sortedBy { it.name }
                         BundleDirEntry(

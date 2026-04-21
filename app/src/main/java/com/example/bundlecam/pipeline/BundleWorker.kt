@@ -103,7 +103,7 @@ class BundleWorker(
             }
             container.safStorage.copyLocalFiles(
                 rootUri = rootUri,
-                subPath = StorageLayout.bundlePath(manifest.bundleId),
+                subPath = StorageLayout.bundlePhotosPath(manifest.bundleId),
                 entries = entries,
             )
         }
