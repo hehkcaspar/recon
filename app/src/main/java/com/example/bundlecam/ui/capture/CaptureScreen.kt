@@ -49,6 +49,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -256,6 +257,10 @@ private fun CaptureScreenContent(
             // queue strip + zoom control stay put (pixel-anchored queue).
             val slabOffset = remember { androidx.compose.animation.core.Animatable(0f) }
             val swipeScope = rememberCoroutineScope()
+            // Slab width measured at layout time. Needed by the commit-path
+            // off-screen animation target — we slide the current slab by one full
+            // viewfinder width in the drag direction, then snap to 0.
+            var slabWidthPx by remember { mutableFloatStateOf(0f) }
 
             val dragState = rememberDraggableState { delta ->
                 swipeScope.launch { slabOffset.snapTo(slabOffset.value + delta) }
@@ -265,6 +270,7 @@ private fun CaptureScreenContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(3f / 4f)
+                    .onGloballyPositioned { slabWidthPx = it.size.width.toFloat() }
                     .draggable(
                         state = dragState,
                         orientation = Orientation.Horizontal,
@@ -282,25 +288,46 @@ private fun CaptureScreenContent(
                                 thresholdDp = swipeThresholdDp,
                                 velocityThresholdDpPerSecond = swipeVelocityThresholdDpPerSec,
                             )
-                            if (target != modality) vm.setModality(target)
-                            // Spring back in swipeScope (rememberCoroutineScope) rather
-                            // than the onDragStopped suspend scope. The latter is tied
-                            // to `Modifier.draggable`'s pointer-input coroutine, which
-                            // Compose cancels whenever the lambda reference changes —
-                            // and `modality` changing after `vm.setModality` rebuilds
-                            // the lambda (it captures `modality`). Running the animation
-                            // in the composable's scope keeps it alive across that
-                            // recomposition so the slab fully returns to 0 instead of
-                            // freezing mid-transit.
+                            val committed = target != modality
+                            if (committed) vm.setModality(target)
+                            // Two-stage animation so the release reads as a single
+                            // directional swipe, not a rubber band:
+                            //
+                            // (1) Commit path: continue the slab in the drag direction
+                            //     off-screen with a short linear-ish tween (~200ms),
+                            //     then snap to 0 so the just-committed modality's
+                            //     content appears at center. The user sees "content
+                            //     slides out in the direction I flicked".
+                            // (2) Cancel path: snap back to 0 with a critically-damped
+                            //     spring — no overshoot, no back-and-forth oscillation.
+                            //
+                            // Previous implementation used DampingRatioMediumBouncy
+                            // with the release velocity as initial velocity, which
+                            // overshot 0 and oscillated visibly — reported as
+                            // "feels like swipe then bounce back and forth".
                             swipeScope.launch {
-                                slabOffset.animateTo(
-                                    targetValue = 0f,
-                                    animationSpec = androidx.compose.animation.core.spring(
-                                        dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
-                                        stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow,
-                                    ),
-                                    initialVelocity = velocityPx,
-                                )
+                                if (committed) {
+                                    val targetOffset = slabWidthPx *
+                                        kotlin.math.sign(slabOffset.value)
+                                    slabOffset.animateTo(
+                                        targetValue = targetOffset,
+                                        animationSpec = androidx.compose.animation.core.tween(
+                                            durationMillis = 180,
+                                            easing = androidx.compose.animation.core.FastOutLinearInEasing,
+                                        ),
+                                        initialVelocity = velocityPx,
+                                    )
+                                    slabOffset.snapTo(0f)
+                                } else {
+                                    slabOffset.animateTo(
+                                        targetValue = 0f,
+                                        animationSpec = androidx.compose.animation.core.spring(
+                                            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
+                                            stiffness = androidx.compose.animation.core.Spring.StiffnessMedium,
+                                        ),
+                                        initialVelocity = velocityPx,
+                                    )
+                                }
                             }
                         },
                     )
