@@ -283,19 +283,25 @@ private fun CaptureScreenContent(
                                 velocityThresholdDpPerSecond = swipeVelocityThresholdDpPerSec,
                             )
                             if (target != modality) vm.setModality(target)
-                            // Spring the slab back to 0 regardless of whether modality
-                            // actually changed. If it did, the viewport's new content is
-                            // already the new modality; the recovery animation makes it
-                            // "slide in" from the dragged direction. If not, it's a
-                            // bounce-back to the current modality.
-                            slabOffset.animateTo(
-                                targetValue = 0f,
-                                animationSpec = androidx.compose.animation.core.spring(
-                                    dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
-                                    stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow,
-                                ),
-                                initialVelocity = velocityPx,
-                            )
+                            // Spring back in swipeScope (rememberCoroutineScope) rather
+                            // than the onDragStopped suspend scope. The latter is tied
+                            // to `Modifier.draggable`'s pointer-input coroutine, which
+                            // Compose cancels whenever the lambda reference changes —
+                            // and `modality` changing after `vm.setModality` rebuilds
+                            // the lambda (it captures `modality`). Running the animation
+                            // in the composable's scope keeps it alive across that
+                            // recomposition so the slab fully returns to 0 instead of
+                            // freezing mid-transit.
+                            swipeScope.launch {
+                                slabOffset.animateTo(
+                                    targetValue = 0f,
+                                    animationSpec = androidx.compose.animation.core.spring(
+                                        dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                                        stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow,
+                                    ),
+                                    initialVelocity = velocityPx,
+                                )
+                            }
                         },
                     )
                     .graphicsLayer { translationX = slabOffset.value },
