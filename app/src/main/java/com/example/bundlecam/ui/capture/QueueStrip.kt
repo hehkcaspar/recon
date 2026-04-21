@@ -104,7 +104,7 @@ private data class ExitingSnapshot(
 
 @Composable
 fun QueueStrip(
-    queue: List<StagedPhoto>,
+    queue: List<StagedItem>,
     dividers: Set<Int>,
     onCommit: () -> Unit,
     onDiscard: () -> Unit,
@@ -449,7 +449,7 @@ private fun EdgeZone(
 
 @Composable
 private fun QueueTray(
-    queue: List<StagedPhoto>,
+    queue: List<StagedItem>,
     dividers: Set<Int>,
     gesture: GestureState,
     tideProgress: Float,
@@ -530,7 +530,7 @@ private fun QueueTray(
 
 @Composable
 private fun QueueContent(
-    queue: List<StagedPhoto>,
+    queue: List<StagedItem>,
     dividers: Set<Int>,
     tiltDeg: Float,
     onDelete: (String) -> Unit,

@@ -44,21 +44,28 @@ private const val UNDO_WINDOW_MS = 3000L
 
 enum class BusyState { Idle, Capturing }
 
-data class StagedPhoto(
-    val id: String,
-    val localFile: File,
-    val thumbnail: ImageBitmap,
-    val rotationDegrees: Int,
-    val capturedAt: Long,
-)
+sealed class StagedItem {
+    abstract val id: String
+    abstract val localFile: File
+    abstract val thumbnail: ImageBitmap
+    abstract val capturedAt: Long
+
+    data class Photo(
+        override val id: String,
+        override val localFile: File,
+        override val thumbnail: ImageBitmap,
+        override val capturedAt: Long,
+        val rotationDegrees: Int,
+    ) : StagedItem()
+}
 
 data class PendingDiscard(
-    val items: List<StagedPhoto>,
+    val items: List<StagedItem>,
     val dividers: Set<Int> = emptySet(),
 )
 
 data class CaptureUiState(
-    val queue: List<StagedPhoto> = emptyList(),
+    val queue: List<StagedItem> = emptyList(),
     val dividers: Set<Int> = emptySet(),
     val pendingDiscard: PendingDiscard? = null,
     val busy: BusyState = BusyState.Idle,
@@ -109,8 +116,8 @@ class CaptureViewModel(
                 val restored = container.orphanRecovery.recover()
                 if (restored != null) {
                     currentSession = restored.session
-                    val stagedPhotos = restored.items.map { r ->
-                        StagedPhoto(
+                    val stagedItems = restored.items.map { r ->
+                        StagedItem.Photo(
                             id = UUID.randomUUID().toString(),
                             localFile = r.localFile,
                             thumbnail = r.thumbnail,
@@ -118,8 +125,8 @@ class CaptureViewModel(
                             capturedAt = r.capturedAt,
                         )
                     }
-                    _uiState.update { it.copy(queue = stagedPhotos) }
-                    Log.i(TAG, "Restored ${stagedPhotos.size} photos from orphan session")
+                    _uiState.update { it.copy(queue = stagedItems) }
+                    Log.i(TAG, "Restored ${stagedItems.size} photos from orphan session")
                 }
             }.onFailure { Log.w(TAG, "Orphan recovery failed", it) }
         }
@@ -166,7 +173,7 @@ class CaptureViewModel(
                 val thumbnail = withContext(Dispatchers.Default) {
                     decodeThumbnail(photo.jpegBytes, photo.rotationDegrees)
                 }
-                val staged = StagedPhoto(
+                val staged = StagedItem.Photo(
                     id = UUID.randomUUID().toString(),
                     localFile = file,
                     thumbnail = thumbnail,
@@ -228,11 +235,13 @@ class CaptureViewModel(
                             rootUriString = rootUri.toString(),
                             stitchQuality = stitchQualityName,
                             sessionId = session.id,
-                            orderedPhotos = segment.map { photo ->
-                                PendingPhoto(
-                                    localPath = photo.localFile.absolutePath,
-                                    rotationDegrees = photo.rotationDegrees,
-                                )
+                            orderedPhotos = segment.map { item ->
+                                when (item) {
+                                    is StagedItem.Photo -> PendingPhoto(
+                                        localPath = item.localFile.absolutePath,
+                                        rotationDegrees = item.rotationDegrees,
+                                    )
+                                }
                             },
                             capturedAt = capturedAt,
                             saveIndividualPhotos = saveIndividualPhotos,

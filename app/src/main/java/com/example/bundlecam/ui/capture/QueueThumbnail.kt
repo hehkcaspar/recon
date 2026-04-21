@@ -33,7 +33,7 @@ import kotlin.math.roundToInt
 
 @Composable
 fun QueueThumbnail(
-    item: StagedPhoto,
+    item: StagedItem,
     currentIndex: Int,
     queueSize: Int,
     onDelete: () -> Unit,
@@ -128,11 +128,13 @@ fun QueueThumbnail(
                 )
             },
     ) {
-        Image(
-            bitmap = item.thumbnail,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-        )
+        when (item) {
+            is StagedItem.Photo -> Image(
+                bitmap = item.thumbnail,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
     }
 }
