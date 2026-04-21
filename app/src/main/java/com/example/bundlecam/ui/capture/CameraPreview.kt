@@ -5,8 +5,9 @@ import androidx.camera.view.PreviewView
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.DisposableEffect
@@ -20,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -59,16 +61,50 @@ fun CameraPreview(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                // Tap-to-focus without consuming the down event. Compose's built-in
+                // `detectTapGestures` calls `down.consume()` immediately after
+                // `awaitFirstDown`, which starves any ancestor gesture detectors (like
+                // the viewfinder swipe `Modifier.draggable` in CaptureScreen) of the
+                // down they need to start tracking. Rewritten here to observe the
+                // gesture without consuming: if the pointer goes up without having
+                // been consumed by someone else (our draggable when horizontal slop
+                // is crossed), treat it as a focus tap.
                 .pointerInput(controller) {
-                    detectTapGestures { offset ->
-                        focusPoint = offset
-                        controller.focusAt(previewView, offset.x, offset.y)
+                    awaitEachGesture {
+                        awaitFirstDown(
+                            requireUnconsumed = false,
+                            pass = PointerEventPass.Main,
+                        )
+                        val up = waitForUpOrCancellation()
+                        if (up != null && !up.isConsumed) {
+                            focusPoint = up.position
+                            controller.focusAt(previewView, up.position.x, up.position.y)
+                            up.consume()
+                        }
                     }
                 }
                 .pointerInput(controller) {
-                    detectTransformGestures { _, _, zoom, _ ->
-                        if (zoom != 1f) {
-                            controller.applyPinchZoom(zoom)
+                    // Pinch-to-zoom — rewritten to not consume the first down so the
+                    // viewfinder swipe in CaptureScreen can still claim a 1-finger
+                    // horizontal drag via Modifier.draggable. Only acts on genuine
+                    // multi-touch: the inner loop no-ops until a second pointer lands.
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false)
+                        var previousDistance = -1f
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val active = event.changes.filter { it.pressed }
+                            if (active.isEmpty()) break
+                            if (active.size >= 2) {
+                                val distance = (active[0].position - active[1].position).getDistance()
+                                if (previousDistance > 0f && distance > 0f) {
+                                    val zoom = distance / previousDistance
+                                    if (zoom != 1f) controller.applyPinchZoom(zoom)
+                                }
+                                previousDistance = distance
+                            } else {
+                                previousDistance = -1f
+                            }
                         }
                     }
                 },

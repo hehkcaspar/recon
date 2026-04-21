@@ -20,7 +20,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.PhotoLibrary
+import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material.icons.outlined.ViewStream
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -54,7 +56,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.example.bundlecam.data.storage.BundleModality
 import com.example.bundlecam.data.storage.CompletedBundle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -250,13 +251,8 @@ private fun BundleRowContent(
                 overflow = TextOverflow.Ellipsis,
             )
             Spacer(Modifier.padding(top = 2.dp))
-            val photoLabel = when (bundle.photoCount) {
-                0 -> "stitch only"
-                1 -> "1 photo"
-                else -> "${bundle.photoCount} photos"
-            }
             Text(
-                text = photoLabel,
+                text = subtitleFor(bundle),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -264,7 +260,7 @@ private fun BundleRowContent(
 
         Spacer(Modifier.width(8.dp))
 
-        ModalityIcons(modalities = bundle.modalities)
+        ModalityIcons(bundle = bundle)
     }
 }
 
@@ -307,22 +303,70 @@ private fun ThumbnailStrip(
     }
 }
 
+/**
+ * Compose the per-modality subtitle for a bundle row. Preserves the pre-multimodal
+ * "N photos" / "stitch only" wording when the bundle is photo-only; adds comma-
+ * separated entries for videos and voice notes when present. Zero-photo bundles that
+ * only contain video/voice read "M videos" or "K voice notes" rather than "stitch only",
+ * because "stitch only" now specifically means "no raw content at all".
+ */
+private fun subtitleFor(bundle: CompletedBundle): String {
+    val parts = buildList {
+        if (bundle.photoCount > 0) add(pluralize(bundle.photoCount, "photo", "photos"))
+        if (bundle.videoCount > 0) add(pluralize(bundle.videoCount, "video", "videos"))
+        if (bundle.voiceCount > 0) add(pluralize(bundle.voiceCount, "voice note", "voice notes"))
+    }
+    return when {
+        parts.isNotEmpty() -> parts.joinToString(", ")
+        bundle.stitchUri != null -> "stitch only"
+        else -> "empty"
+    }
+}
+
+private fun pluralize(count: Int, singular: String, plural: String): String =
+    "$count ${if (count == 1) singular else plural}"
+
 @Composable
-private fun ModalityIcons(modalities: List<BundleModality>) {
+private fun ModalityIcons(bundle: CompletedBundle) {
+    // Render one icon per modality the bundle actually contains. We intentionally don't
+    // rely on BundleModality.Subfolder alone (that enum stayed at {Subfolder, Stitch}
+    // so downstream code doesn't have to change), but split it into photo / video /
+    // voice icons based on the per-modality count fields so the row gives the user an
+    // at-a-glance read of what's inside.
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        modalities.forEach { modality ->
-            val (icon, desc) = when (modality) {
-                BundleModality.Stitch -> Icons.Outlined.ViewStream to "Vertical stitched image"
-                BundleModality.Subfolder -> Icons.Outlined.PhotoLibrary to "Photos subfolder"
-            }
+        if (bundle.photoCount > 0) {
             Icon(
-                imageVector = icon,
-                contentDescription = desc,
+                imageVector = Icons.Outlined.PhotoLibrary,
+                contentDescription = "Photos subfolder",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        if (bundle.videoCount > 0) {
+            Icon(
+                imageVector = Icons.Outlined.VideoLibrary,
+                contentDescription = "Videos subfolder",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        if (bundle.voiceCount > 0) {
+            Icon(
+                imageVector = Icons.Outlined.Mic,
+                contentDescription = "Voice notes subfolder",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        if (bundle.stitchUri != null) {
+            Icon(
+                imageVector = Icons.Outlined.ViewStream,
+                contentDescription = "Vertical stitched image",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
             )
         }
     }
