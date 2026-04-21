@@ -74,21 +74,22 @@ class BundleWorker(
             .getOrDefault(StitchQuality.STANDARD)
         val saveIndividual = manifest.saveIndividualPhotos
         val saveStitched = manifest.saveStitchedImage
+        val photos = manifest.orderedItems.filterIsInstance<PendingPhoto>()
 
         Log.i(
             TAG,
-            "processManifest bundleId=${manifest.bundleId} photos=${manifest.orderedPhotos.size} " +
-                "quality=$quality individual=$saveIndividual stitched=$saveStitched",
+            "processManifest bundleId=${manifest.bundleId} items=${manifest.orderedItems.size} " +
+                "photos=${photos.size} quality=$quality individual=$saveIndividual stitched=$saveStitched",
         )
 
-        if (saveIndividual) {
+        if (saveIndividual && photos.isNotEmpty()) {
             // Bounded-wait location refresh so photos captured before the first fix still
             // get GPS. Scoped to the raw-copy branch because only per-photo EXIF uses it;
             // the stitched JPEG is canvas-rendered and never carried GPS.
             withTimeoutOrNull(LOCATION_REFRESH_TIMEOUT_MS) { container.locationProvider.refresh() }
             val backfillLocation = container.locationProvider.getCachedOrNull()
 
-            manifest.orderedPhotos.forEachIndexed { index, photo ->
+            photos.forEachIndexed { index, photo ->
                 val file = File(photo.localPath)
                 container.exifWriter.stampFinalMetadata(
                     file = file,
@@ -97,7 +98,7 @@ class BundleWorker(
                 )
             }
 
-            val entries = manifest.orderedPhotos.mapIndexed { index, photo ->
+            val entries = photos.mapIndexed { index, photo ->
                 StorageLayout.bundlePhotoName(manifest.bundleId, index + 1) to File(photo.localPath)
             }
             container.safStorage.copyLocalFiles(
@@ -107,14 +108,14 @@ class BundleWorker(
             )
         }
 
-        if (saveStitched) {
+        if (saveStitched && photos.isNotEmpty()) {
             val stitcher = Stitcher()
             val stitchFile = File(
                 applicationContext.cacheDir,
                 StorageLayout.stitchFileName(manifest.bundleId),
             )
             try {
-                val sources = manifest.orderedPhotos.map {
+                val sources = photos.map {
                     StitchSource(File(it.localPath), it.rotationDegrees)
                 }
                 stitcher.stitch(sources, quality, stitchFile)

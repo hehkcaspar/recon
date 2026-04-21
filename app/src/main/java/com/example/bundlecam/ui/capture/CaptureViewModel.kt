@@ -20,6 +20,7 @@ import com.example.bundlecam.data.settings.SettingsState
 import com.example.bundlecam.data.storage.StagingSession
 import com.example.bundlecam.di.AppContainer
 import com.example.bundlecam.pipeline.PendingBundle
+import com.example.bundlecam.pipeline.PendingItem
 import com.example.bundlecam.pipeline.PendingPhoto
 import com.example.bundlecam.ui.common.TimedSlot
 import kotlinx.coroutines.Dispatchers
@@ -235,7 +236,7 @@ class CaptureViewModel(
                             rootUriString = rootUri.toString(),
                             stitchQuality = stitchQualityName,
                             sessionId = session.id,
-                            orderedPhotos = segment.map { item ->
+                            orderedItems = segment.map<StagedItem, PendingItem> { item ->
                                 when (item) {
                                     is StagedItem.Photo -> PendingPhoto(
                                         localPath = item.localFile.absolutePath,
