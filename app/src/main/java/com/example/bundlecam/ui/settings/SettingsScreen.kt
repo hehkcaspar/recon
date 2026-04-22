@@ -123,7 +123,11 @@ fun SettingsScreen(
                 val individualLocked = state.saveIndividualPhotos && !state.saveStitchedImage
                 val stitchedLocked = state.saveStitchedImage && !state.saveIndividualPhotos
                 OutputToggleRow(
-                    label = "Individual photos in subfolder",
+                    // Gate is per-modality-agnostic: covers photos (→ photos/),
+                    // videos (→ videos/), and voice memos (→ audio/). Keep the
+                    // property name `saveIndividualPhotos` for manifest + DataStore
+                    // compatibility with in-flight bundles from pre-3.4 installs.
+                    label = "Individual files in subfolder",
                     checked = state.saveIndividualPhotos,
                     enabled = !individualLocked,
                     onCheckedChange = { on ->
