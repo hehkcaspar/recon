@@ -765,26 +765,29 @@ private fun ModalitySwipeDemo(modifier: Modifier = Modifier) {
         val w = constraints.maxWidth.toFloat()
         val h = constraints.maxHeight.toFloat()
 
-        // Slab layer: the "current" modality (PHOTO) translates left; the "next"
-        // modality ghost (VIDEO) starts off to the right and slides in. Both are
-        // siblings in the same Box so their 3:4 area is shared.
+        // Slab layer: spatial model is VIDEO ← PHOTO → VOICE. Swiping *right* (finger
+        // pulls the slab rightward) reveals VIDEO behind it on the left; swiping
+        // *left* would reveal VOICE on the right. The demo shows the right-swipe →
+        // VIDEO case (red tint is more visually distinctive than voice-navy and
+        // reads as "record mode").
         //
-        // At p=0: current = 0 (centered, PHOTO visible), ghost = +w (off-right,
-        //   hidden).
-        // At p=1: current = -w (off-left, hidden), ghost = 0 (centered, VIDEO
-        //   visible).
-        // Ghost declared first so current paints on top and the reveal is "current
-        // slides off to expose ghost".
+        // At p=0: current = 0 (PHOTO centered, ghost fully covered), ghost = -w
+        //   (VIDEO fully off-screen to the left).
+        // At p=1: current = +w (PHOTO fully off to the right), ghost = 0 (VIDEO
+        //   centered).
+        //
+        // Ghost declared first so current paints on top until current translates
+        // away — so the reveal is literally "PHOTO slides right to expose VIDEO".
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer { translationX = (1f - p) * w }  // ghost slides in from right
+                .graphicsLayer { translationX = (p - 1f) * w }  // ghost slides in from left
                 .background(DemoVideoTint.copy(alpha = 0.75f)),
         )
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer { translationX = -p * w }  // current slides off left
+                .graphicsLayer { translationX = p * w }  // current slides off right
                 .background(DemoPhotoTint.copy(alpha = 0.95f)),
         )
 
@@ -801,11 +804,11 @@ private fun ModalitySwipeDemo(modifier: Modifier = Modifier) {
                 .height(28.dp),
         )
 
-        // Finger sweeps horizontally from right-of-center to left-of-center, at the
-        // vertical midline (roughly where the user's thumb would land on the real
-        // preview). Translations are relative to Box center.
-        val startFraction = 0.72f
-        val endFraction = 0.28f
+        // Finger sweeps left-to-right (matches the right-swipe → VIDEO direction
+        // explained above), at the vertical midline (roughly where a thumb would
+        // land on the real preview). Translations are relative to Box center.
+        val startFraction = 0.28f
+        val endFraction = 0.72f
         val fingerCenterX = (startFraction + (endFraction - startFraction) * p) * w
         val fingerCenterY = h * 0.58f  // slightly below center — reads as a thumb arc
         Finger(
@@ -859,18 +862,22 @@ private fun ModalityPillMini(
                     .background(Color.White.copy(alpha = 0.9f)),
             )
             Row(modifier = Modifier.fillMaxSize()) {
+                // "Currently-selected" as a continuous float tracks the indicator
+                // smoothly: at progress=0 the indicator is over segmentStart, at
+                // progress=1 it's over segmentEnd, and at 0.5 it's halfway between.
+                // Text color lerps from black (directly under the indicator) to
+                // white-with-alpha (not under) based on each segment's distance —
+                // so the PHOTO→VIDEO transition crossfades cleanly instead of
+                // flashing at the midpoint.
+                val selectedFloat = selectedStart +
+                    (selectedEnd - selectedStart) * progress
                 segments.forEachIndexed { i, label ->
-                    // Selected-ness is binary here (which segment the indicator is
-                    // currently over), so text color flips when the indicator is
-                    // roughly over this segment. Matches the real pill's contrast
-                    // behavior — black on the white indicator, white elsewhere.
-                    val currentSelected =
-                        if (progress < 0.5f) selectedStart else selectedEnd
-                    val textColor = if (i == currentSelected) {
-                        Color.Black
-                    } else {
-                        Color.White.copy(alpha = 0.85f)
-                    }
+                    val distance = kotlin.math.abs(i - selectedFloat).coerceIn(0f, 1f)
+                    val textColor = androidx.compose.ui.graphics.lerp(
+                        start = Color.Black,
+                        stop = Color.White.copy(alpha = 0.85f),
+                        fraction = distance,
+                    )
                     Box(
                         modifier = Modifier
                             .weight(1f)
