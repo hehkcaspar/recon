@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -109,9 +110,16 @@ fun GestureTutorial(
             Text("Skip", color = Color.White.copy(alpha = 0.85f))
         }
 
-        // The demo is pinned to the bottom where the real queue strip lives, so the user
-        // maps the gesture onto the spot they'll actually use. Text sits mid-screen;
-        // pager dots + Next button fill the space between text and demo.
+        // Demo placement follows the *real* gesture zone for the current step:
+        //   - SwitchModality → 3:4 preview area at top (matches the real viewfinder
+        //     slab, which is where the swipe gesture originates).
+        //   - Queue-strip steps → 72dp strip pinned just above navigation bar (matches
+        //     the real queue strip, which is where commit/discard/delete/reorder/
+        //     divide originate).
+        // Text + pager + Next/Back fill the remaining space between. Same outer padding
+        // regimen for both layouts so the Skip button sits consistently.
+        val isPreviewZoneStep = step == TutorialStep.SwitchModality
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -122,7 +130,17 @@ fun GestureTutorial(
                 .padding(bottom = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            // 56dp mirrors the real top bar height; puts the modality demo's top edge
+            // where the real preview's top edge sits.
             Spacer(Modifier.height(56.dp))
+
+            if (isPreviewZoneStep) {
+                ModalitySwipeDemo(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(3f / 4f),
+                )
+            }
 
             Spacer(Modifier.weight(1f))
 
@@ -188,16 +206,17 @@ fun GestureTutorial(
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
-
-            // Demo sits right where the real queue strip lives, so the muscle-memory
-            // transfer is immediate when the tutorial dismisses.
-            DemoArea(
-                step = step,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(DemoRowHeight),
-            )
+            if (!isPreviewZoneStep) {
+                Spacer(Modifier.height(24.dp))
+                // Queue-strip demo sits right where the real queue lives, so the
+                // muscle-memory transfer is immediate when the tutorial dismisses.
+                DemoArea(
+                    step = step,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(DemoRowHeight),
+                )
+            }
         }
     }
 }
@@ -243,12 +262,11 @@ private fun DemoArea(
     step: TutorialStep,
     modifier: Modifier = Modifier,
 ) {
+    // Queue-zone steps only — SwitchModality is rendered by ModalitySwipeDemo in
+    // the preview position and never routed here.
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         when (step) {
-            TutorialStep.SwitchModality -> {
-                // MVP placeholder — a full swipe-carousel demo belongs in a polish
-                // follow-up. The title + description above carry the message.
-            }
+            TutorialStep.SwitchModality -> Unit
             TutorialStep.CommitBundle -> SwipeStripDemo(
                 direction = 1,
                 tideColor = CaptureColors.CommitGreen,
@@ -695,5 +713,179 @@ private fun DivideDemo() {
                 translationY = (fingerYFactor - 0.4f) * travelPx
             },
         )
+    }
+}
+
+// Modality-tile tints. Kept local to the demo (not added to CaptureColors) since these
+// are decorative only — the real UI doesn't tint the preview by modality.
+private val DemoPhotoTint = Color(0xFF2F3A4A)  // neutral blue-grey
+private val DemoVideoTint = Color(0xFF6B1E1E)  // muted record-red
+private val DemoVoiceTint = Color(0xFF1F2A44)  // matches the real voice-overlay navy
+
+/**
+ * Demo for the SwitchModality step. Overlays the real viewfinder's position (3:4
+ * aspect, upper area) and walks through:
+ *   - finger appears right-of-center,
+ *   - finger sweeps left while the "current" slab translates with it (matching the
+ *     real `Modifier.draggable` + `graphicsLayer.translationX` behavior),
+ *   - a "next modality" ghost fills in from the right,
+ *   - the mini top-bar pill's selected-segment indicator slides left in sync,
+ *   - loop.
+ *
+ * The loop only shows the left-swipe direction (PHOTO → VIDEO); the description text
+ * and the pill's three segments communicate that right-swipe → VOICE is the mirror.
+ */
+@Composable
+private fun ModalitySwipeDemo(modifier: Modifier = Modifier) {
+    val progress = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        progress.snapTo(0f)
+        while (true) {
+            progress.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(durationMillis = 1600, easing = FastOutSlowInEasing),
+            )
+            delay(600)
+            progress.snapTo(0f)
+            delay(300)
+        }
+    }
+    val p = progress.value
+
+    BoxWithConstraints(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.Black.copy(alpha = 0.35f))
+            .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(12.dp)),
+        // Center-align so the Finger (no explicit size modifier) sits at (w/2, h/2)
+        // by default and translateX/Y become deltas from center, matching the
+        // positioning convention in SwipeStripDemo.
+        contentAlignment = Alignment.Center,
+    ) {
+        val w = constraints.maxWidth.toFloat()
+        val h = constraints.maxHeight.toFloat()
+
+        // Slab layer: the "current" modality (PHOTO) translates left; the "next"
+        // modality ghost (VIDEO) starts off to the right and slides in. Both are
+        // siblings in the same Box so their 3:4 area is shared.
+        //
+        // At p=0: current = 0 (centered, PHOTO visible), ghost = +w (off-right,
+        //   hidden).
+        // At p=1: current = -w (off-left, hidden), ghost = 0 (centered, VIDEO
+        //   visible).
+        // Ghost declared first so current paints on top and the reveal is "current
+        // slides off to expose ghost".
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { translationX = (1f - p) * w }  // ghost slides in from right
+                .background(DemoVideoTint.copy(alpha = 0.75f)),
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { translationX = -p * w }  // current slides off left
+                .background(DemoPhotoTint.copy(alpha = 0.95f)),
+        )
+
+        // Mini top-bar pill overlay. Renders "VIDEO · PHOTO · VOICE" with an
+        // indicator that slides from centered (PHOTO) to left (VIDEO) in lockstep
+        // with the drag progress. Sits inside the demo's top padding so it doesn't
+        // fight with the mid-slab finger.
+        ModalityPillMini(
+            progress = p,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 8.dp)
+                .fillMaxWidth(0.78f)
+                .height(28.dp),
+        )
+
+        // Finger sweeps horizontally from right-of-center to left-of-center, at the
+        // vertical midline (roughly where the user's thumb would land on the real
+        // preview). Translations are relative to Box center.
+        val startFraction = 0.72f
+        val endFraction = 0.28f
+        val fingerCenterX = (startFraction + (endFraction - startFraction) * p) * w
+        val fingerCenterY = h * 0.58f  // slightly below center — reads as a thumb arc
+        Finger(
+            modifier = Modifier.graphicsLayer {
+                translationX = fingerCenterX - w / 2f
+                translationY = fingerCenterY - h / 2f
+            },
+        )
+    }
+}
+
+/**
+ * 3-segment pill decoration for [ModalitySwipeDemo]. Indicator slides linearly
+ * between the center (PHOTO) segment and the left (VIDEO) segment as [progress]
+ * runs 0 → 1, matching how the real pill's indicator couples to drag offset.
+ */
+@Composable
+private fun ModalityPillMini(
+    progress: Float,
+    modifier: Modifier = Modifier,
+) {
+    val segments = listOf("VIDEO", "PHOTO", "VOICE")
+    val selectedStart = 1  // PHOTO
+    val selectedEnd = 0    // VIDEO
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(50))
+            .background(Color.Black.copy(alpha = 0.55f))
+            .border(
+                width = 1.dp,
+                color = Color.White.copy(alpha = 0.25f),
+                shape = RoundedCornerShape(50),
+            ),
+    ) {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val pillW = constraints.maxWidth.toFloat()
+            val segmentW = pillW / segments.size
+            // Indicator X: interpolate between the centers of segmentStart/segmentEnd.
+            val centerStart = segmentW * (selectedStart + 0.5f)
+            val centerEnd = segmentW * (selectedEnd + 0.5f)
+            val indicatorCenterX = centerStart + (centerEnd - centerStart) * progress
+            Box(
+                modifier = Modifier
+                    .graphicsLayer {
+                        translationX = indicatorCenterX - segmentW / 2f
+                    }
+                    .width(with(LocalDensity.current) { segmentW.toDp() })
+                    .fillMaxHeight()
+                    .padding(horizontal = 2.dp, vertical = 2.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(Color.White.copy(alpha = 0.9f)),
+            )
+            Row(modifier = Modifier.fillMaxSize()) {
+                segments.forEachIndexed { i, label ->
+                    // Selected-ness is binary here (which segment the indicator is
+                    // currently over), so text color flips when the indicator is
+                    // roughly over this segment. Matches the real pill's contrast
+                    // behavior — black on the white indicator, white elsewhere.
+                    val currentSelected =
+                        if (progress < 0.5f) selectedStart else selectedEnd
+                    val textColor = if (i == currentSelected) {
+                        Color.Black
+                    } else {
+                        Color.White.copy(alpha = 0.85f)
+                    }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = label,
+                            color = textColor,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+            }
+        }
     }
 }

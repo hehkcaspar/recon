@@ -540,7 +540,7 @@ Each step renders a looping animated-finger demonstration over a fake 4-thumbnai
 - The scrim consumes every pointer event — users cannot accidentally fire real gestures on the (empty) queue beneath.
 - Re-triggerable anytime from Settings → "Gesture tutorial → Show".
 
-The `modality` tutorial step currently uses a placeholder demo area (static title + description); an animated swipe demo analogous to the other five is a known polish gap (see [`BACKLOG.md`](./BACKLOG.md)).
+Each step's demo sits in the actual on-screen region of its gesture. The five queue-strip demos (commit/discard/delete-one/reorder/divide) render in the bottom 72dp strip; the `modality` demo renders in the 3:4 preview area (upper slab) with a mini `VIDEO · PHOTO · VOICE` pill at the top, a slab that translates left with a finger-sweep while a video-tinted ghost slides in from the right, and the pill indicator tracking the drag — overlaying the exact space the user will swipe on the real screen after dismissal.
 
 ### Permissions
 
