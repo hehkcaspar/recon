@@ -710,6 +710,7 @@ This section is the SOTA target for an iOS port, informed by the Android referen
 - Flash: `AVCapturePhotoSettings.flashMode = .off / .auto / .on`, applied per-capture. To mirror Android's "flash mode survives rebinds": store `currentFlashMode` as instance state and apply it at every `AVCapturePhotoSettings` instantiation. **Not offered in VIDEO** modality (iOS torch-mode toggles mid-video are a reliability hazard, mirroring the Android decision).
 - Zoom: `AVCaptureDevice.videoZoomFactor` with `ramp(toVideoZoomFactor:withRate:)` for smooth chip-to-chip transitions; pinch gesture multiplies `videoZoomFactor`. Hardware-filter chip presets against `device.activeFormat.videoMinZoomFactorForDepthDataDelivery` / `device.maxAvailableVideoZoomFactor`. Available in PHOTO + VIDEO; hidden (with layout preserved) in VOICE.
 - Tap-to-focus: on preview tap, translate the tap into device coordinates via `previewLayer.captureDevicePointConverted(fromLayerPoint:)`; set `focusPointOfInterest` + `exposurePointOfInterest` + `focusMode = .autoFocus` + `exposureMode = .autoExpose`. Animate a 500ms ring at the tap point in SwiftUI. Available in PHOTO + VIDEO; disabled in VOICE (the preview is hidden anyway).
+- **Video-recording pill overlay**: during a live video recording, render a red capsule at BottomCenter *inside* the preview ZStack (not stacked below it) — pulsing white dot + `M:SS` elapsed-time caption, ticked every 500ms by a `Timer.publish(every: 0.5, ...)` feeding a `@State nowMs`. Inside-the-preview placement is load-bearing: it overlays the viewfinder without reflowing the zoom chips / shutter / queue below. SwiftUI pattern: `ZStack(alignment: .bottom) { CameraPreview(); RecordingPill(startedAt:) }` with `.padding(.bottom, 12)`. Mirror with a pulsing dot alpha via `.animation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true))`.
 
 ### Voice capture
 
@@ -719,7 +720,9 @@ This section is the SOTA target for an iOS port, informed by the Android referen
     - `AVNumberOfChannelsKey = 1`
     - `AVEncoderAudioQualityKey = .high` (or set `AVEncoderBitRateKey = 96_000`)
 - **Audio session**: configure `AVAudioSession.sharedInstance()` with `.playAndRecord` + `.defaultToSpeaker` + `.allowBluetooth`; activate on first voice-record. Deactivate on stop.
-- **Amplitude polling** for the waveform: call `recorder.updateMeters()` + `recorder.averagePower(forChannel: 0)` every ~33ms from a `Timer` or `DisplayLink`. Convert the dB value to a 0-1 normalised amplitude via `pow(10, db/20)` and feed the waveform view.
+- **Amplitude polling** for the waveform: call `recorder.updateMeters()` + `recorder.averagePower(forChannel: 0)` every ~33ms from a `Timer` or `DisplayLink`. Convert the dB value to a 0-1 normalised amplitude via `pow(10, db/20)` and feed the waveform view via a `@Published var amplitude: Float` on an `ObservableObject`.
+- **Waveform view**: 128-sample ring buffer, scrolling-bars rendering via `Canvas { context, size in … }` (SwiftUI) — oldest on the left, newest on the right. Flat centerline when idle, tinted red when recording. **Critical observation pattern**: bind the view to the amplitude publisher via `@ObservedObject` (or `.onReceive(publisher)`), *not* by reading `publisher.value` inside a `View.body` — SwiftUI view invalidation doesn't track plain property reads, so direct `.value` access would snapshot once and never update (same gotcha the Android port hit with `snapshotFlow { stateFlow.value }` vs `stateFlow.collect { }`).
+- **Elapsed-time caption**: below the waveform, render a large `M:SS` `Text` driven by a `TimelineView(.periodic(from: startedAt, by: 0.5))` or a `Timer`-backed `@State nowMs`. The voice page has no camera preview so the waveform + timer pair is the focal composition — typography should be `.title` weight.
 - **Permission**: `AVAudioSession.sharedInstance().requestRecordPermission { granted in … }` on first-ever VOICE shutter tap. Surface an "Open Settings" banner on permanent denial (deep-link with `UIApplication.openSettingsURLString`).
 - **Background behaviour**: do not declare `UIBackgroundModes audio` — recording stops on backgrounding (mirror of Android's "no foreground service" decision). Hook `scenePhase` in SwiftUI or `applicationDidEnterBackground` in UIKit to call the VM's async stop path.
 - **Torn-file probe**: on orphan-recovery, open each staged `.m4a` with `AVAsset(url:)` and check `asset.duration.seconds.isFinite && duration > 0`. If not, the file was killed mid-record — delete and skip.
@@ -802,6 +805,7 @@ This section is the SOTA target for an iOS port, informed by the Android referen
 - Bookmark + flags: `UserDefaults.standard`. Keys mirror Android's set: `rootBookmark`, `stitchQuality` (enum raw), `cameraMode` (ZSL/EXT enum raw), `videoQuality` (enum raw), `maxVideoLengthSeconds: Int?` (nil = unlimited), `shutterSoundOn`, `saveIndividualPhotos`, `saveStitchedImage`, `deleteDelaySeconds`, `deleteConfirmEnabled`, `seenTutorialSteps: Set<String>`.
 - Expose as a `Published` stream (Combine) or `AsyncStream` for SwiftUI observation.
 - Enforce the at-least-one-output invariant at both write time and read time.
+- **UI label for `saveIndividualPhotos`**: render as **"Individual files in subfolder"**, not "Individual photos in subfolder". The underlying storage key retained the `Photos` suffix for manifest + `UserDefaults` backward compatibility, but the gate covers photos, videos, and voice memos equally — so the user-facing label is modality-agnostic. Same label wording as the Android build.
 - **Tutorial step IDs** match Android: `modality`, `commit`, `discard`, `deleteOne`, `reorder`, `divide`. Store as a `Set<String>` in `UserDefaults` via `Codable`-backed property or a JSON-encoded string.
 
 ### Haptics
@@ -838,6 +842,29 @@ The commit animation (queue contents sliding into the right zone with the zone f
 - Modality state machine: `@Published var modality: Modality` + a `modalityTransition` state (stable / transitioning-with-pending) so a fast double-swipe resolves to the final intended state without lost transitions (mirror of Android's `ModalityTransition`).
 - Per-modality content visibility: `if modality != .voice { CameraPreviewView(...) }` — SwiftUI layout preservation needs an `.opacity(0)` + `.allowsHitTesting(false)` pattern to keep the slot height consistent, mirror of Android's alpha=0 pattern.
 - Animation: two-stage commit (tween slide in drag direction, then snap to 0 as modality swaps) vs cancel (`interactiveSpring(response: 0.3, dampingFraction: 1.0)`). Don't use `interactiveSpring` with a bouncy damping — iOS will oscillate identically to Compose.
+- Spatial model: `VIDEO ← PHOTO → VOICE`. Swipe *right* (drag PHOTO rightward) reveals VIDEO on the left it was hiding; swipe *left* reveals VOICE on the right. Useful when debugging direction — getting the ghost-reveal side wrong is easy.
+
+### Gesture tutorial (6-step overlay, demo overlays its real gesture zone)
+
+The tutorial scrim consumes all pointer events and walks through the six gestures: `modality`, `commit`, `discard`, `deleteOne`, `reorder`, `divide`. Persistence uses `seenTutorialSteps: Set<String>` in `UserDefaults` (unioned on dismiss), so future step additions only show the delta.
+
+**Placement rule — each step's demo overlays its real on-screen gesture zone**, not a fixed bottom strip:
+
+- The five queue-strip demos (commit / discard / deleteOne / reorder / divide) render in a 72dp-tall strip pinned above the home indicator, matching the real queue's position. The demo is a fake 4-thumbnail row with a looping animated finger.
+- The `modality` demo renders in the 3:4 preview area (upper slab, below the top bar), matching the real viewfinder position — where the swipe gesture actually originates.
+
+This is load-bearing for muscle-memory transfer on dismiss: the user's hand is already over the region the gesture uses. SwiftUI pattern — branch the tutorial's `VStack` on step type and put the demo above or below the text block accordingly. `Spacer()` weights handle the slack.
+
+**Modality demo internals** (mirror of Android's `ModalitySwipeDemo`):
+
+- 3:4 rounded-rect card with a mini `VIDEO · PHOTO · VOICE` pill at the top.
+- `Animatable(progress: Float)` loop: 0 → 1 over ~1.6s tween + 600ms hold + snap + 300ms gap.
+- Current-modality placeholder (PHOTO tint) translates right by `progress * width`.
+- Ghost modality placeholder (VIDEO tint) starts at `-width` and slides in behind via `(progress - 1) * width`. Z-order: ghost first (back), current last (front) — so the reveal is "PHOTO slides off to expose VIDEO".
+- Finger glyph sweeps from `0.28 * width` to `0.72 * width` horizontally at the vertical midline.
+- Pill indicator translates from PHOTO's segment center to VIDEO's segment center linearly with `progress`; segment text colors lerp from black (under the white indicator) to white-0.85 (distant) based on **continuous** distance-from-indicator, not a binary threshold. A binary flip at 0.5 flashes visibly — smooth lerp avoids it.
+
+**Queue-strip demos** are pixel-level mirrors of the real queue's 72dp strip: 56dp thumbs, 6dp gap, muted gradient tints, a `Finger` ring-over-dot glyph tracking the gesture motion. Reuse the Android visual language exactly; the iOS `Canvas` or `ZStack`-with-`.offset` patterns map 1:1 from Compose's `Canvas` / `graphicsLayer.translationX`.
 
 ### Testing
 
@@ -855,7 +882,7 @@ The commit animation (queue contents sliding into the right zone with the zone f
 
 - Camera photo + orientation + zoom + flash + lens flip: **~4 days**.
 - Video capture (`AVCaptureMovieFileOutput`, concurrent session config, max-length, poster extraction): **~2 days**.
-- Voice capture (`AVAudioRecorder`, audio session lifecycle, amplitude polling, waveform overlay): **~1.5 days**.
+- Voice capture (`AVAudioRecorder`, audio session lifecycle, amplitude polling, scrolling waveform + M:SS caption): **~1.5 days**.
 - Staging + manifest store (Codable + polymorphic item) + bookmark I/O helpers: **~2 days**.
 - Worker + background task + operation queue + per-modality routing: **~2 days**.
 - Stitcher port: **~1 day** (layout math is pure; CoreImage composition is straightforward).
@@ -864,7 +891,7 @@ The commit animation (queue contents sliding into the right zone with the zone f
 - Settings + UserDefaults-equivalent (plus cameraMode + videoQuality + maxVideoLength + seenTutorialSteps): **~1 day**.
 - Capture UI + queue strip + gestures **including modality-switch swipe** + per-modality control visibility: **~5 days** (gesture mechanics are the most subtle part; the modality-switch slab animation is a re-learnable headache — budget for playtesting).
 - Bundle Preview + pending-delete + processing-row + mixed-modality subtitle + per-modality icons: **~2 days**.
-- Gesture tutorial (6-step, step-set-persisted) — including the modality-swipe animation once designed: **~1.5 days**.
+- Gesture tutorial (6-step, step-set-persisted, per-step demo positioned over its real gesture zone — preview for `modality`, queue strip for the other five; smooth per-segment pill lerp): **~1.5 days**.
 - Polish (haptics tuning, shimmer animations, icon counter-rotation, waveform performance on older devices): **~2 days**.
 
 **Total: ~4–4.5 weeks solo.** The multimodal surface adds about a week to the pre-multimodal estimate; most of the additional time is video+voice pipelines and the modality-swipe gesture tuning, not architecture.
