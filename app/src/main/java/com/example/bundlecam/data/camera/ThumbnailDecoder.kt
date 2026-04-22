@@ -1,7 +1,9 @@
 package com.example.bundlecam.data.camera
 
 import android.content.ContentResolver
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -33,12 +35,30 @@ fun decodeThumbnail(file: File, rotationDegrees: Int): ImageBitmap {
 }
 
 /**
- * SAF URI overload for thumbnails of saved bundles. Reads the file into memory once so
- * bounds + decode + EXIF share a single ContentProvider roundtrip; opening the stream
- * three times (which `BitmapFactory` would otherwise need since it can't rewind a
- * ContentProvider InputStream) is ~3x the IPC latency.
+ * SAF URI overload for thumbnails of saved bundles. Dispatches by filename extension:
+ * - `.jpg` / `.jpeg` → decode JPEG + honor EXIF rotation (photo path).
+ * - `.mp4`            → extract a poster frame via MediaMetadataRetriever + SAF fd
+ *                       (for video-only bundles in Bundle Preview).
+ * - `.m4a`            → synthesize a navy tile with a white mic glyph drawn in
+ *                       (for voice-only bundles). Static content, so we generate
+ *                       it on demand without touching the file itself.
+ *
+ * Reads image bytes once so bounds + decode + EXIF share a single ContentProvider
+ * roundtrip; opening the stream three times (which `BitmapFactory` would otherwise
+ * need since it can't rewind a ContentProvider InputStream) is ~3x the IPC latency.
  */
 fun decodeThumbnail(contentResolver: ContentResolver, uri: Uri): ImageBitmap? {
+    val name = uri.lastPathSegment.orEmpty()
+    val extension = name.substringAfterLast('.', "").lowercase()
+    return when (extension) {
+        "jpg", "jpeg" -> decodeJpegThumbnail(contentResolver, uri)
+        "mp4" -> decodeVideoPoster(contentResolver, uri)
+        "m4a" -> renderVoiceThumbnail()
+        else -> null
+    }
+}
+
+private fun decodeJpegThumbnail(contentResolver: ContentResolver, uri: Uri): ImageBitmap? {
     val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
@@ -63,4 +83,148 @@ private fun sampleSizeFor(w: Int, h: Int): Int {
     var sample = 1
     while (w / sample > TARGET_PX * 2 || h / sample > TARGET_PX * 2) sample *= 2
     return sample
+}
+
+/**
+ * Extract a poster frame from an MP4 via MediaMetadataRetriever. Used both when pushing
+ * a freshly-recorded video onto the queue and by OrphanRecovery when restoring a video
+ * from a killed-mid-session staging folder. Returns null if the file is unreadable or
+ * corrupt (e.g., zero-byte from a process kill before the muxer flushed).
+ */
+fun decodeVideoPoster(file: File): ImageBitmap? {
+    if (!file.exists() || file.length() == 0L) return null
+    val retriever = MediaMetadataRetriever()
+    return try {
+        retriever.setDataSource(file.absolutePath)
+        val frame = retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+            ?: return null
+        scaleToPosterSize(frame).asImageBitmap()
+    } catch (t: Throwable) {
+        null
+    } finally {
+        runCatching { retriever.release() }
+    }
+}
+
+/**
+ * SAF URI overload of the video poster extractor. Used by Bundle Preview when a video
+ * file is in the SAF tree and we want its first-frame thumbnail for the row.
+ */
+fun decodeVideoPoster(contentResolver: ContentResolver, uri: Uri): ImageBitmap? {
+    val retriever = MediaMetadataRetriever()
+    return try {
+        contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
+            retriever.setDataSource(pfd.fileDescriptor)
+            val frame = retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                ?: return null
+            scaleToPosterSize(frame).asImageBitmap()
+        }
+    } catch (t: Throwable) {
+        null
+    } finally {
+        runCatching { retriever.release() }
+    }
+}
+
+private fun scaleToPosterSize(frame: Bitmap): Bitmap {
+    return if (frame.width > TARGET_PX * 2 || frame.height > TARGET_PX * 2) {
+        val ratio = minOf(TARGET_PX * 2f / frame.width, TARGET_PX * 2f / frame.height)
+        Bitmap.createScaledBitmap(
+            frame,
+            (frame.width * ratio).toInt().coerceAtLeast(1),
+            (frame.height * ratio).toInt().coerceAtLeast(1),
+            true,
+        ).also { if (it !== frame) frame.recycle() }
+    } else frame
+}
+
+/**
+ * Render a Bundle-Preview-sized voice thumbnail: a navy tile with a white mic glyph
+ * drawn by hand (no external icon resource, no ImageVector→Bitmap conversion). Sized
+ * to the standard thumbnail target so it doesn't upscale in the row.
+ */
+private fun renderVoiceThumbnail(): ImageBitmap {
+    val size = TARGET_PX * 2
+    val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val canvas = android.graphics.Canvas(bmp)
+    canvas.drawColor(0xFF1F2A44.toInt())
+
+    val white = 0xFFFFFFFF.toInt()
+    val fill = android.graphics.Paint().apply {
+        color = white
+        isAntiAlias = true
+        style = android.graphics.Paint.Style.FILL
+    }
+    val stroke = android.graphics.Paint().apply {
+        color = white
+        isAntiAlias = true
+        style = android.graphics.Paint.Style.STROKE
+        strokeWidth = size * 0.05f
+        strokeCap = android.graphics.Paint.Cap.ROUND
+    }
+
+    val cx = size / 2f
+    val cy = size / 2f - size * 0.05f
+    // Mic capsule: rounded vertical pill centered slightly above the midline.
+    val capsuleWidth = size * 0.26f
+    val capsuleHeight = size * 0.40f
+    val capsule = android.graphics.RectF(
+        cx - capsuleWidth / 2f,
+        cy - capsuleHeight / 2f,
+        cx + capsuleWidth / 2f,
+        cy + capsuleHeight / 2f,
+    )
+    canvas.drawRoundRect(capsule, capsuleWidth / 2f, capsuleWidth / 2f, fill)
+
+    // Stand arch under the capsule.
+    val archWidth = size * 0.46f
+    val archTop = cy + capsuleHeight * 0.20f
+    val archBottom = archTop + size * 0.22f
+    val archRect = android.graphics.RectF(cx - archWidth / 2f, archTop, cx + archWidth / 2f, archBottom)
+    canvas.drawArc(archRect, 0f, 180f, false, stroke)
+
+    // Vertical post from arch center down to the base line.
+    val postTop = archBottom - (archBottom - archTop) / 2f
+    val postBottom = postTop + size * 0.12f
+    canvas.drawLine(cx, postTop, cx, postBottom, stroke)
+
+    // Short base line at the bottom.
+    val baseHalf = size * 0.09f
+    canvas.drawLine(cx - baseHalf, postBottom, cx + baseHalf, postBottom, stroke)
+
+    return bmp.asImageBitmap()
+}
+
+/**
+ * Generate a placeholder thumbnail for a voice item. The QueueThumbnail's Voice branch
+ * overlays the mic glyph + duration badge on top, so the placeholder just needs to be
+ * any ImageBitmap — a tiny tinted square is cheap and uniform. Kept here so the
+ * StagedItem contract (thumbnail: ImageBitmap) doesn't need a nullable field.
+ */
+fun decodeVoiceThumbnail(): ImageBitmap {
+    // 8x8 tinted square. Smaller than 1x1 actually isn't cheaper to allocate and 8x8
+    // side-steps any zero-size sanity check in a downstream consumer.
+    val bmp = Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888)
+    bmp.eraseColor(0xFF1F2A44.toInt()) // deep navy; the mic glyph reads well on top
+    return bmp.asImageBitmap()
+}
+
+/**
+ * True if the MP4/M4A at [file] exposes a readable duration via MediaMetadataRetriever.
+ * OrphanRecovery uses this as the torn-file probe for both video (`.mp4`, Media3 Muxer
+ * written by CameraX Recorder) and voice (`.m4a`, MediaRecorder AAC-LC). A killed
+ * recording typically leaves the file unreadable — this check drops those.
+ */
+fun isMediaFileReadable(file: File): Boolean {
+    if (!file.exists() || file.length() == 0L) return false
+    val retriever = MediaMetadataRetriever()
+    return try {
+        retriever.setDataSource(file.absolutePath)
+        val duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+        duration != null
+    } catch (t: Throwable) {
+        false
+    } finally {
+        runCatching { retriever.release() }
+    }
 }

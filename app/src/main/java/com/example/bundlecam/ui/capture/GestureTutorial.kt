@@ -65,10 +65,21 @@ private val DemoThumbColors = listOf(
 
 @Composable
 fun GestureTutorial(
-    onDismiss: () -> Unit,
+    onDismiss: (shownStepIds: Set<String>) -> Unit,
     modifier: Modifier = Modifier,
+    seenStepIds: Set<String> = emptySet(),
 ) {
-    val steps = remember { TutorialStep.entries }
+    // Show only steps the user hasn't dismissed yet. V2 users upgrading from v1 see
+    // just the new SwitchModality step; fresh installs see the full flow.
+    val steps = remember(seenStepIds) {
+        TutorialStep.entries.filter { it.id !in seenStepIds }
+    }
+    if (steps.isEmpty()) {
+        // Nothing to show — render nothing. Caller is expected to always wire this
+        // composable into the tree; the empty-set case is the steady-state for users
+        // who've dismissed every step (the common case after first launch).
+        return
+    }
     var stepIndex by remember { mutableIntStateOf(0) }
     val step = steps[stepIndex]
     val isLast = stepIndex == steps.size - 1
@@ -89,7 +100,7 @@ fun GestureTutorial(
             },
     ) {
         TextButton(
-            onClick = onDismiss,
+            onClick = { onDismiss(steps.map { it.id }.toSet()) },
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .statusBarsPadding()
@@ -163,7 +174,7 @@ fun GestureTutorial(
                 }
                 Button(
                     onClick = {
-                        if (isLast) onDismiss() else stepIndex++
+                        if (isLast) onDismiss(steps.map { it.id }.toSet()) else stepIndex++
                     },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color.White,
@@ -191,24 +202,37 @@ fun GestureTutorial(
     }
 }
 
-private enum class TutorialStep(val title: String, val description: String) {
+private enum class TutorialStep(val id: String, val title: String, val description: String) {
+    // SwitchModality comes first so Phase-C-era upgraders (who've already seen the
+    // five queue-strip steps) get a minimal single-step introduction to the new
+    // capability, rather than a redundant 6-step walkthrough.
+    SwitchModality(
+        id = "modality",
+        title = "Swipe the preview to switch modes",
+        description = "Swipe the preview — or tap the pill at the top — to switch between photo, video, and voice.",
+    ),
     CommitBundle(
+        id = "commit",
         title = "Swipe right to save",
         description = "Sweep right across the queue strip to save all queued photos as a bundle.",
     ),
     DiscardQueue(
+        id = "discard",
         title = "Swipe left to discard",
         description = "Sweep left across the queue strip to drop every photo in the queue.",
     ),
     DeleteOne(
+        id = "deleteOne",
         title = "Flick a photo down to delete",
         description = "Swipe a single thumbnail downward to remove just that photo.",
     ),
     Reorder(
+        id = "reorder",
         title = "Long-press and drag to reorder",
         description = "Press and hold a thumbnail, then drag it to its new position.",
     ),
     Divide(
+        id = "divide",
         title = "Swipe between to split",
         description = "Swipe down between two photos to split them into separate bundles. Swipe up to undo a split.",
     ),
@@ -221,6 +245,10 @@ private fun DemoArea(
 ) {
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         when (step) {
+            TutorialStep.SwitchModality -> {
+                // MVP placeholder — a full swipe-carousel demo belongs in a polish
+                // follow-up. The title + description above carry the message.
+            }
             TutorialStep.CommitBundle -> SwipeStripDemo(
                 direction = 1,
                 tideColor = CaptureColors.CommitGreen,

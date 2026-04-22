@@ -6,8 +6,15 @@ import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -33,7 +40,7 @@ import kotlin.math.roundToInt
 
 @Composable
 fun QueueThumbnail(
-    item: StagedPhoto,
+    item: StagedItem,
     currentIndex: Int,
     queueSize: Int,
     onDelete: () -> Unit,
@@ -128,11 +135,76 @@ fun QueueThumbnail(
                 )
             },
     ) {
-        Image(
-            bitmap = item.thumbnail,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-        )
+        when (item) {
+            is StagedItem.Photo -> Image(
+                bitmap = item.thumbnail,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+            is StagedItem.Video -> {
+                Image(
+                    bitmap = item.thumbnail,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                // Play-glyph overlay to distinguish from photos at 56dp.
+                Icon(
+                    imageVector = Icons.Filled.PlayArrow,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier
+                        .size(20.dp)
+                        .align(androidx.compose.ui.Alignment.Center),
+                )
+                // Duration badge, bottom-right.
+                Text(
+                    text = formatDuration(item.durationMs),
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier
+                        .align(androidx.compose.ui.Alignment.BottomEnd)
+                        .padding(2.dp)
+                        .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(2.dp))
+                        .padding(horizontal = 2.dp),
+                )
+            }
+            is StagedItem.Voice -> {
+                // Tinted backdrop (the "thumbnail" bitmap is a tiny tinted square —
+                // see decodeVoiceThumbnail) plus a larger mic glyph and duration badge.
+                Image(
+                    bitmap = item.thumbnail,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                Icon(
+                    imageVector = Icons.Filled.Mic,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier
+                        .size(28.dp)
+                        .align(androidx.compose.ui.Alignment.Center),
+                )
+                Text(
+                    text = formatDuration(item.durationMs),
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier
+                        .align(androidx.compose.ui.Alignment.BottomEnd)
+                        .padding(2.dp)
+                        .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(2.dp))
+                        .padding(horizontal = 2.dp),
+                )
+            }
+        }
     }
+}
+
+private fun formatDuration(ms: Long): String {
+    val totalSec = ms / 1000
+    val min = totalSec / 60
+    val sec = totalSec % 60
+    return "%d:%02d".format(min, sec)
 }

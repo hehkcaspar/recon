@@ -3,6 +3,7 @@ package com.example.bundlecam.di
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import com.example.bundlecam.data.audio.VoiceController
 import com.example.bundlecam.data.exif.ExifWriter
 import com.example.bundlecam.data.location.LocationProvider
 import com.example.bundlecam.data.settings.SettingsRepository
@@ -33,6 +34,7 @@ class AppContainer(context: Context) {
     val orphanRecovery: OrphanRecovery = OrphanRecovery(stagingStore, manifestStore, workScheduler)
     val exifWriter: ExifWriter = ExifWriter()
     val locationProvider: LocationProvider = LocationProvider(appContext)
+    val voiceController: VoiceController = VoiceController(appContext)
 
     // App-scoped so folder-setup work isn't cancelled by UI navigation (e.g., user backing
     // out of Settings immediately after picking a folder). Composition-scoped coroutines

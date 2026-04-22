@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.bundlecam.BuildConfig
+import com.example.bundlecam.data.camera.CameraMode
 import com.example.bundlecam.data.settings.MAX_DELETE_DELAY_SECONDS
 import com.example.bundlecam.data.settings.MIN_DELETE_DELAY_SECONDS
 import com.example.bundlecam.data.settings.StitchQuality
@@ -197,6 +198,34 @@ fun SettingsScreen(
                 )
             }
 
+            Spacer(Modifier.height(12.dp))
+
+            SettingsRow(label = "Camera mode") {
+                var menuOpen by remember { mutableStateOf(false) }
+                Box {
+                    TextButton(onClick = { menuOpen = true }) {
+                        Text(cameraModeLabel(state.cameraMode))
+                        Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
+                    }
+                    DropdownMenu(
+                        expanded = menuOpen,
+                        onDismissRequest = { menuOpen = false },
+                    ) {
+                        CameraMode.entries.forEach { mode ->
+                            DropdownMenuItem(
+                                text = { Text(cameraModeLabel(mode)) },
+                                onClick = {
+                                    scope.launch {
+                                        container.settingsRepository.setCameraMode(mode)
+                                    }
+                                    menuOpen = false
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
             SettingsRow(label = "Confirm before deleting a bundle") {
@@ -277,6 +306,11 @@ private fun SettingBlock(label: String, content: @Composable () -> Unit) {
 
 private fun deleteDelayLabel(seconds: Int): String =
     if (seconds <= 0) "Off" else "${seconds}s"
+
+private fun cameraModeLabel(mode: CameraMode): String = when (mode) {
+    CameraMode.ZSL -> "ZSL (zero shutter lag)"
+    CameraMode.Extensions -> "EXT (HDR/night auto)"
+}
 
 @Composable
 private fun SettingsRow(

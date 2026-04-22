@@ -8,6 +8,9 @@ import android.view.HapticFeedbackConstants
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,6 +47,10 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -57,6 +64,8 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.bundlecam.data.camera.FlashMode
@@ -114,7 +123,9 @@ private fun CaptureScreenContent(
     val cameraMode by vm.cameraMode.collectAsStateWithLifecycle()
     val lensFacing by vm.lensFacing.collectAsStateWithLifecycle()
     val flashMode by vm.flashMode.collectAsStateWithLifecycle()
-    val isRebinding by vm.isRebinding.collectAsStateWithLifecycle()
+    val modality by vm.modality.collectAsStateWithLifecycle()
+    val videoRecording by vm.videoRecording.collectAsStateWithLifecycle()
+    val voiceRecording by vm.voiceRecording.collectAsStateWithLifecycle()
     val zoomInfo by vm.zoomInfo.collectAsStateWithLifecycle()
     val deviceOrientation by vm.deviceOrientation.collectAsStateWithLifecycle()
     val contentRotation = rememberContentRotation(deviceOrientation)
@@ -126,6 +137,16 @@ private fun CaptureScreenContent(
         contract = ActivityResultContracts.RequestMultiplePermissions(),
     ) { /* no-op; capture proceeds regardless */ }
     var locationAsked by rememberSaveable { mutableStateOf(false) }
+
+    val voicePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted -> vm.onVoicePermissionResult(granted) }
+    val voicePermissionNeeded by vm.voicePermissionNeeded.collectAsStateWithLifecycle()
+    LaunchedEffect(voicePermissionNeeded) {
+        if (voicePermissionNeeded) {
+            voicePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
 
     // Ask for GPS permission the first time the camera UI becomes available (after camera
     // permission is granted and the user is past the folder picker). We don't wait for the
@@ -142,6 +163,12 @@ private fun CaptureScreenContent(
                 ),
             )
         }
+    }
+
+    // Stop any in-flight video/voice recording when the Activity pauses. The recorder's
+    // Finalize event fires asynchronously and the awaiting coroutine resumes cleanly.
+    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
+        vm.onLifecyclePaused()
     }
 
     val handleShutter = {
@@ -201,9 +228,17 @@ private fun CaptureScreenContent(
                     )
                 }
                 Spacer(Modifier.weight(1f))
-                CameraModeToggle(
-                    current = cameraMode,
-                    onChange = vm::onCameraModeChange,
+                // Lock the pill visually during an active recording so the user sees
+                // their grey state at-a-glance — `setModality` in the VM already
+                // rejects the tap, but the disabled styling is the visual cue.
+                ModalityPill(
+                    current = modality,
+                    enabledModalities = if (state.busy == BusyState.Recording) {
+                        emptySet()
+                    } else {
+                        setOf(Modality.PHOTO, Modality.VIDEO, Modality.VOICE)
+                    },
+                    onChange = vm::setModality,
                 )
                 Spacer(Modifier.weight(1f))
                 IconButton(
@@ -219,18 +254,132 @@ private fun CaptureScreenContent(
                 }
             }
 
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            val swipeThresholdDp = 64f
+            val swipeVelocityThresholdDpPerSec = 300f
+            // Slab offset is an Animatable so we can (a) snapTo during drag for
+            // pixel-perfect finger-tracking, (b) animateTo with a spring on release to
+            // either return to rest (sub-threshold) or continue the slide-in (commit).
+            // Applied via graphicsLayer.translationX on BOTH the viewfinder Box below
+            // and the control row further down — they're siblings in the Column with
+            // other UI between them, and the spec says they move "as one slab". The
+            // queue strip + zoom control stay put (pixel-anchored queue).
+            val slabOffset = remember { androidx.compose.animation.core.Animatable(0f) }
+            val swipeScope = rememberCoroutineScope()
+            // Slab width measured at layout time. Needed by the commit-path
+            // off-screen animation target — we slide the current slab by one full
+            // viewfinder width in the drag direction, then snap to 0.
+            var slabWidthPx by remember { mutableFloatStateOf(0f) }
+
+            val dragState = rememberDraggableState { delta ->
+                swipeScope.launch { slabOffset.snapTo(slabOffset.value + delta) }
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(3f / 4f),
+                    .aspectRatio(3f / 4f)
+                    .onGloballyPositioned { slabWidthPx = it.size.width.toFloat() }
+                    .draggable(
+                        state = dragState,
+                        orientation = Orientation.Horizontal,
+                        enabled = state.busy == BusyState.Idle,
+                        onDragStarted = {
+                            slabOffset.snapTo(0f)
+                        },
+                        onDragStopped = { velocityPx ->
+                            val dragDp = with(density) { slabOffset.value.toDp().value }
+                            val velocityDpPerSec = with(density) { velocityPx.toDp().value }
+                            val target = ModalitySwipeMath.resolveTarget(
+                                current = modality,
+                                dragDp = dragDp,
+                                velocityDpPerSecond = velocityDpPerSec,
+                                thresholdDp = swipeThresholdDp,
+                                velocityThresholdDpPerSecond = swipeVelocityThresholdDpPerSec,
+                            )
+                            val committed = target != modality
+                            if (committed) vm.setModality(target)
+                            // Two-stage animation so the release reads as a single
+                            // directional swipe, not a rubber band:
+                            //
+                            // (1) Commit path: continue the slab in the drag direction
+                            //     off-screen with a short linear-ish tween (~200ms),
+                            //     then snap to 0 so the just-committed modality's
+                            //     content appears at center. The user sees "content
+                            //     slides out in the direction I flicked".
+                            // (2) Cancel path: snap back to 0 with a critically-damped
+                            //     spring — no overshoot, no back-and-forth oscillation.
+                            //
+                            // Previous implementation used DampingRatioMediumBouncy
+                            // with the release velocity as initial velocity, which
+                            // overshot 0 and oscillated visibly — reported as
+                            // "feels like swipe then bounce back and forth".
+                            swipeScope.launch {
+                                if (committed) {
+                                    val targetOffset = slabWidthPx *
+                                        kotlin.math.sign(slabOffset.value)
+                                    slabOffset.animateTo(
+                                        targetValue = targetOffset,
+                                        animationSpec = androidx.compose.animation.core.tween(
+                                            durationMillis = 180,
+                                            easing = androidx.compose.animation.core.FastOutLinearInEasing,
+                                        ),
+                                        initialVelocity = velocityPx,
+                                    )
+                                    slabOffset.snapTo(0f)
+                                } else {
+                                    slabOffset.animateTo(
+                                        targetValue = 0f,
+                                        animationSpec = androidx.compose.animation.core.spring(
+                                            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
+                                            stiffness = androidx.compose.animation.core.Spring.StiffnessMedium,
+                                        ),
+                                        initialVelocity = velocityPx,
+                                    )
+                                }
+                            }
+                        },
+                    )
+                    .graphicsLayer { translationX = slabOffset.value },
             ) {
+                // Always composed so CameraX stays bound — but alpha 0 in VOICE mode
+                // so the preview isn't a visual distraction underneath the overlay.
+                // The spec: "keep camera session bound across photo ↔ voice so
+                // switching back is instant" — composition is what keeps it bound,
+                // alpha is what hides it.
                 CameraPreview(
                     controller = vm.captureController,
                     mode = cameraMode,
                     lens = lensFacing,
                     onRebindingChange = vm::setRebinding,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            alpha = if (modality == Modality.VOICE) 0f else 1f
+                        },
                 )
+                if (modality == Modality.VOICE) {
+                    VoiceOverlay(
+                        recording = state.busy == BusyState.Recording,
+                        amplitudeFlow = vm.voiceAmplitudeFlow,
+                        recordingStartedAtMs = voiceRecording?.startedAt,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+                // Video recording pill overlays the preview's lower edge — sits
+                // visually just above the zoom chips, but inside the preview Box so
+                // it doesn't reflow the control column below it. Modality swipe is
+                // disabled while recording, so moving with translationX is fine.
+                val videoRecordingStartedAt = videoRecording?.startedAt
+                if (videoRecordingStartedAt != null) {
+                    VideoRecordingPill(
+                        startedAtMs = videoRecordingStartedAt,
+                        contentRotation = contentRotation,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 12.dp),
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.weight(1f))
@@ -242,51 +391,101 @@ private fun CaptureScreenContent(
                     .padding(bottom = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
+                // Camera-only auxiliary controls: zoom + flash + lens-flip. Hidden when
+                // the active modality doesn't use the camera (voice) or when they
+                // can't meaningfully operate (no torch wiring in video yet, so flash
+                // is hidden in VIDEO too — having an icon that does nothing is worse
+                // than not having it). During a recording these are all disabled.
+                val cameraControlsVisible = modality != Modality.VOICE
+                val flashVisible = modality == Modality.PHOTO
+                val lensFlipVisible = modality != Modality.VOICE
+                val sideControlsEnabled = state.busy == BusyState.Idle
+
+                // Zoom is meaningless for voice — but we keep the composable in the
+                // tree and just alpha it out, so the shutter row stays at the same
+                // vertical position across modality switches. Otherwise the shutter
+                // visibly jumps down in VOICE (no zoom) and back up in PHOTO/VIDEO.
                 ZoomControl(
                     zoomInfo = zoomInfo,
                     onZoomChange = vm::onZoomChange,
                     contentRotation = contentRotation,
-                    modifier = Modifier.padding(bottom = 12.dp),
+                    modifier = Modifier
+                        .padding(bottom = 12.dp)
+                        .graphicsLayer { alpha = if (cameraControlsVisible) 1f else 0f },
                 )
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .graphicsLayer { translationX = slabOffset.value },
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    IconButton(
-                        onClick = vm::onCycleFlash,
-                        modifier = Modifier.size(48.dp),
-                    ) {
-                        Icon(
-                            imageVector = flashIconFor(flashMode),
-                            contentDescription = flashContentDescription(flashMode),
-                            tint = if (flashMode == FlashMode.Off) Color.White.copy(alpha = 0.65f) else Color.White,
-                            modifier = Modifier
-                                .size(26.dp)
-                                .rotate(contentRotation),
+                    if (flashVisible) {
+                        IconButton(
+                            onClick = vm::onCycleFlash,
+                            enabled = sideControlsEnabled,
+                            modifier = Modifier.size(48.dp),
+                        ) {
+                            Icon(
+                                imageVector = flashIconFor(flashMode),
+                                contentDescription = flashContentDescription(flashMode),
+                                tint = when {
+                                    !sideControlsEnabled -> Color.White.copy(alpha = 0.25f)
+                                    flashMode == FlashMode.Off -> Color.White.copy(alpha = 0.65f)
+                                    else -> Color.White
+                                },
+                                modifier = Modifier
+                                    .size(26.dp)
+                                    .rotate(contentRotation),
+                            )
+                        }
+                    } else {
+                        // Keep the shutter horizontally centered regardless of side-icon
+                        // visibility — an empty slot of the same width as the IconButton
+                        // (48dp) preserves the 3-slot geometry called for in the spec.
+                        Spacer(Modifier.size(48.dp))
+                    }
+                    Spacer(Modifier.width(56.dp))
+                    when (modality) {
+                        Modality.PHOTO -> ShutterButton(
+                            onClick = handleShutter,
+                            enabled = state.busy == BusyState.Idle,
+                        )
+                        Modality.VIDEO -> VideoShutterButton(
+                            onClick = handleShutter,
+                            recording = state.busy == BusyState.Recording,
+                            progressFraction = null,
+                            enabled = state.busy == BusyState.Idle || state.busy == BusyState.Recording,
+                        )
+                        Modality.VOICE -> VoiceShutterButton(
+                            onClick = handleShutter,
+                            recording = state.busy == BusyState.Recording,
+                            enabled = state.busy == BusyState.Idle || state.busy == BusyState.Recording,
                         )
                     }
                     Spacer(Modifier.width(56.dp))
-                    ShutterButton(
-                        onClick = handleShutter,
-                        enabled = state.busy == BusyState.Idle && !isRebinding,
-                    )
-                    Spacer(Modifier.width(56.dp))
-                    val flipEnabled = !isRebinding && state.busy == BusyState.Idle
-                    IconButton(
-                        onClick = vm::onToggleLens,
-                        enabled = flipEnabled,
-                        modifier = Modifier.size(48.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Cameraswitch,
-                            contentDescription = "Flip camera",
-                            tint = if (flipEnabled) Color.White.copy(alpha = 0.65f) else Color.White.copy(alpha = 0.35f),
-                            modifier = Modifier
-                                .size(26.dp)
-                                .rotate(contentRotation),
-                        )
+                    // Right-slot content: lens-flip for camera modalities (disabled
+                    // during recording so it reads as greyed-out), empty spacer for
+                    // VOICE. Timers live elsewhere — VIDEO above the zoom chips
+                    // (red pill), VOICE under the waveform inside VoiceOverlay.
+                    if (lensFlipVisible) {
+                        IconButton(
+                            onClick = vm::onToggleLens,
+                            enabled = sideControlsEnabled,
+                            modifier = Modifier.size(48.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Cameraswitch,
+                                contentDescription = "Flip camera",
+                                tint = if (sideControlsEnabled) Color.White.copy(alpha = 0.65f) else Color.White.copy(alpha = 0.25f),
+                                modifier = Modifier
+                                    .size(26.dp)
+                                    .rotate(contentRotation),
+                            )
+                        }
+                    } else {
+                        Spacer(Modifier.size(48.dp))
                     }
                 }
 
@@ -351,9 +550,10 @@ private fun CaptureScreenContent(
         // First-run gesture tutorial overlay. Shown only until the user dismisses it;
         // declared last so it draws on top of the entire capture UI (including status +
         // navigation bar regions) and consumes all touches.
-        if (!settings.seenGestureTutorial) {
-            GestureTutorial(onDismiss = vm::onDismissGestureTutorial)
-        }
+        GestureTutorial(
+            seenStepIds = settings.seenTutorialSteps,
+            onDismiss = vm::onDismissGestureTutorial,
+        )
     }
 }
 

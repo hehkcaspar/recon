@@ -60,7 +60,7 @@ class SafStorage(context: Context) {
         // Overwrite any stale file with the same name; DocumentsProvider would otherwise
         // append " (1)" suffixes, producing duplicates like "{id}-p-01 (1).jpg" on worker retry.
         existing.remove(fileName)?.delete()
-        val file = dir.createFile(StorageLayout.MIME_JPEG, fileName)
+        val file = dir.createFile(StorageLayout.mimeFor(fileName), fileName)
             ?: throw IOException("Failed to create file '$fileName'")
         appContext.contentResolver.openOutputStream(file.uri)?.use { out ->
             src.inputStream().use { it.copyTo(out, bufferSize = 1 shl 16) }

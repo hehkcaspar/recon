@@ -29,6 +29,46 @@ class StagingStore(context: Context) {
             file
         }
 
+    /**
+     * Synchronous allocator for recorder outputs. Returns the target `File` without
+     * creating it — Recorder / MediaRecorder open it themselves. Because the file may
+     * never materialize (process killed mid-record, mic denied), OrphanRecovery treats
+     * zero-byte `.mp4` / `.m4a` as discardable.
+     */
+    fun allocateVideoOutput(session: StagingSession): File =
+        File(session.dir, "${UUID.randomUUID()}.mp4")
+
+    fun allocateVoiceOutput(session: StagingSession): File =
+        File(session.dir, "${UUID.randomUUID()}.m4a")
+
+    /**
+     * Append one line to `.order` inside the session directory recording the order in
+     * which queue items were started. Photo `lastModified` matches capture time, but
+     * video/voice `lastModified` is *stop* time — without this log, OrphanRecovery would
+     * re-order a `[Video, Photo]` capture sequence as `[Photo, Video]` on restore.
+     *
+     * Format: `{systemClockMs}\t{filename}\n`. Single-writer per session; O_APPEND gives
+     * line-level atomicity. Callers invoke this at the point the queue item is logically
+     * added (photo: after write; video/voice: before recorder start — file may not exist
+     * yet, but OrphanRecovery filters stale entries).
+     */
+    suspend fun appendOrderEntry(session: StagingSession, filename: String) =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                File(session.dir, ORDER_LOG)
+                    .appendText("${System.currentTimeMillis()}\t$filename\n")
+            }
+        }
+
+    /** Returns filenames from the `.order` log in capture order, or null if no log exists. */
+    fun readOrderLog(session: StagingSession): List<String>? {
+        val file = File(session.dir, ORDER_LOG)
+        if (!file.exists()) return null
+        return file.readLines().mapNotNull { line ->
+            line.split('\t').getOrNull(1)?.takeIf { it.isNotBlank() }
+        }
+    }
+
     suspend fun deleteFile(file: File) = withContext(Dispatchers.IO) {
         file.delete()
     }
@@ -63,5 +103,6 @@ class StagingStore(context: Context) {
     private companion object {
         const val SESSION_PREFIX = "session-"
         const val DISCARD_MARKER = ".discarded"
+        const val ORDER_LOG = ".order"
     }
 }

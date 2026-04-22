@@ -34,7 +34,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.bundlecam.data.settings.SettingsState
-import com.example.bundlecam.data.storage.BundleModality
 import com.example.bundlecam.data.storage.CompletedBundle
 import com.example.bundlecam.ui.common.ActionBanner
 import com.example.bundlecam.ui.common.openFolderInSystemBrowser
@@ -248,11 +247,14 @@ private fun DeleteConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val parts = bundle.modalities.map {
-        when (it) {
-            BundleModality.Subfolder -> "the photos subfolder"
-            BundleModality.Stitch -> "the stitched image"
-        }
+    // Build a human-readable target description from the per-modality counts. "Subfolder"
+    // in BundleModality now covers photo/video/voice uniformly; the old "the photos
+    // subfolder" phrasing was misleading for video- or voice-only bundles.
+    val parts = buildList {
+        if (bundle.photoCount > 0) add("the photos")
+        if (bundle.videoCount > 0) add("the videos")
+        if (bundle.voiceCount > 0) add("the voice notes")
+        if (bundle.stitchUri != null) add("the stitched image")
     }
     val target = when (parts.size) {
         0 -> "this bundle"

@@ -5,6 +5,17 @@ import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.long
+import kotlinx.serialization.modules.SerializersModule
+import kotlinx.serialization.modules.polymorphic
+import kotlinx.serialization.modules.subclass
 import java.io.File
 import java.io.IOException
 
@@ -13,7 +24,28 @@ private const val TAG = "Recon/ManifestStore"
 class ManifestStore(context: Context) {
     private val dir: File =
         File(context.applicationContext.filesDir, "pending").apply { mkdirs() }
-    private val json = Json { ignoreUnknownKeys = true }
+
+    // `classDiscriminator = "type"` makes each `PendingItem` encode with a `"type": "..."`
+    // field derived from `@SerialName`. Legacy v1 manifests have no such field on their
+    // photo entries — those are handled by explicit branching in `load()`, not by the
+    // serializer (polymorphic-with-default is fragile across future subclass additions).
+    private val json = Json {
+        ignoreUnknownKeys = true
+        // Encode default-valued fields (version, saveIndividualPhotos, saveStitchedImage).
+        // Without this, a v2-shaped bundle with `version = 2` default writes JSON lacking
+        // the `version` key, and on the next read the decoder falls through the v2 branch
+        // (version defaulted to 1) and tries to decode via legacy v1, failing on the
+        // missing `orderedPhotos` field.
+        encodeDefaults = true
+        classDiscriminator = "type"
+        serializersModule = SerializersModule {
+            polymorphic(PendingItem::class) {
+                subclass(PendingPhoto::class)
+                subclass(PendingVideo::class)
+                subclass(PendingVoice::class)
+            }
+        }
+    }
 
     suspend fun save(manifest: PendingBundle) = withContext(Dispatchers.IO) {
         val file = File(dir, "${manifest.bundleId}.json")
@@ -33,9 +65,44 @@ class ManifestStore(context: Context) {
             Log.w(TAG, "Manifest missing on disk: ${file.absolutePath} — siblings in dir: [$siblings]")
             return@withContext null
         }
-        runCatching { json.decodeFromString(PendingBundle.serializer(), file.readText()) }
+        runCatching {
+            val root = json.parseToJsonElement(file.readText()).jsonObject
+            val version = root["version"]?.jsonPrimitive?.intOrNull ?: 1
+            when (version) {
+                1 -> decodeV1(root)
+                2 -> json.decodeFromJsonElement(PendingBundle.serializer(), root)
+                else -> {
+                    Log.e(TAG, "Unknown manifest version $version for $bundleId; refusing to decode")
+                    null
+                }
+            }
+        }
             .onFailure { Log.e(TAG, "Manifest $bundleId failed to decode", it) }
             .getOrNull()
+    }
+
+    // Legacy v1 decode: the field was `orderedPhotos: List<PendingPhoto>` (no type tag).
+    // Read each entry as a plain PendingPhoto and wrap into the v2 `orderedItems` shape.
+    // Missing flags default to true (matches the pre-version-field behavior).
+    private fun decodeV1(root: JsonObject): PendingBundle {
+        val items = root["orderedPhotos"]?.jsonArray?.map { el ->
+            val obj = el.jsonObject
+            PendingPhoto(
+                localPath = obj.getValue("localPath").jsonPrimitive.content,
+                rotationDegrees = obj.getValue("rotationDegrees").jsonPrimitive.int,
+            )
+        } ?: emptyList()
+        return PendingBundle(
+            version = 2,
+            bundleId = root.getValue("bundleId").jsonPrimitive.content,
+            rootUriString = root.getValue("rootUriString").jsonPrimitive.content,
+            stitchQuality = root.getValue("stitchQuality").jsonPrimitive.content,
+            sessionId = root.getValue("sessionId").jsonPrimitive.content,
+            orderedItems = items,
+            capturedAt = root.getValue("capturedAt").jsonPrimitive.long,
+            saveIndividualPhotos = root["saveIndividualPhotos"]?.jsonPrimitive?.boolean ?: true,
+            saveStitchedImage = root["saveStitchedImage"]?.jsonPrimitive?.boolean ?: true,
+        )
     }
 
     suspend fun delete(bundleId: String) = withContext(Dispatchers.IO) {
@@ -57,16 +124,14 @@ class ManifestStore(context: Context) {
         withContext(Dispatchers.IO) {
             for (bundleId in listPendingIds()) {
                 if (bundleId == excludeBundleId) continue
-                val file = File(dir, "$bundleId.json")
-                if (!file.exists()) continue
-                val decoded = runCatching {
-                    json.decodeFromString(PendingBundle.serializer(), file.readText())
-                }
-                if (decoded.isFailure) {
-                    Log.w(TAG, "Manifest $bundleId unreadable; assuming session $sessionId referenced", decoded.exceptionOrNull())
+                val loaded = load(bundleId)
+                if (loaded == null) {
+                    // Either the file vanished or decode failed. Fail closed: keep staging
+                    // so a retryable worker can still run.
+                    Log.w(TAG, "Manifest $bundleId unreadable; assuming session $sessionId referenced")
                     return@withContext true
                 }
-                if (decoded.getOrNull()?.sessionId == sessionId) return@withContext true
+                if (loaded.sessionId == sessionId) return@withContext true
             }
             false
         }

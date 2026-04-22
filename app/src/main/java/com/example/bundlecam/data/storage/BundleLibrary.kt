@@ -35,14 +35,35 @@ class BundleLibrary(context: Context) {
                 .map { dir ->
                     async {
                         val id = dir.name ?: return@async null
-                        val photos = dir.listFiles()
+                        // Prefer the nested `photos/` subdir (Phase B+); fall back to the
+                        // flat layout for legacy bundles written before the Phase B cutover.
+                        val photosSource =
+                            dir.findFile(StorageLayout.PHOTOS_SUBDIR)?.takeIf { it.isDirectory }
+                                ?: dir
+                        val photos = photosSource.listFiles()
                             .filter { it.isFile && it.name?.endsWith(".jpg", ignoreCase = true) == true }
                             .sortedBy { it.name }
+                        val videos = dir.findFile(StorageLayout.VIDEOS_SUBDIR)
+                            ?.takeIf { it.isDirectory }
+                            ?.listFiles()
+                            ?.filter { it.isFile && it.name?.endsWith(".mp4", ignoreCase = true) == true }
+                            ?.sortedBy { it.name }
+                            .orEmpty()
+                        val voices = dir.findFile(StorageLayout.AUDIO_SUBDIR)
+                            ?.takeIf { it.isDirectory }
+                            ?.listFiles()
+                            ?.filter { it.isFile && it.name?.endsWith(".m4a", ignoreCase = true) == true }
+                            ?.sortedBy { it.name }
+                            .orEmpty()
                         BundleDirEntry(
                             id = id,
                             subfolder = dir,
                             photoCount = photos.size,
+                            videoCount = videos.size,
+                            voiceCount = voices.size,
                             thumbnailPhotos = photos.take(MAX_PREVIEW_THUMBNAILS),
+                            thumbnailVideos = videos.take(MAX_PREVIEW_THUMBNAILS),
+                            thumbnailVoices = voices.take(MAX_PREVIEW_THUMBNAILS),
                         )
                     }
                 }
@@ -69,9 +90,18 @@ class BundleLibrary(context: Context) {
                 if (dirEntry != null) add(BundleModality.Subfolder)
                 if (stitch != null) add(BundleModality.Stitch)
             }
+            // Thumbnail priority: photos first (proper visuals crop cleanly), then
+            // video poster frames (extracted by the thumbnail decoder on demand),
+            // then voice placeholders (synthetic navy tile with mic glyph). Fall
+            // back to the stitched image only when no raw content exists.
             val thumbnailUris = when {
-                dirEntry != null && dirEntry.thumbnailPhotos.isNotEmpty() ->
+                dirEntry == null -> listOfNotNull(stitch?.uri)
+                dirEntry.thumbnailPhotos.isNotEmpty() ->
                     dirEntry.thumbnailPhotos.map { it.uri }
+                dirEntry.thumbnailVideos.isNotEmpty() ->
+                    dirEntry.thumbnailVideos.map { it.uri }
+                dirEntry.thumbnailVoices.isNotEmpty() ->
+                    dirEntry.thumbnailVoices.map { it.uri }
                 stitch != null -> listOf(stitch.uri)
                 else -> emptyList()
             }
@@ -82,6 +112,8 @@ class BundleLibrary(context: Context) {
                 stitchUri = stitch?.uri,
                 thumbnailUris = thumbnailUris,
                 photoCount = dirEntry?.photoCount ?: 0,
+                videoCount = dirEntry?.videoCount ?: 0,
+                voiceCount = dirEntry?.voiceCount ?: 0,
             )
         }
             .filter { it.modalities.isNotEmpty() }
@@ -122,7 +154,11 @@ class BundleLibrary(context: Context) {
         val id: String,
         val subfolder: DocumentFile,
         val photoCount: Int,
+        val videoCount: Int,
+        val voiceCount: Int,
         val thumbnailPhotos: List<DocumentFile>,
+        val thumbnailVideos: List<DocumentFile>,
+        val thumbnailVoices: List<DocumentFile>,
     )
 }
 
