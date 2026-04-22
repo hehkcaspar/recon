@@ -30,8 +30,8 @@ android {
         applicationId = "com.example.bundlecam"
         minSdk = 26
         targetSdk = 36
-        versionCode = 18
-        versionName = "2.7"
+        versionCode = 22
+        versionName = "3.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

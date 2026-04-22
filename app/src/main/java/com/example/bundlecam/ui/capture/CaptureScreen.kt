@@ -124,6 +124,8 @@ private fun CaptureScreenContent(
     val lensFacing by vm.lensFacing.collectAsStateWithLifecycle()
     val flashMode by vm.flashMode.collectAsStateWithLifecycle()
     val modality by vm.modality.collectAsStateWithLifecycle()
+    val videoRecording by vm.videoRecording.collectAsStateWithLifecycle()
+    val voiceRecording by vm.voiceRecording.collectAsStateWithLifecycle()
     val zoomInfo by vm.zoomInfo.collectAsStateWithLifecycle()
     val deviceOrientation by vm.deviceOrientation.collectAsStateWithLifecycle()
     val contentRotation = rememberContentRotation(deviceOrientation)
@@ -360,7 +362,22 @@ private fun CaptureScreenContent(
                     VoiceOverlay(
                         recording = state.busy == BusyState.Recording,
                         amplitudeFlow = vm.voiceAmplitudeFlow,
+                        recordingStartedAtMs = voiceRecording?.startedAt,
                         modifier = Modifier.fillMaxSize(),
+                    )
+                }
+                // Video recording pill overlays the preview's lower edge — sits
+                // visually just above the zoom chips, but inside the preview Box so
+                // it doesn't reflow the control column below it. Modality swipe is
+                // disabled while recording, so moving with translationX is fine.
+                val videoRecordingStartedAt = videoRecording?.startedAt
+                if (videoRecordingStartedAt != null) {
+                    VideoRecordingPill(
+                        startedAtMs = videoRecordingStartedAt,
+                        contentRotation = contentRotation,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 12.dp),
                     )
                 }
             }
@@ -448,6 +465,10 @@ private fun CaptureScreenContent(
                         )
                     }
                     Spacer(Modifier.width(56.dp))
+                    // Right-slot content: lens-flip for camera modalities (disabled
+                    // during recording so it reads as greyed-out), empty spacer for
+                    // VOICE. Timers live elsewhere — VIDEO above the zoom chips
+                    // (red pill), VOICE under the waveform inside VoiceOverlay.
                     if (lensFlipVisible) {
                         IconButton(
                             onClick = vm::onToggleLens,

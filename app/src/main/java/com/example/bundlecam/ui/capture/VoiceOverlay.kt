@@ -27,8 +27,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,6 +54,7 @@ private const val WAVEFORM_SAMPLE_COUNT = 128
 fun VoiceOverlay(
     recording: Boolean,
     amplitudeFlow: StateFlow<Int>,
+    recordingStartedAtMs: Long?,
     modifier: Modifier = Modifier,
 ) {
     // Ring buffer of recent amplitudes. Using a FloatArray + index pointer is cheaper
@@ -70,12 +73,14 @@ fun VoiceOverlay(
         historyRevision.intValue++
     }
 
-    // Subscribe to amplitude samples via snapshotFlow to avoid recomposing the whole
-    // overlay on every tick — only the history buffer mutates, and we bump the
-    // revision int to schedule a redraw.
+    // Subscribe directly to the StateFlow. An earlier version wrapped the read in
+    // snapshotFlow { amplitudeFlow.value } — that only re-emits when a Compose-tracked
+    // State read changes; StateFlow.value is not such a read, so the collector fired
+    // once for the initial 0 and never again. Symptom: waveform stuck as a flat line
+    // the whole recording.
     LaunchedEffect(amplitudeFlow) {
         var writeIndex = 0
-        snapshotFlow { amplitudeFlow.value }.collect { amp ->
+        amplitudeFlow.collect { amp ->
             val normalized = (amp / 32767f).coerceIn(0f, 1f)
             history[writeIndex] = normalized
             writeIndex = (writeIndex + 1) % history.size
@@ -146,8 +151,36 @@ fun VoiceOverlay(
                     .fillMaxWidth()
                     .height(72.dp),
             )
+            // Elapsed-time readout lives under the waveform — the voice page has no
+            // camera preview, so the focal composition is the waveform band and the
+            // timer is its natural caption. (Video keeps its timer in the lens-flip
+            // slot on the control row.)
+            if (recording && recordingStartedAtMs != null) {
+                Spacer(Modifier.height(14.dp))
+                ElapsedTimeText(startedAtMs = recordingStartedAtMs)
+            }
         }
     }
+}
+
+@Composable
+private fun ElapsedTimeText(startedAtMs: Long) {
+    var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(startedAtMs) {
+        while (true) {
+            nowMs = System.currentTimeMillis()
+            delay(500L)
+        }
+    }
+    val elapsedMs = (nowMs - startedAtMs).coerceAtLeast(0L)
+    val totalSeconds = elapsedMs / 1000L
+    val minutes = totalSeconds / 60L
+    val seconds = totalSeconds % 60L
+    Text(
+        text = "%d:%02d".format(minutes, seconds),
+        color = Color.White,
+        style = MaterialTheme.typography.titleLarge,
+    )
 }
 
 /**
