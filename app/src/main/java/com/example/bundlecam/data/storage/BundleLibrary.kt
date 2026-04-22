@@ -43,23 +43,27 @@ class BundleLibrary(context: Context) {
                         val photos = photosSource.listFiles()
                             .filter { it.isFile && it.name?.endsWith(".jpg", ignoreCase = true) == true }
                             .sortedBy { it.name }
-                        val videoCount = dir.findFile(StorageLayout.VIDEOS_SUBDIR)
+                        val videos = dir.findFile(StorageLayout.VIDEOS_SUBDIR)
                             ?.takeIf { it.isDirectory }
                             ?.listFiles()
-                            ?.count { it.isFile && it.name?.endsWith(".mp4", ignoreCase = true) == true }
-                            ?: 0
-                        val voiceCount = dir.findFile(StorageLayout.AUDIO_SUBDIR)
+                            ?.filter { it.isFile && it.name?.endsWith(".mp4", ignoreCase = true) == true }
+                            ?.sortedBy { it.name }
+                            .orEmpty()
+                        val voices = dir.findFile(StorageLayout.AUDIO_SUBDIR)
                             ?.takeIf { it.isDirectory }
                             ?.listFiles()
-                            ?.count { it.isFile && it.name?.endsWith(".m4a", ignoreCase = true) == true }
-                            ?: 0
+                            ?.filter { it.isFile && it.name?.endsWith(".m4a", ignoreCase = true) == true }
+                            ?.sortedBy { it.name }
+                            .orEmpty()
                         BundleDirEntry(
                             id = id,
                             subfolder = dir,
                             photoCount = photos.size,
-                            videoCount = videoCount,
-                            voiceCount = voiceCount,
+                            videoCount = videos.size,
+                            voiceCount = voices.size,
                             thumbnailPhotos = photos.take(MAX_PREVIEW_THUMBNAILS),
+                            thumbnailVideos = videos.take(MAX_PREVIEW_THUMBNAILS),
+                            thumbnailVoices = voices.take(MAX_PREVIEW_THUMBNAILS),
                         )
                     }
                 }
@@ -86,9 +90,18 @@ class BundleLibrary(context: Context) {
                 if (dirEntry != null) add(BundleModality.Subfolder)
                 if (stitch != null) add(BundleModality.Stitch)
             }
+            // Thumbnail priority: photos first (proper visuals crop cleanly), then
+            // video poster frames (extracted by the thumbnail decoder on demand),
+            // then voice placeholders (synthetic navy tile with mic glyph). Fall
+            // back to the stitched image only when no raw content exists.
             val thumbnailUris = when {
-                dirEntry != null && dirEntry.thumbnailPhotos.isNotEmpty() ->
+                dirEntry == null -> listOfNotNull(stitch?.uri)
+                dirEntry.thumbnailPhotos.isNotEmpty() ->
                     dirEntry.thumbnailPhotos.map { it.uri }
+                dirEntry.thumbnailVideos.isNotEmpty() ->
+                    dirEntry.thumbnailVideos.map { it.uri }
+                dirEntry.thumbnailVoices.isNotEmpty() ->
+                    dirEntry.thumbnailVoices.map { it.uri }
                 stitch != null -> listOf(stitch.uri)
                 else -> emptyList()
             }
@@ -144,6 +157,8 @@ class BundleLibrary(context: Context) {
         val videoCount: Int,
         val voiceCount: Int,
         val thumbnailPhotos: List<DocumentFile>,
+        val thumbnailVideos: List<DocumentFile>,
+        val thumbnailVoices: List<DocumentFile>,
     )
 }
 

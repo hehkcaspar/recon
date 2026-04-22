@@ -35,12 +35,30 @@ fun decodeThumbnail(file: File, rotationDegrees: Int): ImageBitmap {
 }
 
 /**
- * SAF URI overload for thumbnails of saved bundles. Reads the file into memory once so
- * bounds + decode + EXIF share a single ContentProvider roundtrip; opening the stream
- * three times (which `BitmapFactory` would otherwise need since it can't rewind a
- * ContentProvider InputStream) is ~3x the IPC latency.
+ * SAF URI overload for thumbnails of saved bundles. Dispatches by filename extension:
+ * - `.jpg` / `.jpeg` → decode JPEG + honor EXIF rotation (photo path).
+ * - `.mp4`            → extract a poster frame via MediaMetadataRetriever + SAF fd
+ *                       (for video-only bundles in Bundle Preview).
+ * - `.m4a`            → synthesize a navy tile with a white mic glyph drawn in
+ *                       (for voice-only bundles). Static content, so we generate
+ *                       it on demand without touching the file itself.
+ *
+ * Reads image bytes once so bounds + decode + EXIF share a single ContentProvider
+ * roundtrip; opening the stream three times (which `BitmapFactory` would otherwise
+ * need since it can't rewind a ContentProvider InputStream) is ~3x the IPC latency.
  */
 fun decodeThumbnail(contentResolver: ContentResolver, uri: Uri): ImageBitmap? {
+    val name = uri.lastPathSegment.orEmpty()
+    val extension = name.substringAfterLast('.', "").lowercase()
+    return when (extension) {
+        "jpg", "jpeg" -> decodeJpegThumbnail(contentResolver, uri)
+        "mp4" -> decodeVideoPoster(contentResolver, uri)
+        "m4a" -> renderVoiceThumbnail()
+        else -> null
+    }
+}
+
+private fun decodeJpegThumbnail(contentResolver: ContentResolver, uri: Uri): ImageBitmap? {
     val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
@@ -80,21 +98,101 @@ fun decodeVideoPoster(file: File): ImageBitmap? {
         retriever.setDataSource(file.absolutePath)
         val frame = retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
             ?: return null
-        val scaled = if (frame.width > TARGET_PX * 2 || frame.height > TARGET_PX * 2) {
-            val ratio = minOf(TARGET_PX * 2f / frame.width, TARGET_PX * 2f / frame.height)
-            Bitmap.createScaledBitmap(
-                frame,
-                (frame.width * ratio).toInt().coerceAtLeast(1),
-                (frame.height * ratio).toInt().coerceAtLeast(1),
-                true,
-            ).also { if (it !== frame) frame.recycle() }
-        } else frame
-        scaled.asImageBitmap()
+        scaleToPosterSize(frame).asImageBitmap()
     } catch (t: Throwable) {
         null
     } finally {
         runCatching { retriever.release() }
     }
+}
+
+/**
+ * SAF URI overload of the video poster extractor. Used by Bundle Preview when a video
+ * file is in the SAF tree and we want its first-frame thumbnail for the row.
+ */
+fun decodeVideoPoster(contentResolver: ContentResolver, uri: Uri): ImageBitmap? {
+    val retriever = MediaMetadataRetriever()
+    return try {
+        contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
+            retriever.setDataSource(pfd.fileDescriptor)
+            val frame = retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                ?: return null
+            scaleToPosterSize(frame).asImageBitmap()
+        }
+    } catch (t: Throwable) {
+        null
+    } finally {
+        runCatching { retriever.release() }
+    }
+}
+
+private fun scaleToPosterSize(frame: Bitmap): Bitmap {
+    return if (frame.width > TARGET_PX * 2 || frame.height > TARGET_PX * 2) {
+        val ratio = minOf(TARGET_PX * 2f / frame.width, TARGET_PX * 2f / frame.height)
+        Bitmap.createScaledBitmap(
+            frame,
+            (frame.width * ratio).toInt().coerceAtLeast(1),
+            (frame.height * ratio).toInt().coerceAtLeast(1),
+            true,
+        ).also { if (it !== frame) frame.recycle() }
+    } else frame
+}
+
+/**
+ * Render a Bundle-Preview-sized voice thumbnail: a navy tile with a white mic glyph
+ * drawn by hand (no external icon resource, no ImageVector→Bitmap conversion). Sized
+ * to the standard thumbnail target so it doesn't upscale in the row.
+ */
+private fun renderVoiceThumbnail(): ImageBitmap {
+    val size = TARGET_PX * 2
+    val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val canvas = android.graphics.Canvas(bmp)
+    canvas.drawColor(0xFF1F2A44.toInt())
+
+    val white = 0xFFFFFFFF.toInt()
+    val fill = android.graphics.Paint().apply {
+        color = white
+        isAntiAlias = true
+        style = android.graphics.Paint.Style.FILL
+    }
+    val stroke = android.graphics.Paint().apply {
+        color = white
+        isAntiAlias = true
+        style = android.graphics.Paint.Style.STROKE
+        strokeWidth = size * 0.05f
+        strokeCap = android.graphics.Paint.Cap.ROUND
+    }
+
+    val cx = size / 2f
+    val cy = size / 2f - size * 0.05f
+    // Mic capsule: rounded vertical pill centered slightly above the midline.
+    val capsuleWidth = size * 0.26f
+    val capsuleHeight = size * 0.40f
+    val capsule = android.graphics.RectF(
+        cx - capsuleWidth / 2f,
+        cy - capsuleHeight / 2f,
+        cx + capsuleWidth / 2f,
+        cy + capsuleHeight / 2f,
+    )
+    canvas.drawRoundRect(capsule, capsuleWidth / 2f, capsuleWidth / 2f, fill)
+
+    // Stand arch under the capsule.
+    val archWidth = size * 0.46f
+    val archTop = cy + capsuleHeight * 0.20f
+    val archBottom = archTop + size * 0.22f
+    val archRect = android.graphics.RectF(cx - archWidth / 2f, archTop, cx + archWidth / 2f, archBottom)
+    canvas.drawArc(archRect, 0f, 180f, false, stroke)
+
+    // Vertical post from arch center down to the base line.
+    val postTop = archBottom - (archBottom - archTop) / 2f
+    val postBottom = postTop + size * 0.12f
+    canvas.drawLine(cx, postTop, cx, postBottom, stroke)
+
+    // Short base line at the bottom.
+    val baseHalf = size * 0.09f
+    canvas.drawLine(cx - baseHalf, postBottom, cx + baseHalf, postBottom, stroke)
+
+    return bmp.asImageBitmap()
 }
 
 /**
