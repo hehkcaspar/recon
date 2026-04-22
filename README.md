@@ -1,6 +1,6 @@
 # Recon
 
-Native Android camera app for capturing **bundles** of photos. A bundle produces up to two outputs in parallel — the raw photos (named and ordered) and a single vertically-stitched image — with each output independently toggleable in settings (at least one must be on). Designed for machinegun-cadence capture — shoot, shoot, swipe, shoot, shoot, swipe — with zero blocking work on the interaction path.
+Native Android **multimodal** camera app for capturing **bundles** of photos, videos, and voice notes interleaved in one queue. A bundle produces up to three parallel outputs per modality (`bundles/{id}/photos/`, `videos/`, `audio/`) plus an optional vertically-stitched JPEG (photos only). Each output is independently toggleable in settings (at least one of individual-photos / stitched must be on for photo bundles). Designed for machinegun-cadence capture — shoot, shoot, swipe, swipe-to-video, record, stop, swipe-back, shoot — with zero blocking work on the interaction path.
 
 > The Gradle `namespace` and `applicationId` remain `com.example.bundlecam` — renaming them would orphan existing installs on upgrade. Everything user-facing, every class / log tag / EXIF identifier, and every document uses **Recon**.
 
@@ -40,10 +40,13 @@ For signing, R8, and Play Store packaging, see [RELEASE.md](./RELEASE.md).
 
 | Permission | Why |
 |---|---|
-| `CAMERA` | Preview + capture |
-| `ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION` | GPS stamping in EXIF — requested up-front on first camera view (after camera permission is granted) so the first capture already carries a fix. Denying is non-fatal; capture proceeds, EXIF just lacks GPS. |
-| `FOREGROUND_SERVICE` / `FOREGROUND_SERVICE_DATA_SYNC` | Let WorkManager's `SystemForegroundService` run the stitch worker reliably through Doze/backgrounding |
+| `CAMERA` | Preview + photo capture + video recording. `VideoCapture<Recorder>` uses the same CAMERA grant (no separate video permission on Android). |
+| `RECORD_AUDIO` | Voice recording via `MediaRecorder`. Requested on the first VOICE-mode shutter tap (not up-front) — denial keeps the app functional for photo + video. Video itself omits `withAudioEnabled` so it doesn't need this permission. |
+| `ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION` | GPS stamping in EXIF — requested up-front on first camera view (after camera permission is granted) so the first capture already carries a fix. Denying is non-fatal; capture proceeds, EXIF just lacks GPS. Video and voice files get no GPS (no EXIF/metadata pass for them). |
+| `FOREGROUND_SERVICE` / `FOREGROUND_SERVICE_DATA_SYNC` | Let WorkManager's `SystemForegroundService` run the bundle worker reliably through Doze/backgrounding |
 | `POST_NOTIFICATIONS` | Foreground-worker progress notifications on Android 13+ (declared but not requested at runtime — if denied, the worker still runs; only the shade notification is suppressed) |
+
+No `FOREGROUND_SERVICE_TYPE_MICROPHONE` declaration — recording only runs while the Activity is foregrounded. `LifecycleEventEffect(ON_PAUSE)` stops any in-flight video/voice take so backgrounding doesn't leak a bound mic.
 
 Output storage uses SAF (Storage Access Framework), not a raw filesystem permission — the user picks a root folder on first launch via `OpenDocumentTree`, and the app persists RW access to that tree.
 
@@ -54,14 +57,18 @@ Output storage uses SAF (Storage Access Framework), not a raw filesystem permiss
 | Layer | Library |
 |---|---|
 | UI | Jetpack Compose + Material 3 (BoM `2026.02.01`) |
-| Camera | CameraX `1.4.1` (`core`, `camera2`, `lifecycle`, `view`, `extensions`) |
+| Camera (photo + video) | CameraX `1.6.0` (`core`, `camera2`, `lifecycle`, `view`, `extensions`, `video`) |
+| Voice recording | `android.media.MediaRecorder` (AAC-LC / MPEG-4 / .m4a / 48kHz mono / 96kbps) |
 | Background processing | WorkManager `2.10.0` |
 | Persistence (settings / counters) | DataStore Preferences `1.1.1` |
-| Manifest serialization | `kotlinx.serialization.json` `1.7.3` |
+| Manifest serialization | `kotlinx.serialization.json` `1.7.3` (polymorphic sealed `PendingItem` with `classDiscriminator = "type"`) |
 | Location | Play Services Location `21.3.0` |
-| EXIF | AndroidX ExifInterface `1.4.0` |
+| EXIF | AndroidX ExifInterface `1.4.0` (photo path only) |
 | Output storage | AndroidX DocumentFile `1.0.1` (SAF) |
+| Video poster / torn-file probe | `android.media.MediaMetadataRetriever` |
 | Concurrency | `kotlinx.coroutines` `1.9.0` + `Mutex` |
+
+**CameraX 1.6.0** is load-bearing: 1.5.1 enabled concurrent `Preview + ImageCapture + VideoCapture<Recorder>` binding, and 1.6.0 switched MP4 writes to Media3 Muxer, which produces playable files even on mid-record process kill — so `OrphanRecovery` can restore video-in-progress recordings after a crash (whereas MediaRecorder-written `.m4a` voice files torn mid-record are deleted at restore time via a retriever-duration probe).
 
 No DI framework — a plain singleton [`AppContainer`](./app/src/main/java/com/example/bundlecam/di/AppContainer.kt) wires everything up at `Application` creation.
 
@@ -70,44 +77,67 @@ No DI framework — a plain singleton [`AppContainer`](./app/src/main/java/com/e
 ## Architecture at a glance
 
 ```
-         ┌──────────────────────────────────────┐
-         │              UI (Compose)            │
-         │  CaptureScreen → CaptureViewModel    │
-         └──────────────┬───────────────────────┘
-                        │
-          ┌─────────────┼─────────────────┐
-          ▼             ▼                 ▼
-   CaptureController  StagingStore   BundleCounterStore
-   (CameraX)        (internal FS)   (DataStore)
-          │             │                 │
-          └─────────────┼─────────────────┘
+         ┌──────────────────────────────────────────────────────┐
+         │                   UI (Compose)                       │
+         │   CaptureScreen → CaptureViewModel                   │
+         │     ┌─────────────────────────────────────┐          │
+         │     │  ModalityPill · swipe carousel       │          │
+         │     │  PHOTO · VIDEO · VOICE                │          │
+         │     └─────────────────────────────────────┘          │
+         └──────────────┬──────────────────────────┬────────────┘
+                        │                          │
+          ┌─────────────┼─────────────┐            │
+          ▼             ▼             ▼            ▼
+   CaptureController  StagingStore  VoiceController
+   (Preview +         (internal FS  (MediaRecorder,
+    ImageCapture +     + .order log  amplitudeFlow)
+    VideoCapture       + discard)
+    concurrent)                            │
+          │             │                  │
+          └─────────────┼──────────────────┘
                         ▼
-                  ManifestStore (JSON on disk)
+                ManifestStore (JSON on disk)
+                PendingBundle v2 (sealed PendingItem
+                { Photo | Video | Voice })
                         │
                         ▼
-                  WorkScheduler
+                WorkScheduler
                         │
                         ▼
-                  BundleWorker  ──── Stitcher
-                        │                │
-                        ▼                ▼
-                  SafStorage (user-picked tree via SAF)
+                BundleWorker ── planRouting ── Stitcher (photos-only)
                         │
                         ▼
-                 raw photos + stitched.jpg
+                SafStorage (user-picked tree via SAF)
+                        │
+                        ▼
+                bundles/{id}/{photos,videos,audio}/  +  stitched/
 ```
 
 ### Three-phase capture lifecycle
 
-**Phase 1 — Shutter (≤100ms, UI thread budget).** CameraX returns a JPEG → write to internal staging (`filesDir/staging/session-{uuid}/{photo-uuid}.jpg` — each file is a random UUID; queue order lives in the manifest, not the filesystem) → stamp EXIF (time, GPS if available, orientation) → decode a small thumbnail → push onto the queue. No SAF writes yet.
+**Phase 1 — Shutter (UI-thread budget).** `CaptureViewModel.onShutter` dispatches on `_modality.value`:
 
-**Phase 2 — Commit (single frame).** User swipes the queue. `CaptureViewModel.onCommitBundle` pivots the UI synchronously on Main — nulls `currentSession`, clears `queue` + `dividers` — so the shutter is ready on the very next frame. The actual bookkeeping (allocate bundle IDs, write [`PendingBundle`](./app/src/main/java/com/example/bundlecam/pipeline/PendingBundle.kt) manifests to disk, enqueue `BundleWorker`s) runs in a background coroutine. If the process dies before the manifest is saved, photos are still on staging and `OrphanRecovery` restores the session as a queue on next launch.
+- **PHOTO** (≤100ms): CameraX `takePicture()` → write the JPEG to internal staging (`filesDir/staging/session-{uuid}/{photo-uuid}.jpg` — each file is a random UUID; queue order lives in the manifest + the session's `.order` append-log, not the filesystem) → stamp EXIF (time, GPS if available, orientation) → decode a small thumbnail → push `StagedItem.Photo` onto the queue.
+- **VIDEO** (two taps): first tap → `CaptureController.startVideoRecording(filesDir/.../{uuid}.mp4)` via CameraX `Recorder.prepareRecording(...).start()` with `withAudioEnabled` omitted (silent video; keeps mic free for VOICE). Order-log entry appended at start. Second tap → `stopVideoRecording()` awaits `VideoRecordEvent.Finalize` → `MediaMetadataRetriever.getFrameAtTime(0)` for the queue poster → push `StagedItem.Video`.
+- **VOICE** (two taps): first tap → `VoiceController.startRecording` via `MediaRecorder` (AAC-LC m4a, 48kHz mono, 96kbps). If `RECORD_AUDIO` is missing, the VM surfaces `voicePermissionNeeded` which triggers the runtime permission launcher from `CaptureScreen`. Order-log at start. Second tap → `stopRecording` → push `StagedItem.Voice` with duration from `SystemClock.elapsedRealtime` deltas. Amplitude polling via `MediaRecorder.getMaxAmplitude()` at ~30Hz feeds the `VoiceOverlay` waveform.
 
-**Phase 3 — Worker (seconds–tens of seconds, off the UI thread).** `BundleWorker` loads the manifest, backfills GPS EXIF on any photo lacking it (bounded 2s location refresh — covers first-capture before the location fix has resolved), stamps per-file EXIF `UserComment`s (`Recon:{bundleId}:p{kk}` / `:stitch`) in a single open/save, copies raw JPEGs to `bundles/{bundle-id}/` via SAF, runs [`Stitcher`](./app/src/main/java/com/example/bundlecam/pipeline/Stitcher.kt) to produce one vertical JPEG into `stitched/`, then deletes the staging session and manifest file. A process-wide `Mutex` serializes workers so stitch memory stays bounded.
+No SAF writes in Phase 1 for any modality. `BusyState { Idle, Capturing, Recording, Rebinding }` is the single source of truth — transitions are flipped synchronously on Main *before* launching the async coroutine so rapid double-taps can't race into duplicate starts.
+
+**Phase 2 — Commit (single frame).** User swipes the queue. `CaptureViewModel.onCommitBundle` pivots the UI synchronously on Main — nulls `currentSession`, clears `queue` + `dividers` — so the shutter is ready on the very next frame. The actual bookkeeping (allocate bundle IDs, write [`PendingBundle`](./app/src/main/java/com/example/bundlecam/pipeline/PendingBundle.kt) manifests to disk with `orderedItems: List<PendingItem>` polymorphic sealed list, enqueue `BundleWorker`s) runs in a background coroutine. If the process dies before the manifest is saved, staged files are still on disk and `OrphanRecovery` restores the session as a queue on next launch.
+
+**Phase 3 — Worker (seconds–tens of seconds, off the UI thread).** `BundleWorker` loads the manifest, calls the pure companion `planRouting(manifest)` to partition `orderedItems` into photos / videos / voices with 1-based **global capture-order indices** (a mixed `[P, V, A, P]` queue produces `-p-001, -v-002, -a-003, -p-004` filenames — sparse per modality, dense across). Then:
+
+- **Photos** (if `saveIndividualPhotos`): bounded 2s GPS refresh → stamp per-file EXIF `UserComment`s (`Recon:{bundleId}:pNNN`) in a single open/save → SAF copy into `bundles/{id}/photos/`.
+- **Videos** (always): SAF copy into `bundles/{id}/videos/`. No EXIF — MP4 carries rotation in the `tkhd.matrix` set by CameraX `Recorder` at start-time.
+- **Voices** (always): SAF copy into `bundles/{id}/audio/`. No EXIF.
+- **Stitch** (if `saveStitchedImage` *and* photos list non-empty): [`Stitcher`](./app/src/main/java/com/example/bundlecam/pipeline/Stitcher.kt) produces one vertical JPEG into `stitched/{id}-stitch.jpg`. **Photo-only** — video frames are never pulled into the stitch, and voice-only / video-only bundles skip stitching entirely (no empty stitch file).
+
+Then deletes the staging session and manifest file. A process-wide `Mutex` (`workMutex`) serializes all workers so stitch heap stays bounded — I/O-bound video copy is currently serialized under the same mutex; splitting is a deferred perf refactor.
 
 ### Resilience
 
-- **Photos survive app kill**: they're on internal storage the moment shutter fires. On next launch, [`OrphanRecovery`](./app/src/main/java/com/example/bundlecam/pipeline/OrphanRecovery.kt) prunes completed `WorkInfo`, re-enqueues any pending manifests without in-flight work, and restores the most recent orphan staging session (the last queue the user was building) back into the VM.
+- **Queue survives app kill across all three modalities**. Photos are on internal storage the moment shutter fires; video files are continuously flushed by CameraX's Media3 Muxer so a mid-record kill typically leaves a playable MP4; voice files are the common torn-file case because `MediaRecorder` has no equivalent. On next launch, [`OrphanRecovery`](./app/src/main/java/com/example/bundlecam/pipeline/OrphanRecovery.kt) prunes completed `WorkInfo`, re-enqueues any pending manifests without in-flight work, filters the staging session for jpg/mp4/m4a files (skipping dot-files + zero-byte), validates mp4/m4a playability via `MediaMetadataRetriever.extractMetadata(DURATION)` (null → torn → deleted), and restores the queue as sealed `RestoredItem { Photo, Video, Voice }`.
+- **Queue ordering across mixed media** comes from a per-session `.order` append-log (`{systemClockMs}\t{filename}\n`) rather than filesystem mtimes — video/voice `lastModified` is *stop()* time, not *start()* time, so a mtime sort would scramble a `[V, P, A]` capture into `[P, A, V]`. The log is appended at start-of-recording (before the file even exists) so a torn file still has a correctly-ordered entry that gets filtered by existence check on restore. Pre-Phase-D sessions without a log fall back to mtime sort.
 - **Bundle ID is allocated atomically** from DataStore before any SAF I/O — if the worker fails partway, the counter doesn't rewind.
 - **Worker failures are observable**: `WorkScheduler.observeFailures()` emits a flow of failures, filtering out stale pre-existing failures on first subscription (see the `acknowledged` set) so replayed history doesn't spam the user.
 
@@ -122,19 +152,25 @@ Package root: `com.example.bundlecam`. All files live under `app/src/main/java/c
 - [`ReconApp.kt`](./app/src/main/java/com/example/bundlecam/ReconApp.kt) — Application subclass, constructs `AppContainer`, provides `WorkManager.Configuration`.
 
 ### `ui/capture/` — the capture screen
-- `CaptureScreen.kt` — top bar (settings, camera-mode toggle, **photo-library icon opening the Bundle Preview screen**), preview, zoom, flash / shutter / lens-flip row, queue strip, overlays (undo toast, saved shimmer, error banner). GPS permission is launched from a `LaunchedEffect(Unit)` the first time the camera UI mounts (not lazily on first shutter). The error banner sits inside the queue `Box` alongside `UndoToast` / `BundleSavedShimmer` so it overlays the queue rather than pushing the shutter + queue down. A first-run `GestureTutorial` overlay is rendered last in the root `Box` when `!settings.seenGestureTutorial`, consuming all touches until dismissed.
-- `CaptureViewModel.kt` — state machine (`CaptureUiState`, `BusyState { Idle, Capturing }`, `PendingDiscard`), events (`BundlesCommitted`), and methods for shutter, commit, discard, undo, delete, reorder, zoom, camera mode, divider insert/remove, **lens flip (`onToggleLens` — back/front; rejects mid-capture or mid-rebind)**, **flash cycle (`onCycleFlash` — Off → Auto → On)**, and `onDismissGestureTutorial` (sets `seenGestureTutorial = true` via `SettingsRepository`). A VM-internal subscription pipes `flashMode` changes into `captureController.setFlashMode`. Commit pivots UI on Main synchronously; all I/O runs in the background. Uses `TimedSlot<StagingSession>` from `ui/common/` for the discard undo window; the session's staging dir gets a `.discarded` marker file written synchronously on swipe so a process death mid-undo results in cleanup (not zombie-queue restoration) on next launch.
-- `DividerOps.kt` — pure functions for queue-divider arithmetic (`partitionByDividers`, `remapDividersAfterDelete`); extracted from the VM so it's unit-testable without Android.
-- `CameraPreview.kt` — wraps `PreviewView`, tap-to-focus, pinch-to-zoom, lifecycle rebind.
-- `ShutterButton.kt` — 80dp circle, disabled during capture or camera rebinding.
-- `ZoomControl.kt` — 0.5×/1×/2×/5× chips, filtered by hardware zoom range.
-- `CameraModeToggle.kt` — EXT (CameraX Extensions) vs ZSL (zero-shutter-lag) segmented toggle.
-- `QueueStrip.kt` — two-sided edge-zone swipe to commit / discard, plus per-gap `DividerZone` swipe-down-to-insert / swipe-up-to-remove. Gesture state machine (`GestureState.Idle | Bundling | Discarding`), `VelocityTracker`, haptic edge detection, tide gradient, destination glyph + commit flash. Custom `Layout` in `QueueContent` positions thumbnails + 24dp divider hit zones overlapping into neighbors; dividers Z-above thumbnails + Initial-pass consumption arbitrates the overlap. **`EdgeZone` widths are queue-size-aware**: when the tray has slack (short queue), each zone grows by `slack / 2` up to a cap (33% of screen width per side, with a 24dp neutral middle guard) so commits / discards can be initiated from a wider area. The destination fill (tick / cross over the screen-edge side) is constrained to a fixed 60dp regardless of the input width, anchored to the outer edge.
-- `QueueThumbnail.kt` — vertical drag-to-delete + long-press-then-drag reorder per thumbnail.
-- `UndoToast.kt` — "Discarded N photos · Undo" during the 3-second undo window.
+- `CaptureScreen.kt` — top bar (settings, `ModalityPill`, **photo-library icon opening the Bundle Preview screen**), viewfinder Box wrapped in `Modifier.draggable` for horizontal modality-swipe, zoom, modality-aware control row, queue strip, overlays. Permissions: camera on mount, GPS in a `LaunchedEffect(Unit)` after camera grants, `RECORD_AUDIO` lazily via `voicePermissionNeeded` signal from the VM. `LifecycleEventEffect(ON_PAUSE)` stops any in-flight video/voice recording. Controls are per-modality:
+    - **PHOTO**: flash + photo shutter + lens-flip + zoom + visible camera preview.
+    - **VIDEO**: lens-flip + video shutter + zoom + visible camera preview. Flash hidden (no torch wiring).
+    - **VOICE**: only the voice shutter. Flash + lens-flip + zoom hidden. Camera preview `alpha=0` so the session stays bound (instant switch-back) but invisible — replaced by `VoiceOverlay` scrim + waveform.
+    - During Recording: modality pill locks, flash + lens-flip dimmed.
+- `CaptureViewModel.kt` — state machine (`CaptureUiState`, `BusyState { Idle, Capturing, Recording, Rebinding }`, `Modality { PHOTO, VIDEO, VOICE }`, `PendingDiscard`), events (`BundlesCommitted`), per-modality shutter flow (`onShutterPhoto` / `onShutterVideo` / `onShutterVoice`), commit, discard, undo, delete, reorder, zoom, `setModality` (rejected during non-Idle states), divider insert/remove, **lens flip** / **flash cycle** (photo/video only), `onLifecyclePaused` (routes through the normal async stop flows so VM state cleans up properly on resume), `onVoicePermissionResult`, and `onDismissGestureTutorial(shownStepIds: Set<String>)` — merges into `seenTutorialSteps` so future tutorial additions don't re-trigger previously-dismissed steps. `cameraMode` is a `StateFlow` projection from `settings.map { it.cameraMode }`. Sync flip to `BusyState.Capturing` BEFORE launching async coroutines is the race-prevention gate for rapid double-taps.
+- `DividerOps.kt` — pure functions for queue-divider arithmetic (`partitionByDividers`, `remapDividersAfterDelete`), generic over `List<T>` — works unchanged on the mixed `List<StagedItem>`.
+- `CameraPreview.kt` — wraps `PreviewView`, tap-to-focus, pinch-to-zoom, lifecycle rebind. **Custom gesture handlers that do NOT consume the pointer down** (bespoke `awaitEachGesture { awaitFirstDown() ; waitForUpOrCancellation() }` rather than Compose's stock `detectTapGestures` / `detectTransformGestures`) — the stock handlers call `down.consume()` immediately which starves the ancestor `Modifier.draggable` of the modality-swipe gesture.
+- `ShutterButton.kt` / `VideoShutterButton.kt` / `VoiceShutterButton.kt` — sibling composables picked via `when (modality)`. All share the 80dp outer ring + identical hit target; inner fill morphs via `animateDpAsState`: photo = white fill, video = 42dp red circle ↔ 28dp red stop-square, voice = 58dp white-with-mic ↔ 28dp red stop-square.
+- `VoiceOverlay.kt` — full-coverage dark scrim + mic glyph + prompt text when idle; pulsing red dot + "Recording…" label + scrolling amplitude-bar waveform (Canvas, 128-sample ring buffer fed by `VoiceController.amplitudeFlow`) when recording.
+- `ModalityPill.kt` — 3-segment pill `VIDEO · PHOTO · VOICE` in the top bar center. Replaces the previous `CameraModeToggle` (EXT/ZSL moved to Settings as `cameraMode` preference). The `Segment` private composable handles four visual states: enabled + selected (white pill + black text), enabled + unselected (transparent + white text), disabled + selected (dimmed-white pill + dark text — recording-state current indicator), disabled + unselected (transparent + dimmed text).
+- `ModalitySwipeMath.kt` — pure `object` with `resolveTarget(current, dragDp, velocityDpPerSecond, thresholds): Modality`. Sign-matched drag + velocity commit criteria, no wrap from VIDEO/VOICE endpoints. Unit-testable via `ModalitySwipeMathTest`.
+- `ZoomControl.kt` — 0.5×/1×/2×/5× chips, filtered by hardware zoom range. Rendered at `alpha=0` in VOICE (keeps layout height constant across modality switches).
+- `QueueStrip.kt` — two-sided edge-zone swipe to commit / discard, plus per-gap `DividerZone` swipe-down-to-insert / swipe-up-to-remove. Gesture state machine, `VelocityTracker`, haptic edge detection, tide gradient, destination glyph + commit flash. `queue: List<StagedItem>` (post-A1 generic over the sealed item hierarchy). `EdgeZone` widths queue-size-aware.
+- `QueueThumbnail.kt` — vertical drag-to-delete + long-press-then-drag reorder per thumbnail. `when (item)` branches: photo = raw bitmap; video = poster + play-glyph overlay + duration badge; voice = tinted backdrop + mic icon + duration badge.
+- `UndoToast.kt` — "Discarded N items · Undo" during the 3-second undo window.
 - `BundleSavedShimmer.kt` — green pill triggered by `BundlesCommitted`: "Bundle {id} saved" for single-bundle commits, "N bundles saved ({first}–{last})" for multi-bundle splits.
 - `CaptureColors.kt` — commit green (`#2E7D32`) + discard amber (`#B26A00`).
-- `GestureTutorial.kt` — first-run overlay that walks the user through the five main-screen gestures (commit, discard, delete-one, reorder, split/un-split) with a looping animated finger over a fake 4-thumb queue. Rendered as a full-screen scrim + `pointerInput` that consumes every unclaimed event (so swipes can't leak to the real queue beneath). Layout is text mid-screen, pager dots + Next button below, demo pinned at the bottom 72dp (where the real queue lives) to prime muscle memory. Gated by `settings.seenGestureTutorial`; "Skip" / "Got it" both call `CaptureViewModel.onDismissGestureTutorial`. Settings' "Gesture tutorial → Show" row re-triggers by flipping the flag back to `false` then popping to capture.
+- `GestureTutorial.kt` — first-run overlay. `TutorialStep` enum has 6 entries each with a stable string ID (`modality, commit, discard, deleteOne, reorder, divide`). `GestureTutorial(seenStepIds: Set<String>, onDismiss: (Set<String>) -> Unit)` filters `TutorialStep.entries - seenStepIds` and renders nothing if empty. Upgraders who had the pre-multimodal v1 Boolean see only the new `modality` step seeded by the upgrade path in `SettingsRepository`. Demo pinned at the bottom 72dp. Settings' "Gesture tutorial → Show" row clears `seenTutorialSteps` and pops to capture so the overlay re-appears.
 
 ### `ui/setup/` — first-run folder picker
 - `FolderPickerScreen.kt` — shown while `settings.rootUri == null`; launches `OpenDocumentTree` and persists SAF permissions.
@@ -158,9 +194,17 @@ Package root: `com.example.bundlecam`. All files live under `app/src/main/java/c
 - `SettingsScreen.kt` — output folder (change via SAF picker; URI wraps; Change button anchored top-right), "Bundle output" block with per-output toggles (`Individual photos in subfolder` / `Vertical stitched image` — the UI locks the only-on switch so ≥1 is enforced, with a caption surfaced only while a lock is active), **Stitch Quality** dropdown nested under the stitched toggle (Material 3 `DropdownMenu`, indented 16dp, disabled when stitching is off), shutter sound toggle, **"Confirm before deleting a bundle"** switch, **"Undo window for bundle deletion"** dropdown (Off / 1s … 10s; 0 means delete immediately with no undo prompt), **"Gesture tutorial → Show"** row that clears `seenGestureTutorial` and pops back to capture so the `GestureTutorial` overlay re-appears (the suspending DataStore write is awaited before `onBack()` so there's no visible lag between tap and overlay). All interactive controls are right-aligned; label + control rows share a `SettingsRow` helper. Labels use `titleSmall` (parent rows) / `bodyMedium` (nested child rows) for consistent hierarchy.
 
 ### `data/camera/`
-- `CaptureController.kt` — owns `ProcessCameraProvider` + `ExtensionsManager`, binds `Preview` + `ImageCapture` to lifecycle via a `bindMutex`, exposes `zoomInfo` / `deviceOrientation` as `StateFlow`, runs an `OrientationEventListener` that snaps to cardinal and pushes `targetRotation` into the `ImageCapture` use case for correct EXIF orientation on tilted captures. `bind(..., lens: LensFacing, ...)` accepts a back/front selector; `setFlashMode(FlashMode.Off/Auto/On)` mutates the live `ImageCapture.flashMode` without a rebind and `bind()` re-reads `currentFlashMode` post-install so writes interleaved with a rebind still land on the new capture.
+- `CaptureController.kt` — owns `ProcessCameraProvider` + `ExtensionsManager` + `VideoCapture<Recorder>`. Binds `Preview + ImageCapture + VideoCapture` concurrently under `bindMutex` (try/catch falls back to photo-only if the device rejects the triple-bind — `combinedBindSupported` flag). `OrientationEventListener` snaps to cardinal and writes to BOTH `imageCapture.targetRotation` and `videoCapture.targetRotation` — Recorder freezes its rotation at `start()` automatically, so mid-record writes are harmless no-ops. `takePicture()` (photo), `startVideoRecording(outputFile)` + `stopVideoRecording(): RecordingResult` (with CompletableDeferred awaiting `VideoRecordEvent.Finalize`; `withAudioEnabled` omitted so video is silent and mic stays free for voice), `setFlashMode(FlashMode.Off/Auto/On)` mutates live `ImageCapture.flashMode`. `bind()` re-reads `currentFlashMode` post-install so writes interleaved with a rebind still land on the new capture.
 - `BitmapUtils.kt` — `Bitmap.rotateIfNeeded(degrees)` extension (shared by thumbnail decode and stitching).
-- `ThumbnailDecoder.kt` — JPEG → small `ImageBitmap` via `inSampleSize`, rotated to match capture orientation. Three overloads: in-memory bytes (capture-time), file path (orphan-recovery, avoids loading the full JPEG into memory), and `ContentResolver + Uri` (Bundle Preview row thumbnails from SAF). The SAF overload reads the stream once into a byte array and decodes bounds + pixels + EXIF rotation from it so the three stages share a single ContentProvider IPC rather than three.
+- `ThumbnailDecoder.kt` — dispatches on filename extension:
+    - `.jpg` / `.jpeg` → BitmapFactory with `inSampleSize`, EXIF rotation. Four overloads: in-memory bytes (capture-time), file path (orphan-recovery), `ContentResolver + Uri` (Bundle Preview from SAF), plus internals.
+    - `.mp4` → `decodeVideoPoster`: `MediaMetadataRetriever.getFrameAtTime(0)`, scaled to thumbnail size. File variant (orphan-recovery) and SAF URI variant (Bundle Preview, via `ParcelFileDescriptor`).
+    - `.m4a` → `renderVoiceThumbnail`: hand-drawn Canvas bitmap (navy fill + white mic glyph — capsule + arch + post + base). No external icon resource.
+    - `decodeVoiceThumbnail` — a tiny 8×8 placeholder for in-queue `StagedItem.Voice` entries (the queue's Voice branch overlays its own mic icon + duration on top, so it just needs a non-null `ImageBitmap`).
+    - `isMediaFileReadable(file)` — torn-file probe for both mp4 and m4a (`MediaMetadataRetriever.extractMetadata(DURATION)` → null means unreadable → OrphanRecovery deletes).
+
+### `data/audio/`
+- `VoiceController.kt` — wraps `MediaRecorder`. Config: `AudioSource.MIC`, `OutputFormat.MPEG_4`, `AudioEncoder.AAC`, 48kHz mono, 96kbps. `hasPermission()`, `startRecording(file): VoiceRecordingResult` (sealed: `Success / Error / PermissionDenied / NotRecording` — `PermissionDenied` is distinct from `Error` so the VM triggers the permission launcher rather than surface the error banner), `stopRecording()` returns duration from `SystemClock.elapsedRealtime` deltas. An internal `amplitudeScope` launches a coroutine that polls `MediaRecorder.getMaxAmplitude()` every 33ms while recording, exposing `amplitudeFlow: StateFlow<Int>` for the `VoiceOverlay` waveform (feeds a 128-sample ring buffer).
 
 ### `data/exif/`
 - `ExifWriter.kt` — two entry points: `stamp(...)` at capture time (DateTimeOriginal, orientation, Make/Model, GPS-if-cached); `stampFinalMetadata(file, comment, backfillLocation)` at commit time in one open/save pass (bundle-ID UserComment, plus GPS if the photo doesn't already carry it).
@@ -170,23 +214,29 @@ Package root: `com.example.bundlecam`. All files live under `app/src/main/java/c
 - `LocationProvider.kt` — Fused Location with a 30s TTL cache (refresh threshold 15s), mutex-guarded, returns null on permission denial or network failure.
 
 ### `data/settings/`
-- `SettingsRepository.kt` — DataStore-backed `SettingsState { rootUri, stitchQuality, shutterSoundOn, saveIndividualPhotos, saveStitchedImage, deleteDelaySeconds, deleteConfirmEnabled, seenGestureTutorial }`, exposed as a distinct-until-changed `Flow`. Sanitizes on read so a `(false, false)` output pair can never reach the worker. `deleteDelaySeconds` is clamped to `MIN_DELETE_DELAY_SECONDS..MAX_DELETE_DELAY_SECONDS` (0–10); `deleteConfirmEnabled` defaults to `true`; `seenGestureTutorial` defaults to `false` so a freshly-installed user hits the onboarding overlay.
+- `SettingsRepository.kt` — DataStore-backed `SettingsState { rootUri, stitchQuality, shutterSoundOn, saveIndividualPhotos, saveStitchedImage, deleteDelaySeconds, deleteConfirmEnabled, seenTutorialSteps: Set<String>, cameraMode: CameraMode }`, exposed as a distinct-until-changed `Flow`. Sanitizes on read so a `(false, false)` output pair can never reach the worker. `deleteDelaySeconds` is clamped to `MIN_DELETE_DELAY_SECONDS..MAX_DELETE_DELAY_SECONDS` (0–10); `deleteConfirmEnabled` defaults to `true`. `cameraMode` is the demoted EXT/ZSL preference — projected into `CaptureViewModel.cameraMode` as a `StateFlow` and live-applied on change (CameraPreview's `LaunchedEffect(mode)` rebinds under `bindMutex`); it's never frozen into a manifest. `seenTutorialSteps` replaced the old Boolean `seenGestureTutorial`: the filter `TutorialStep.entries - seenTutorialSteps` determines which steps to show. Upgrade path: if the legacy key is true on first read, the set is seeded with `V1_TUTORIAL_STEP_IDS = {"commit", "discard", "deleteOne", "reorder", "divide"}` at read time — pure read-side, no DataStore write needed.
 
 ### `data/storage/`
-- `StagingStore.kt` — internal staging (`filesDir/staging/session-{uuid}/`); per-capture-session folders, per-photo files, session/file delete helpers. `markDiscarded(session)` / `unmarkDiscarded(session)` / `isDiscarded(session)` manage a `.discarded` marker file inside the session directory — written synchronously on the capture-screen discard swipe so a process death during the 3-second undo window results in cleanup (not orphan-queue restoration) on next launch.
-- `SafStorage.kt` — copy staged files to the user-picked SAF tree, ensures `bundles/` and `stitched/` subtrees exist. Batches one `listFiles()` per call so a 50-photo bundle isn't 50 full directory-listing IPCs; overwrites on name collision so worker retries don't produce `" (1).jpg"` duplicates. Directory resolution goes through `findOrCreateDir(parent, name)` which retries `findFile` after a null `createDirectory` — necessary because some DocumentsProviders return null when a concurrent creator (e.g. `configureRoot`'s `ensureBundleFolders` running in parallel with the first bundle worker after a folder swap) materializes the same name between our lookup and create. Without the retry, a lost race surfaces as a fatal "Failed to create directory 'bundles'" in the worker.
-- `BundleLibrary.kt` — read + delete operations for the Bundle Preview screen. `listBundles(rootUri)` parallelizes per-bundle `listFiles()` calls via `coroutineScope { async }.awaitAll()` so SAF IPC doesn't serialize across N bundles. Merges the `bundles/` subfolder list and the `stitched/` file list by bundle id; collects up to 3 thumbnail URIs per bundle (prefers raw subfolder photos, falls back to the stitched JPEG only when the subfolder wasn't kept). `deleteBundle(bundle)` uses `DocumentsContract.deleteDocument(resolver, uri)` directly on each modality URI — the lower-level API is the right tool for child-of-tree document URIs, and sidesteps `DocumentFile.fromTreeUri`'s gotchas around URI normalization.
-- `CompletedBundle.kt` — data class returned by `BundleLibrary`: id, modality list (`BundleModality.Subfolder | .Stitch`), subfolder/stitch URIs, thumbnail URIs, photo count.
-- `StorageLayout.kt` — canonical naming: bundle IDs (`{date}-s-{0000}`), photo filenames (`-p-{kk}.jpg`), stitched filename (`-stitch.jpg`), `STITCH_SUFFIX` constant, EXIF UserComment format.
+- `StagingStore.kt` — internal staging (`filesDir/staging/session-{uuid}/`). `writePhoto(session, bytes)` for photos; `allocateVideoOutput(session)` / `allocateVoiceOutput(session)` return file handles that CameraX `Recorder` / `MediaRecorder` stream into directly (never buffered in RAM). `appendOrderEntry(session, filename)` writes `{systemClockMs}\t{filename}\n` to the session's `.order` log at the point the item is logically added to the queue (photo: after `writePhoto`; video/voice: at start-of-recording); `readOrderLog(session)` returns filenames in order, used by `OrphanRecovery` to restore the queue with correct mixed-media ordering. `markDiscarded(session)` / `unmarkDiscarded(session)` / `isDiscarded(session)` manage a `.discarded` marker file — written synchronously on the capture-screen discard swipe so a process death during the 3-second undo window results in cleanup (not orphan-queue restoration) on next launch.
+- `SafStorage.kt` — copy staged files to the user-picked SAF tree, ensures `bundles/` and `stitched/` subtrees exist. MIME type derived from filename extension via `StorageLayout.mimeFor` (important: Drive's DocumentsProvider rejects `video/mp4` files created with `image/jpeg`). Batches one `listFiles()` per call so a 50-photo bundle isn't 50 full directory-listing IPCs; overwrites on name collision so worker retries don't produce `" (1).jpg"` duplicates. `findOrCreateDir` retries `findFile` after a null `createDirectory` to survive concurrent-creator races.
+- `BundleLibrary.kt` — read + delete operations for the Bundle Preview screen. `listBundles(rootUri)` parallelizes per-bundle `listFiles()` calls via `coroutineScope { async }.awaitAll()` so SAF IPC doesn't serialize across N bundles. Prefers the nested `photos/` subdir for new bundles, falls back to flat layout for legacy pre-Phase-B bundles (lazy two-format reader — no migration pass). Also counts videos in `videos/` and voice in `audio/`. Thumbnail URI selection: photos → videos → voices → stitch (the priority order). `deleteBundle(bundle)` uses `DocumentsContract.deleteDocument(resolver, uri)` directly on each modality URI.
+- `CompletedBundle.kt` — data class returned by `BundleLibrary`: id, modality list (`BundleModality.Subfolder | .Stitch` — the enum stayed at these two; Subfolder generalizes to any raw content), subfolder/stitch URIs, thumbnail URIs, `photoCount`, `videoCount`, `voiceCount`.
+- `StorageLayout.kt` — canonical naming: bundle IDs (`{date}-s-{0000}`), photo filenames (`-p-{NNN}.jpg`, 3-digit so lexicographic sort holds past 99 items), video filenames (`-v-{NNN}.mp4`), audio filenames (`-a-{NNN}.m4a`), stitched filename (`-stitch.jpg`). Per-modality subfolder constants (`PHOTOS_SUBDIR` / `VIDEOS_SUBDIR` / `AUDIO_SUBDIR`). `mimeFor(fileName)` for `SafStorage.createFile`. EXIF UserComment format (`Recon:{id}:pNNN` / `:stitch` — photo-only).
 - `BundleCounterStore.kt` — per-date monotonic counter via DataStore; `allocate()` returns the next ID and resets on date change.
 
 ### `pipeline/`
-- `PendingBundle.kt` — kotlinx-serializable manifest: `bundleId`, `rootUriString`, `stitchQuality`, `sessionId`, ordered `PendingPhoto` list, `capturedAt`, and the output-mode flags `saveIndividualPhotos` / `saveStitchedImage` (frozen at commit so a settings change mid-flight doesn't alter what an already-queued worker produces; default `true` so manifests from older app versions decode with pre-flag behavior).
-- `ManifestStore.kt` — writes / reads / deletes `filesDir/pending/{bundleId}.json`.
+- `PendingBundle.kt` — kotlinx-serializable manifest with `version: Int = 2`: `bundleId`, `rootUriString`, `stitchQuality`, `sessionId`, `orderedItems: List<PendingItem>`, `capturedAt`, and output-mode flags `saveIndividualPhotos` / `saveStitchedImage` (frozen at commit so a settings change mid-flight doesn't alter an already-queued worker; defaults `true` for backward compat). `PendingItem` is a sealed class with subtypes `PendingPhoto` (`@SerialName("photo")`, `localPath + rotationDegrees`), `PendingVideo` (`@SerialName("video")`, `localPath + rotationDegrees + durationMs`), `PendingVoice` (`@SerialName("voice")`, `localPath + durationMs`).
+- `ManifestStore.kt` — writes / reads / deletes `filesDir/pending/{bundleId}.json`. `Json` config has `encodeDefaults = true` (so `version: Int = 2` actually gets written), `classDiscriminator = "type"`, and a SerializersModule registering the polymorphic subclasses. `load()` branches on the `version` field: v1 (legacy `orderedPhotos` shape) is hand-decoded into the v2 `orderedItems` structure; v2 decodes polymorphically. Unknown future versions return null with a log error. The migration is read-only — no DataStore write needed.
 - `WorkScheduler.kt` — enqueues `BundleWorker` with a per-bundle unique work name (`KEEP` policy), exposes `observeFailures()` that filters stale pre-existing failures, `observeActiveBundleIds()` returning the set of bundle ids in ENQUEUED/RUNNING/BLOCKED state (extracted from each `WorkInfo`'s `bundle_{id}` tag — tags outlive input `Data` across state changes), plus `pruneWork()` for orphan recovery.
-- `BundleWorker.kt` — CoroutineWorker; process-wide `Mutex` serializes all workers; reads manifest, then the raw-copy and stitch branches run independently gated on the manifest's output-mode flags — `saveIndividualPhotos` triggers the location refresh + per-photo final-EXIF stamp (UserComment + GPS-backfill in one pass) + SAF copy, `saveStitchedImage` triggers `Stitcher` + stitched-file EXIF stamp + SAF write. Manifest + staging cleanup always runs on success.
-- `Stitcher.kt` — computes common width (min source width, clamped by `StitchQuality` ceiling: 1600 / 1800 / MAX px), scales heights proportionally, enforces a 32k-px total-height cap and a 60%-of-heap budget, decodes each source with `inSampleSize` to fit its slot, rotates, draws into a single canvas, compresses JPEG at 70 / 82 / 92. Layout math is a pure `companion` function (`computeLayout`) so tests can exercise it without any Bitmap allocation.
-- `OrphanRecovery.kt` — runs at `AppContainer` init: prunes terminal WorkInfo; re-enqueues manifests without in-flight work; partitions staging sessions into `discarded` (have the `.discarded` marker from a discard-undo cut short by process death) vs. `live`, deletes the discarded ones, returns the most-recent live orphan (if any) to `CaptureViewModel.init` so the user's in-flight queue comes back; deletes stale older live orphan sessions to prevent unbounded disk growth.
+- `BundleWorker.kt` — CoroutineWorker; process-wide `Mutex` serializes all workers. Reads manifest, then calls the pure companion function `planRouting(manifest): RoutingPlan` which partitions `orderedItems` into `photos: List<IndexedItem<PendingPhoto>>`, `videos: List<IndexedItem<PendingVideo>>`, `voices: List<IndexedItem<PendingVoice>>` with 1-based **global capture-order indices** (position in `orderedItems`). Branches then run independently:
+    - `saveIndividualPhotos && photos.isNotEmpty()`: GPS refresh + per-photo final-EXIF stamp + SAF copy to `bundles/{id}/photos/`.
+    - `videos.isNotEmpty()`: SAF copy to `bundles/{id}/videos/` (no EXIF, MP4 carries rotation in its container).
+    - `voices.isNotEmpty()`: SAF copy to `bundles/{id}/audio/` (no EXIF).
+    - `saveStitchedImage && photos.isNotEmpty()`: `Stitcher` + stitched EXIF stamp + SAF write to `stitched/`.
+
+    Manifest + staging cleanup always runs on success.
+- `Stitcher.kt` — **photo-only**. Computes common width (min source width, clamped by `StitchQuality` ceiling: 1600 / 1800 / MAX px), scales heights proportionally, enforces a 32k-px total-height cap and a 60%-of-heap budget, decodes each source with `inSampleSize` to fit its slot, rotates, draws into a single canvas, compresses JPEG at 70 / 82 / 92. Layout math is a pure `companion` function (`computeLayout`) so tests can exercise it without any Bitmap allocation. Never sees videos or voices.
+- `OrphanRecovery.kt` — sealed `RestoredItem { Photo, Video, Voice }`. Runs at `AppContainer` init: prunes terminal WorkInfo; re-enqueues manifests without in-flight work; partitions staging sessions into `discarded` vs. `live`, deletes the discarded ones, returns the most-recent live orphan (if any) to `CaptureViewModel.init` as a mixed-media restored queue. File filter: `.jpg` / `.mp4` / `.m4a`, skip dot-files + zero-byte. mp4/m4a files are validated via `isMediaFileReadable` (retriever duration probe) — torn files are deleted. Queue order comes from `StagingStore.readOrderLog()` when present, mtime-sort fallback for pre-Phase-D sessions. Deletes stale older live orphan sessions to prevent unbounded disk growth.
 
 ### `di/`
 - `AppContainer.kt` — singleton, constructs all `data/` + `pipeline/` components (including `BundleLibrary`), provides `configureRoot(uri): Job` which updates `SettingsRepository` then creates the `bundles/` + `stitched/` subtrees. Runs on a public `appScope` (`SupervisorJob + Main.immediate`) rather than a caller-provided composition scope — otherwise a user who pops Settings immediately after picking a folder would cancel `ensureBundleFolders` mid-flight. `appScope` is also used by `BundlePreviewViewModel.onCleared` to flush pending deletes that outlive the VM.
@@ -233,19 +283,30 @@ Pure JVM unit tests under `app/src/test/`:
 
 | Suite | Covers |
 |---|---|
-| `DividerOpsTest` | `partitionByDividers` (empty queue, single item, out-of-range dividers, multi-dividers) and `remapDividersAfterDelete` (index shift, collapse-on-collision, new-size cutoffs) |
-| `OrientationCodecTest` | cardinal round-trips, `snapToCardinal` boundary angles (44/45, 134/135, 224/225, 315/316, 360), `toSurfaceRotation` inverse mapping |
+| `DividerOpsTest` | `partitionByDividers` (empty queue, single item, out-of-range dividers, multi-dividers) and `remapDividersAfterDelete` (index shift, collapse-on-collision, new-size cutoffs). Generic over `List<T>` so the mixed `List<StagedItem>` works unchanged. |
+| `OrientationCodecTest` | cardinal round-trips, `snapToCardinal` boundary angles, `toSurfaceRotation` inverse mapping |
 | `StitcherLayoutTest` | quality-ceiling clamping (LOW/STANDARD/HIGH), height-cap scaling at 32k, heap-budget scaling, aspect preservation, min-height floor |
+| `StorageLayoutTest` | per-modality filename formats (`-p-NNN.jpg` / `-v-NNN.mp4` / `-a-NNN.m4a`), 3-digit zero-pad, lexicographic sort invariant past 99 items, `mimeFor` per extension, `bundlePhotosPath` / `bundleVideosPath` / `bundleAudioPath` composition |
+| `PendingBundleSerializationTest` | v1 legacy manifest (`orderedPhotos`) decodes into v2 shape, empty v1, v2 round-trip with `"type":"photo"` discriminator assertion, future `version > 2` returns null |
+| `BundleWorkerRoutingTest` | `planRouting` for photo-only / video-only / voice-only / mixed / empty manifests; global-index assignment (sparse per modality, dense across); metadata flow-through |
+| `ModalitySwipeMathTest` | `resolveTarget` — sub-threshold stays put, threshold-crossing commits, velocity shortcut, reverse-flick rejection, no-wrap from VIDEO/VOICE endpoints |
 
-Manual smoke path for the capture flow:
-1. Fresh install launch → folder picker → choose a test folder → camera + GPS permission prompts → `GestureTutorial` overlay walks through five gestures; tap Next/Skip through to dismiss. (Regression check: re-open Settings → "Gesture tutorial → Show" should re-trigger.)
-2. Capture 3–5 photos (watch EXIF `DateTimeOriginal`, GPS if permission granted, orientation on a tilted device)
-3. Swipe left handle rightward past half-strip → confirmation pulse → queue clears → "Bundle saved" shimmer
-4. Inspect the chosen folder: `bundles/{date}-s-0001/` has 3–5 raw JPEGs, `stitched/{date}-s-0001-stitch.jpg` is one tall image
-5. Capture + swipe right handle leftward → 3s undo toast → tap Undo → queue comes back
-6. Capture + swipe right → let undo time out → queue stays gone, no files written
-7. On a thumbnail: swipe down → that photo removed; long-press then drag → reorder
-8. Kill the app mid-queue → reopen → queue is restored
+Manual smoke path for the multimodal capture flow:
+1. Fresh install launch → folder picker → choose a test folder → camera + GPS permission prompts → `GestureTutorial` overlay walks through 6 gestures (modality swipe first, then commit/discard/delete-one/reorder/divide); tap Next/Skip through to dismiss. (Regression check: re-open Settings → "Gesture tutorial → Show" should re-trigger.)
+2. **Photo capture** (PHOTO modality default): capture 3–5 photos (watch EXIF `DateTimeOriginal`, GPS if permission granted, orientation on a tilted device).
+3. **Swipe to VIDEO**: swipe right on the viewfinder. Slab translates with the finger; on release, committed VIDEO continues sliding off and new content appears at center. Pill shows VIDEO; shutter shows the red dot.
+4. **Video record**: tap shutter → inner fill morphs to the red stop-square. Record 3 seconds of subject motion. Tap again → stop. Video thumbnail lands in queue with play glyph + duration.
+5. **Swipe to VOICE**: swipe left twice (VIDEO → PHOTO → VOICE). Camera preview hides behind the mic-glyph overlay; flash / lens-flip / zoom disappear.
+6. **Voice record**: tap shutter → first-run permission prompt, grant. Waveform scrolls with live mic input; "Recording…" label pulses. Say a few words. Tap again to stop. Voice thumbnail lands in queue.
+7. **Swipe back to PHOTO** and capture 2 more photos. Queue is now `[P, P, P, V, A, P, P]` (approximate — exact depends on actions above).
+8. **Commit**: swipe left handle rightward past half-strip → confirmation pulse → queue clears → "Bundle saved" shimmer. Inspect the chosen folder: `bundles/{date}-s-0001/photos/{id}-p-NNN.jpg` (only photos), `videos/{id}-v-NNN.mp4`, `audio/{id}-a-NNN.m4a`; `stitched/{id}-stitch.jpg` contains only the photos (video frames are NOT included).
+9. **Bundle Preview** (photo-library icon, top right): the new bundle renders with 3 thumbnails — photos preferred, video poster frames as fallback for videos-only bundles, hand-drawn mic glyph for voice-only bundles. Subtitle reads `"N photos, M videos, K voice notes"`.
+10. **Resilience checks**:
+    - Kill the app mid-queue (`adb shell am force-stop com.example.bundlecam.debug`) → reopen → queue is restored with correct mixed-media order.
+    - Kill mid-video-record → reopen → torn video file is validated by `MediaMetadataRetriever`; Media3 Muxer's periodic moov-flush usually produces a playable file that survives restore.
+    - Kill mid-voice-record → reopen → torn .m4a fails the duration probe and is deleted cleanly.
+11. **Mid-recording lockout**: start a video recording → try swiping the viewfinder and tapping the pill → nothing happens (pill is visually locked with current selection dimmed; swipe is gated). Tap shutter to stop.
+12. **Delete-one on mixed queue**: swipe down on a video thumbnail → it's removed; queue closes the gap. Dividers remap if the deleted item crossed a divider.
 
 ---
 

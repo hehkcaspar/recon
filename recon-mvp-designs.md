@@ -1,60 +1,69 @@
 # Recon — Design Spec
 
-_Pure capture tool. Photos go into a queue, the user commits a bundle, files land in folders. That's it._
+_Pure multimodal capture tool. Photos, videos, and voice recordings go into one interleaved queue, the user commits a bundle, files land in folders. That's it._
 
 This document is the **canonical product and interaction spec** for Recon. It is platform-neutral: every claim is grounded in the shipped Android reference implementation, but the architecture, resilience model, and interaction vocabulary described here are the target for any port (iOS first).
 
-For the Android-specific technical reference (file layout, module responsibilities, dependency versions), see [`README.md`](./README.md). For release/signing runbook, see [`RELEASE.md`](./RELEASE.md). For post-MVP ideas (OCR / LAN peer-to-peer transfer), see [`BACKLOG.md`](./BACKLOG.md).
+For the Android-specific technical reference (file layout, module responsibilities, dependency versions), see [`README.md`](./README.md). For release/signing runbook, see [`RELEASE.md`](./RELEASE.md). For post-MVP ideas (OCR / LAN peer-to-peer transfer, tutorial polish), see [`BACKLOG.md`](./BACKLOG.md).
 
 ---
 
 ## Purpose
 
-Recon captures **bundles** of photos. A bundle is an ordered sequence the user decides is related — pages of a document, facets of an object, scenes in a sequence — committed as one unit. A commit produces up to two parallel outputs in the user's chosen folder:
+Recon captures **bundles** of mixed media. A bundle is an ordered sequence the user decides is related — pages of a document, facets of an object, the photo-and-voice-memo for a scene, a video walkaround and its follow-up stills — committed as one unit. The queue interleaves three modalities:
 
-- **Raw photos** in `bundles/{bundle-id}/` — one JPEG per shot, numbered to preserve order.
-- **A vertically-stitched JPEG** in `stitched/` — all photos in the bundle composed top-to-bottom into one image.
+- **PHOTO** — JPEG stills via CameraX `ImageCapture`.
+- **VIDEO** — MP4 clips via CameraX `VideoCapture<Recorder>` (Media3 Muxer, no audio track).
+- **VOICE** — `.m4a` voice memos via `MediaRecorder` (AAC-LC 48kHz mono ~96kbps).
+
+A commit produces up to two parallel outputs in the user's chosen folder:
+
+- **Raw files** in `bundles/{bundle-id}/{photos,videos,audio}/` — one file per captured item, routed by modality into a subfolder.
+- **A vertically-stitched JPEG** in `stitched/` — photo-only; videos and voice do not participate in stitch. A partition with zero photos skips the stitch entirely.
 
 Both outputs share a common bundle ID, so a downstream pipeline can reconstruct bundle membership from either format.
 
-The UX target is **machinegun cadence**: shoot-shoot-shoot-swipe-shoot-shoot-swipe, with no perceptible delay between any tap and the next. All heavy work (EXIF stamping, SAF I/O, stitching) happens off the interaction path.
+The UX target is **machinegun cadence**: shoot-shoot-shoot-swipe-record-stop-shoot-swipe, with no perceptible delay between any tap and the next. All heavy work (EXIF stamping, SAF I/O, stitching, video finalization) happens off the interaction path.
 
 ## Scope
 
 **In scope:**
 - One-time output-folder setup on first launch.
-- A single capture screen with a photo queue.
+- A single capture screen with a mixed-modality queue.
+- Three capture modalities — photo, video, voice — switched via a top-bar modality pill or a horizontal swipe on the viewfinder (peer gestures, either works).
 - A single swipe-commit gesture whose outputs are controlled by settings (raw folder AND/OR stitched image; at least one on; both on is the default).
-- Auto-captured EXIF: timestamp, GPS, orientation, bundle-ID marker.
-- An in-app **Bundle Preview** list for reviewing and deleting saved bundles (per-bundle swipe-to-delete with configurable undo window).
-- First-run gesture tutorial, re-triggerable from Settings.
-- Minimal settings: output folder, output toggles, stitch quality, shutter sound, delete-confirmation + undo window.
+- Auto-captured EXIF on photos only (timestamp, GPS, orientation, bundle-ID marker). Video and voice carry no EXIF; bundle membership for those is path-based.
+- An in-app **Bundle Preview** list for reviewing and deleting saved bundles (per-bundle swipe-to-delete with configurable undo window), rendering mixed-modality thumbnails.
+- First-run gesture tutorial (6 steps — modality switch, commit, discard, delete-one, reorder, divide), step-set-persisted so future additions don't re-show everything.
+- Minimal settings: output folder, output toggles, stitch quality, camera mode (ZSL/EXT), video quality, max video length, shutter sound, delete-confirmation + undo window.
 
 **Out of scope:**
 - Capture modes (document / object / scene), post-processing, auto-crop.
 - User-entered metadata (tags, notes, prefix chips).
-- A full in-app photo viewer — Bundle Preview lists bundles; opening individual files deep-links to the system file browser.
+- A full in-app media viewer — Bundle Preview lists bundles; opening individual files deep-links to the system file browser / OS-default player.
 - Export / share flows — output is files on disk; the user takes it from there.
+- Background voice recording — recording only runs while the capture Activity is foregrounded; auto-stops on pause. No `FOREGROUND_SERVICE_TYPE_MICROPHONE`.
 - Pipelines, cloud, OCR, automation hooks. (See [`BACKLOG.md`](./BACKLOG.md) for post-MVP directions.)
 
 ---
 
 ## The interaction vocabulary
 
-The entire app, once onboarded, is six gestures:
+The entire app, once onboarded, is seven gestures:
 
 | Gesture | Start region | Motion | Effect |
 |---|---|---|---|
-| **Capture** | Shutter button | Tap | Photo appended to queue's right end |
+| **Capture** | Shutter button | Tap (photo: one-shot; video/voice: tap-to-start, tap-to-stop) | Item appended to queue's right end on completion |
+| **Switch modality** | Viewfinder area or modality pill | Horizontal swipe on the preview slab, or tap a segment of the top-bar pill | Camera/mic session reconfigures; shutter glyph and viewfinder contents swap (`VIDEO ← PHOTO → VOICE`) |
 | **Commit** | Left handle of queue strip | Drag right past threshold | Queue → bundle(s) written to disk |
 | **Discard** | Right handle of queue strip | Drag left past threshold | Queue cleared (with 3-second undo) |
-| **Delete one** | A thumbnail in the queue | Swipe down past threshold | Just that photo removed |
+| **Delete one** | A thumbnail in the queue | Swipe down past threshold | Just that item removed |
 | **Reorder** | A thumbnail in the queue | Long-press then drag horizontally | That thumbnail moved within the queue |
 | **Divide / Un-divide** | The gap between two adjacent thumbnails | Swipe down to insert a divider; swipe up to remove | Queue partitions into sub-bundles; one swipe-commit produces N parallel bundles |
 
-Because every gesture has a **unique starting region**, disambiguation is deterministic. A touch on a thumbnail never triggers commit or discard; a touch on a handle never triggers reorder. There is no velocity arbitration between competing gestures and no slop tuning.
+Because every gesture has a **unique starting region**, disambiguation is deterministic. A touch on a thumbnail never triggers commit or discard; a touch on a handle never triggers reorder; a horizontal swipe on the preview never triggers reorder (which needs a long-press first). There is no velocity arbitration between competing gestures and no slop tuning.
 
-The six gestures compose: a user can shoot, reorder, insert dividers, delete a bad shot, and commit — all in one queue session — and the pipeline treats it as a single atomic operation at the end.
+The seven gestures compose: a user can shoot photos, swipe to VIDEO, record a clip, swipe to VOICE, capture a memo, reorder items, insert a divider, delete a bad shot, and commit — all in one queue session — and the pipeline treats it as a single atomic operation at the end.
 
 ---
 
@@ -64,20 +73,20 @@ The capture screen is locked to portrait orientation (see [Design decisions § P
 
 ```
 ┌─────────────────────────────────────┐
-│  ⚙       EXT ▸ ZSL           🖼  │  ← top bar: settings · camera-mode toggle · bundle library
+│  ⚙    VIDEO · PHOTO · VOICE     🖼  │  ← top bar: settings · modality pill · bundle library
 │                                     │
 │   ┌─────────────────────────────┐   │
 │   │                             │   │
-│   │       live preview          │   │  ← 3:4 viewfinder
+│   │    preview / waveform       │   │  ← 3:4 slab (per-modality content)
 │   │  (tap-to-focus, pinch-zoom) │   │
 │   │                             │   │
 │   └─────────────────────────────┘   │
-│         0.5×   1×   2×   5×         │  ← zoom chips (hardware-filtered)
+│         0.5×   1×   2×   5×         │  ← zoom chips (PHOTO + VIDEO only)
 │                                     │
-│       ⚡auto    ⬤    ⇆             │  ← flash cycle · shutter · lens flip
+│       ⚡auto    ⬤    ⇆             │  ← flash(PHOTO) · shutter · lens flip(PHOTO+VIDEO)
 │                                     │
 │   ║  ┌──┬──┬──┬──┬──┐  ║            │  ← queue strip: left handle · tray · right handle
-│   ║  │p1│p2│p3│p4│p5│  ║            │    (72dp tall, 56dp thumbs, 6dp gap)
+│   ║  │p1│v2│a3│p4│p5│  ║            │    (72dp tall, 56dp thumbs, 6dp gap, mixed media)
 │   ║  └──┴──┴──┴──┴──┘  ║            │
 └─────────────────────────────────────┘
 ```
@@ -85,31 +94,34 @@ The capture screen is locked to portrait orientation (see [Design decisions § P
 ### Top bar (inside status-bar padding)
 
 - **Settings** (left) — gear icon, opens the Settings screen.
-- **Camera-mode toggle** (center) — `EXT / ZSL` segmented pill.
-    - `ZSL`: zero-shutter-lag capture via CameraX's `CAPTURE_MODE_ZERO_SHUTTER_LAG`. Uses a frame ring buffer; shortest latency; preferred default.
-    - `EXT`: CameraX Extensions in `AUTO` mode (device-chosen HDR / night / beauty) with `CAPTURE_MODE_MINIMIZE_LATENCY`. Falls back to the base selector if extensions aren't available on the device.
-    - Mode switch triggers a camera rebind; shutter briefly disabled during rebind.
+- **Modality pill** (center) — three-segment `VIDEO · PHOTO · VOICE` pill. The selected segment is highlighted; the indicator animates linearly with viewfinder swipe progress. Disabled mid-recording and mid-rebind (icons dim; taps rejected). The pre-multimodal `EXT / ZSL` camera-mode toggle moved to Settings → Camera mode (live-applied, no commit-time freeze).
 - **Bundle library** (right) — photo-library icon, opens the Bundle Preview screen. Disabled until the user has picked an output folder.
 
-### Viewfinder
+### Capture slab (viewfinder + control row)
 
-- 3:4 aspect ratio, fills the available width under the top bar.
-- **Tap-to-focus**: tapping anywhere on the preview fires an `AF + AE` metering action (3-second duration) and shows an animated circle indicator at the tap point (scale 1.5× → 1×, 500ms lifetime).
-- **Pinch-to-zoom**: a two-finger pinch multiplies the current zoom ratio; the visible ratio updates the zoom chip selection live.
+The viewfinder and control row translate together as one unit during modality swipes (see [Switch modality](#switch-modality)). Content inside the slab is per-modality:
+
+- **PHOTO** — live camera preview, 3:4 aspect ratio. Tap-to-focus fires an `AF + AE` metering action (3-second duration) and shows an animated circle indicator at the tap point (scale 1.5× → 1×, 500ms lifetime). Pinch-to-zoom multiplies the current zoom ratio; the visible ratio updates the zoom chip selection live.
+- **VIDEO** — same live preview, same tap-to-focus + pinch-to-zoom. `VideoCapture<Recorder>` is bound alongside `ImageCapture` via CameraX's concurrent-bind; on hardware that rejects the combined bind (camera level FULL or lower), the controller falls back to a modality-specific bind that rebinds on PHOTO↔VIDEO switches only. Flash is not offered in VIDEO (see Controls row).
+- **VOICE** — the camera preview hides (alpha=0 but layout preserved to avoid jank on switch back). A **waveform overlay** replaces it: flat centerline while idle, a scrolling amplitude-bar buffer (~300 samples, ~10s visible) while recording, fed by `MediaRecorder.getMaxAmplitude()` polled at ~33ms. Elapsed time renders in the right-hand slot of the control row (where lens-flip lives in other modalities). Flash and lens-flip buttons hide entirely (neither applies to a mic session).
 
 ### Zoom chips
 
-Row of pill-shaped buttons for presets `0.5× / 1× / 2× / 5×`. The row filters to only the presets that fall within the device's reported min/max zoom range (a phone without an ultrawide won't show `0.5×`). The currently-selected ratio renders with a trailing `×` suffix. Width transitions animate over 180ms linear when the set of available presets changes.
+Row of pill-shaped buttons for presets `0.5× / 1× / 2× / 5×`. Shown in PHOTO and VIDEO; hidden in VOICE (the slot is empty, layout preserved). The row filters to only the presets that fall within the device's reported min/max zoom range (a phone without an ultrawide won't show `0.5×`). The currently-selected ratio renders with a trailing `×` suffix. Width transitions animate over 180ms linear when the set of available presets changes.
 
-### Bottom controls row
+### Bottom controls row (per-modality)
 
-Three circular buttons laid out as **flash · shutter · lens flip**:
+Three slots laid out as **left · center · right**. Contents vary by modality:
 
-- **Flash** (left) — cycles `Off → Auto → On`. Icon changes per mode (`⚡off / ⚡auto / ⚡on`). `Off` renders at 65% opacity; `Auto`/`On` at 100%. Mode is applied live to the `ImageCapture` use case without rebinding, and re-applied after any rebind so it survives lens flips and mode switches.
-- **Shutter** (center) — 80dp circle, white border (3dp) with white fill. Disabled during the ≤100ms capture window and during camera rebinds (dims to 50% when disabled).
-- **Lens flip** (right) — `↔` icon; toggles between back and front camera. Disabled mid-capture or mid-rebind. Triggers a rebind on the same executor/mutex that the capture path holds, so a tap during capture is rejected cleanly rather than racing.
+| Slot | PHOTO | VIDEO | VOICE |
+|---|---|---|---|
+| Left | Flash cycle `Off → Auto → On` (applied live to `ImageCapture`; re-applied after rebinds) | _(hidden)_ | _(hidden)_ |
+| Center | `ShutterButton` (80dp white ring + white fill) | `VideoShutterButton` (same geometry; idle = red ring + red fill; recording = red ring + **animated 28dp red rounded-square** morph inside, via `animateDpAsState` on `fillSize` 42dp↔28dp and `fillCorner` 40dp↔6dp) | `VoiceShutterButton` (same geometry; idle = mic glyph; recording = stop-square morph, same animation pattern as video) |
+| Right | Lens flip `↔` | Lens flip `↔` (disabled while recording) | Elapsed-time readout (e.g. `0:12`) |
 
-All three icons counter-rotate with device orientation via a spring animation on the shortest rotational arc.
+Center shutter is **always** 80dp with a 3dp ring and ~42dp of inner fill at idle — so muscle memory stays constant across modalities, only the glyph / colour / animation differs. Disabled during the ≤100ms capture window, during camera rebinds, and (for PHOTO shutter only) during active video/voice recordings in the other modalities. Disabled state dims to 50%.
+
+All icons counter-rotate with device orientation via a spring animation on the shortest rotational arc. Flash is not in VIDEO because video flash would need a torch-mode switch (different API path, mid-recording torch toggles are a reliability hazard); voice has no flash concept. Lens flip is not in VOICE because camera state is irrelevant to the mic session.
 
 ### Queue strip (72dp tall, pinned above navigation-bar insets)
 
@@ -132,7 +144,7 @@ These occupy the 72dp queue-strip slot and never push other UI down:
 
 ### GestureTutorial (first-run scrim, drawn above everything)
 
-A full-screen black-at-82%-opacity scrim with 5 steps (commit, discard, delete-one, reorder, divide). The demo strip inside the overlay uses the real 72dp queue height and is pinned to the bottom with a 12dp nav-bar gap, so muscle memory transfers when the overlay dismisses. The scrim consumes every pointer event (the `awaitEachGesture` loop eats every unconsumed change) — do not poke holes, or users can accidentally swipe the real (empty) queue beneath. Shown once when `seenGestureTutorial == false`; re-triggerable from Settings.
+A full-screen black-at-82%-opacity scrim with 6 steps: **modality switch** (first — introduces the viewfinder swipe + pill), commit, discard, delete-one, reorder, divide. Shown steps are determined by filtering the full ordered list against `seenTutorialSteps: Set<String>` in DataStore — fresh installs see all six; upgraders from the pre-multimodal 5-step tutorial see only the `modality` step (v1 step IDs are seeded into the set at first read post-upgrade). The demo strip inside the overlay uses the real 72dp queue height and is pinned to the bottom with a 12dp nav-bar gap, so muscle memory transfers when the overlay dismisses. The scrim consumes every pointer event (the `awaitEachGesture` loop eats every unconsumed change) — do not poke holes, or users can accidentally swipe the real (empty) queue beneath. Re-triggerable from Settings (clears the set).
 
 ---
 
@@ -140,10 +152,34 @@ A full-screen black-at-82%-opacity scrim with 5 steps (commit, discard, delete-o
 
 ### Capture
 
-- **Start region**: the shutter button.
-- **Motion**: single tap. Gesture completes instantly; no threshold.
-- **Feedback**: short haptic tick (`CONTEXT_CLICK`) + optional shutter sound (user-toggleable, default on). New thumbnail appears at the right end of the queue; tray scrolls to make it visible.
-- **Timing**: shutter re-enables within ~50–200ms depending on device. The underlying write is async (see [Phase 1](#phase-1--capture-100ms-ui-thread-budget)), so the button is usable before the file is fully staged.
+Capture is **modality-aware**: one tap per modality, but the tap semantics differ.
+
+- **PHOTO** — one-shot tap. Gesture completes instantly; no threshold. Short haptic tick + optional shutter sound. New thumbnail appears at the right end of the queue; tray scrolls to make it visible. Shutter re-enables within ~50–200ms depending on device. The underlying write is async (see [Phase 1](#phase-1--capture-100ms-ui-thread-budget)), so the button is usable before the file is fully staged.
+- **VIDEO** — tap-to-start, tap-to-stop. On start: `busy = Recording` (synchronously, before the coroutine suspends — prevents a double-tap race); the video-shutter's inner fill morphs from a 42dp red circle to a 28dp red rounded square via `animateDpAsState`; modality pill, lens-flip, and PHOTO-style queue gestures all disable; elapsed-time ticks in the normally-lens-flip slot. On stop: the `Recorder` finalizes (Media3 Muxer flushes MP4 moov atom), the poster frame + duration are read back via `MediaMetadataRetriever`, and a `StagedItem.Video` appends to the queue. A lifecycle pause (Activity backgrounded) routes through the same async stop path so the state machine stays consistent.
+- **VOICE** — tap-to-start, tap-to-stop. On start: `MediaRecorder` prepares the `.m4a` file; the shutter glyph morphs (mic → stop-square); the waveform overlay swaps flat-centerline for scrolling amplitude bars. On stop: `MediaRecorder.stop()` finalizes, duration is probed, a `StagedItem.Voice` appends. First-tap ever prompts for `RECORD_AUDIO` permission; permanent denial surfaces an "Open Settings" banner.
+
+Across all three modalities, the start action synchronously flips `BusyState` so a second tap that arrives before the coroutine schedules the recorder cannot start a second session.
+
+### Switch modality
+
+Two equivalent entry points; both dispatch to the same VM action `setModality(Modality)`:
+
+- **Viewfinder swipe**: horizontal drag on the capture slab. The viewfinder and control row translate together as a single unit (`Modifier.graphicsLayer.translationX`). A `Modifier.draggable` on the slab root claims the gesture only after the platform's horizontal touch slop — tap-to-focus, pinch-to-zoom, and vertical pull-to-reorder on the queue still work.
+- **Pill tap**: tapping a pill segment in the top bar.
+
+**Spatial model**: `VIDEO ← PHOTO → VOICE` with no wrap. Swipe-left from VOICE or swipe-right from VIDEO has no motion (endpoint).
+
+**Animation**: a two-stage sequence keyed on drag end.
+- **Commit path** (threshold crossed): the slab continues sliding off in the drag direction using a `tween` for predictable visual speed, then snaps back to `translationX = 0` while the modality-driven content swap happens — the user sees a committed slide, not a bounce.
+- **Cancel path** (below threshold): `DampingRatioNoBouncy` spring back to 0 with minimal initial velocity. No overshoot.
+
+The spring-back animation runs in a `rememberCoroutineScope`-scoped coroutine (`swipeScope`), **not** the `Modifier.draggable` scope. `draggable`'s pointer-input scope is tied to composition and gets cancelled when `setModality()` triggers recomposition of the draggable's lambdas — a lesson from a visible "animation stops halfway" bug during Phase F playtesting.
+
+**Pill indicator**: during drag, the indicator translates linearly with `dragProgress = dragX / slabWidth` clamped to `-1..1`, so the pill reads as a direct physical coupling with the slab.
+
+**Gated off** when `state.busy in { Recording, Rebinding, Capturing }`. A `Modifier.systemGestureExclusion()` is applied on the bottom 24dp of the slab so Android's back-gesture doesn't eat left-swipe tails.
+
+**Per-modality content swap is explicit, not implicit**. In VOICE the camera preview hides (alpha=0, layout preserved), flash and lens-flip controls hide entirely, and the waveform overlay replaces the preview. In VIDEO the flash button hides and the shutter morphs. This is driven by a `when (modality)` in `CaptureScreen`, not by a blanket modifier — each control decides its own visibility rule.
 
 ### Commit
 
@@ -221,9 +257,25 @@ The counter is incremented **atomically** from persistent storage at commit time
 
 ### Filenames
 
-- Raw photo: `{bundle-id}-p-{kk}.jpg` (2-digit photo index, 01-based).
-    - e.g. `2026-04-14-s-0003-p-02.jpg` — the 2nd photo of the 3rd bundle on 14 April 2026.
-- Stitched image: `{bundle-id}-stitch.jpg`.
+Each item gets a **global capture-order index** (3-digit, 001-based), not a per-modality index — the index reflects the item's position in the queue at commit time, so file listings sort into user-visible order regardless of modality.
+
+- Raw photo: `{bundle-id}-p-{kkk}.jpg`.
+- Raw video: `{bundle-id}-v-{kkk}.mp4`. A video poster-frame sidecar `{bundle-id}-v-{kkk}.mp4.thumb.jpg` is written next to the video so Bundle Preview can render a thumbnail without decoding the MP4.
+- Raw voice: `{bundle-id}-a-{kkk}.m4a`. An analogous `{bundle-id}-a-{kkk}.m4a.thumb.jpg` is generated as a tinted-backdrop + mic-glyph JPEG at worker time.
+- Stitched image: `{bundle-id}-stitch.jpg` (photo-only; not emitted for video-only or voice-only partitions).
+
+Examples for a mixed bundle with photo → video → voice → photo in that order:
+```
+2026-04-14-s-0003-p-001.jpg
+2026-04-14-s-0003-v-002.mp4
+2026-04-14-s-0003-v-002.mp4.thumb.jpg
+2026-04-14-s-0003-a-003.m4a
+2026-04-14-s-0003-a-003.m4a.thumb.jpg
+2026-04-14-s-0003-p-004.jpg
+2026-04-14-s-0003-stitch.jpg   # composed from photos 001 + 004 only
+```
+
+The 3-digit index allows up to 999 items per bundle and keeps lexicographic sort correct past item 99 (2-digit width broke past 99 on the pre-multimodal implementation — fixed while routing was being touched).
 
 ### Folder structure on disk
 
@@ -231,36 +283,57 @@ The counter is incremented **atomically** from persistent storage at commit time
 {user-selected-root}/
 ├── bundles/
 │   └── {bundle-id}/
-│       ├── {bundle-id}-p-01.jpg
-│       ├── {bundle-id}-p-02.jpg
-│       └── ...
+│       ├── photos/
+│       │   ├── {bundle-id}-p-001.jpg
+│       │   ├── {bundle-id}-p-004.jpg
+│       │   └── ...
+│       ├── videos/
+│       │   ├── {bundle-id}-v-002.mp4
+│       │   ├── {bundle-id}-v-002.mp4.thumb.jpg
+│       │   └── ...
+│       └── audio/
+│           ├── {bundle-id}-a-003.m4a
+│           ├── {bundle-id}-a-003.m4a.thumb.jpg
+│           └── ...
 └── stitched/
     ├── {bundle-id-A}-stitch.jpg
-    ├── {bundle-id-B}-stitch.jpg
     └── ...
 ```
 
-The two folders share a common bundle ID, so raw photos and the stitched image for the same capture event are always findable and pairable.
+Subfolders only exist if the bundle contains that modality — a photo-only bundle has only `bundles/{id}/photos/`. The stitch folder is always at the root.
 
-`bundles/` and `stitched/` are created at folder-pick time (under the SAF tree on Android, under the security-scoped bookmark on iOS). If either is missing at commit time — user deleted it externally, cloud-sync hiccup — the worker recreates it, tolerating race conditions from concurrent creators.
+`bundles/` and `stitched/` are created at folder-pick time (under the SAF tree on Android, under the security-scoped bookmark on iOS). Per-modality subfolders are created lazily by the worker when routing the first item of that type. If any directory is missing at commit time — user deleted it externally, cloud-sync hiccup — the worker recreates it, tolerating race conditions from concurrent creators.
+
+### Legacy flat layout (pre-multimodal)
+
+Bundles written by pre-multimodal versions used a flat layout: `bundles/{id}/{id}-p-01.jpg` directly under the bundle folder. Those bundles continue to render in Bundle Preview via a lazy two-format reader that prefers the nested `photos/` subdir and falls back to the flat layout when absent. **No migration runs**: SAF renames are slow and racy on some DocumentsProviders, and a half-migrated state is user-visible. Two-format read is ~4 lines of code and never risks data loss.
 
 ### Internal staging (NOT under the user folder)
 
-Recon does **not** stage raw captures inside the user's output folder. Staging lives entirely in the app's **internal storage**:
+Recon does **not** stage raw captures inside the user's output folder. Staging lives entirely in the app's **internal storage**, flat per-session (no modality-subfolder split at staging time — the modality is embedded in the in-memory `StagedItem.{Photo,Video,Voice}` sealed type and carried through in the `PendingBundle` manifest):
 
-- Android: `filesDir/staging/session-{uuid}/{photo-uuid}.jpg`.
-- iOS: `FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]/staging/session-{uuid}/{photo-uuid}.jpg`.
+- Android: `filesDir/staging/session-{uuid}/{item-uuid}.{jpg|mp4|m4a}`.
+- iOS: `FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]/staging/session-{uuid}/{item-uuid}.{jpg|mp4|m4a}`.
 
-There are two reasons for this:
+There are three reasons for this:
 
 1. **Latency.** Writing every capture into a SAF/bookmark tree would mean an IPC round-trip per photo (Android) or security-scoped-resource dance per photo (iOS). Internal storage is a direct `FileOutputStream` — microseconds.
 2. **User folder hygiene.** The user picks a folder to receive committed bundles, not a folder to receive in-flight raw captures. Staging the in-progress queue there would mean the user sees a moving "session-uuid" directory full of raw files until every bundle commits. Unacceptable.
+3. **Modality-subfolder split is a commit-time concern.** A user reordering items, deleting one, or inserting a divider affects partitions — the routing decision is cheap to make at commit time from the manifest, expensive to re-do if we'd pre-committed a directory layout.
 
 Committed bundles are **copied** from staging to the user folder by the background worker (see [Phase 3](#phase-3--worker-serial-off-thread-seconds-to-tens-of-seconds)). Rename/move tricks do not apply because internal storage and the user folder are on different filesystems (SAF is a content provider, not a filesystem; a bookmark points into a different sandbox). Copy is the only correct operation.
+
+### Order-preservation log
+
+Each staging session directory contains a hidden append-log: `session-{uuid}/.order` in format `{systemClockMs}\t{filename}\n`. It's appended synchronously when an item is added to the queue (for video/voice, at **start-of-recording** so a process kill mid-record still preserves the intended ordering).
+
+The log exists because **`lastModified` timestamps are not a faithful queue order for mixed media**: a video's mtime is its *stop* time, not its *start* time, so a `[Video, Photo, Voice]` capture sequence would otherwise orphan-restore as `[Photo, Voice, Video]` (the photo finishes first, the voice finishes second, the video finishes last). The order log captures start-time and ensures restoration is faithful. `OrphanRecovery` prefers the log when present; falls back to `lastModified` for legacy sessions without it.
 
 ---
 
 ## Auto-captured metadata
+
+**Photos only** carry EXIF. Video and voice files carry no Recon metadata — their bundle membership is path-based (the `bundles/{id}/videos/` and `bundles/{id}/audio/` subfolders).
 
 Every photo's EXIF is stamped at capture time (Phase 1) and then finalised at commit time (Phase 3). Users never enter any of this.
 
@@ -270,9 +343,15 @@ Every photo's EXIF is stamped at capture time (Phase 1) and then finalised at co
 | `Make` / `Model` | Phase 1 | Device metadata | Standard. |
 | `Orientation` | Phase 1 | Accelerometer-derived (see [Design decisions § Orientation](#design-decisions)) | EXIF orientation tag reflects physical device pose even with UI locked to portrait. |
 | `GPSLatitude` / `GPSLongitude` etc. | Phase 1 (best-effort) + Phase 3 (backfill) | Fused location with 30s TTL cache | Stamped at Phase 1 if a cached fix is available; otherwise backfilled at Phase 3 after a bounded (2s) location refresh. First-capture without GPS is still delivered — just without coordinates. |
-| `UserComment` | Phase 3 | Storage layout | Raw photos: `Recon:{bundle-id}:p{kk}`. Stitched: `Recon:{bundle-id}:stitch`. Preserves membership + sequence if files are moved or mixed. |
+| `UserComment` | Phase 3 | Storage layout | Raw photos: `Recon:{bundle-id}:p{kkk}` (3-digit global index). Stitched: `Recon:{bundle-id}:stitch`. Preserves membership + sequence if files are moved or mixed. |
 
-The `UserComment` is the product's worst-case-recovery mechanism: even if folder structure is lost, bundle membership and per-photo order can be reconstructed from EXIF alone.
+The `UserComment` is the product's worst-case-recovery mechanism **for photos**: even if folder structure is lost, photo membership and per-item order can be reconstructed from EXIF alone.
+
+### Why video and voice skip metadata
+
+- **Video rotation** is handled automatically: `VideoCapture.targetRotation` is frozen at `start()` by CameraX, so the finalised MP4 carries the rotation at start-of-recording — regardless of any mid-recording orientation change. No accelerometer branch-logic is needed.
+- **Voice files have no orientation concept** and no audio-EXIF standard across players. An `.m4a` is its bytes; membership lives in the path.
+- **Ingestion tools can reconstruct bundle membership** from the folder layout alone for non-photos. The photo-only `UserComment` is the belt; the path layout is the suspenders.
 
 ---
 
@@ -280,19 +359,36 @@ The `UserComment` is the product's worst-case-recovery mechanism: even if folder
 
 Capture → commit → process. Each phase has a hard role; the boundaries between them are the app's load-bearing correctness guarantees.
 
-### Phase 1 — Capture (≤100ms, UI-thread budget)
+### Phase 1 — Capture (≤100ms, UI-thread budget; per-modality dispatch)
 
-Per shutter tap:
+Per shutter tap, modality-dispatched:
 
+**PHOTO (one-shot)**:
 1. Camera delivers a JPEG buffer.
-2. Write the JPEG to internal staging (`staging/session-{uuid}/{photo-uuid}.jpg`).
+2. Write the JPEG to internal staging (`staging/session-{uuid}/{item-uuid}.jpg`).
 3. Stamp capture-time EXIF on the file: DateTimeOriginal, orientation, make/model, and GPS if a cached fix (≤30s old) is available.
-4. Decode a small thumbnail (~50KB in-memory bitmap + path reference) for the queue UI.
-5. Append the staged photo to the queue state; shutter re-enables.
+4. Decode a small thumbnail (~50KB in-memory bitmap) for the queue UI.
+5. Append `StagedItem.Photo` to the queue state; append an entry to the session's `.order` log; shutter re-enables.
 
-In-memory footprint per queued photo is **just the thumbnail**, not the full photo. A 50-photo queue costs ~2.5MB of thumbnails, not ~250MB of decoded JPEG. Raw JPEGs are **durable on disk** from the moment the shutter fires.
+**VIDEO (tap-start)**:
+1. Synchronously flip `BusyState.Recording` (prevents double-tap race), synchronously capture `videoStartRotation` from the device-orientation stream, append an `.order` log entry pointing at the not-yet-materialized output filename.
+2. Allocate an output path in staging (`{UUID}.mp4`).
+3. Build `FileOutputOptions` + `Recorder.prepareRecording(ctx, outputOptions).start(main, listener)` — **no `withAudioEnabled()` call**, so `RECORD_AUDIO` is not required for video and the mic stays free for `MediaRecorder`.
+4. Start an optional coroutine-timer enforcing `maxLengthSec` (setting).
+5. On tap-stop: `activeRecording.stop()`, await `VideoRecordEvent.Finalize`, read `recordedDurationNanos`, extract poster frame at t=0 via `MediaMetadataRetriever`, push `StagedItem.Video` (with rotation + duration) onto the queue.
 
-If the process dies here, staging persists — see [Resilience](#resilience).
+**VOICE (tap-start)**:
+1. Synchronously flip `BusyState.Recording`. Permission check: `RECORD_AUDIO` — if denied, trigger the permission launcher (first ask) or the "Open Settings" banner (permanently denied).
+2. Allocate an output path in staging (`{UUID}.m4a`), append `.order` log entry.
+3. Configure `MediaRecorder`: `AudioSource.MIC` + `OutputFormat.MPEG_4` + `AudioEncoder.AAC` + 96kbps + 48kHz + 1 channel; `setOutputFile(...)`; `prepare()`; `start()`.
+4. The `VoiceController.amplitudeFlow` starts polling `getMaxAmplitude()` every ~33ms → drives the waveform overlay.
+5. On tap-stop: `MediaRecorder.stop()` + `release()`, probe duration via `MediaMetadataRetriever`, push `StagedItem.Voice` (with duration).
+
+Across all modalities:
+- In-memory footprint per queued item is **just the thumbnail** (50KB for photos, 8×8 placeholder tile + mic glyph overlay for voice, poster-frame bitmap for video). A mixed 50-item queue is still in the single-MB range.
+- Raw files are **durable on disk** from the moment the capture completes. If the process dies between start and stop for a video/voice recording, the file is left in a torn state — Phase 3 / `OrphanRecovery` probes `MediaMetadataRetriever.extractMetadata(DURATION)` to detect this and deletes torn files before restoring the queue.
+
+If the process dies here (before commit), staging + `.order` log persist — see [Resilience](#resilience).
 
 ### Phase 2 — Commit (single frame, UI thread)
 
@@ -306,29 +402,51 @@ The swipe-commit gesture must re-enable the shutter by the next frame. It does s
 **Deferred (coroutine, off UI thread):**
 - Partition the snapshot by dividers into one or more segments. Each segment becomes its own bundle.
 - For each segment, atomically allocate the next bundle ID from persistent storage (the daily counter).
-- Build a `PendingBundle` manifest per segment — JSON-serializable record of: bundle ID, root URI, stitch quality, session ID, ordered photo list (path + rotation), capture timestamp, `saveIndividualPhotos` flag, `saveStitchedImage` flag. Flags are **frozen at commit time** so a settings change mid-flight doesn't change what an already-queued worker produces.
+- Build a `PendingBundle` manifest per segment — JSON-serializable record of: `version: Int = 2`, bundle ID, root URI, stitch quality, session ID, ordered item list (`List<PendingItem>` — sealed polymorphic with `PendingPhoto` + `PendingVideo` + `PendingVoice` variants, `classDiscriminator = "type"`, `encodeDefaults = true` so the `version` field is always persisted), capture timestamp, `saveIndividualPhotos` flag, `saveStitchedImage` flag. Flags are **frozen at commit time** so a settings change mid-flight doesn't change what an already-queued worker produces.
+- Pre-flight total item size: `File.length()` summed across all items (video files can be many MB) and sanity-check against SAF target space when queryable. Abort the commit with a banner if insufficient — don't burn a bundle ID on a guaranteed-to-fail copy.
 - Write all manifests to internal storage (`pending/{bundle-id}.json`). Write them **all before enqueuing any worker** — a mid-loop crash leaves no enqueued workers on partial state.
-- Enqueue one worker per manifest to the platform's background scheduler (WorkManager on Android, OperationQueue + BGProcessingTask on iOS). Only the `bundle-id` goes through the scheduler's input data; the worker loads the rest from the manifest file. This sidesteps Android's 10KB `Data` limit (a 50-photo bundle's paths exceed it) and makes orphan recovery trivial.
+- Enqueue one worker per manifest to the platform's background scheduler (WorkManager on Android, OperationQueue + BGProcessingTask on iOS). Only the `bundle-id` goes through the scheduler's input data; the worker loads the rest from the manifest file. This sidesteps Android's 10KB `Data` limit (a 50-item mixed bundle's paths easily exceed it) and makes orphan recovery trivial.
 - Emit a `BundlesCommitted({bundleIds})` event → `BundleSavedShimmer` displays the saved pill.
 
 If the process dies **between the UI pivot and the manifest write**, the staging session still exists on internal storage; `OrphanRecovery` at next launch restores it as an uncommitted queue.
 
-### Phase 3 — Worker (serial, off-thread, seconds to tens of seconds)
+### Manifest polymorphism (v1 → v2)
+
+Pre-multimodal manifests used a `PendingPhoto`-only `orderedPhotos` field with no `version` tag. Post-multimodal manifests declare `version: 2`, an `orderedItems: List<PendingItem>` sealed polymorphic field, and individual items tag themselves with `"type": "photo" | "video" | "voice"`.
+
+`ManifestStore.load` branches on the `version` field:
+- No field or `version == 1` → decode the legacy shape, wrap each `orderedPhotos` entry as a `PendingItem.Photo` in memory (compatibility shim; no on-disk rewrite).
+- `version == 2` → decode the polymorphic shape directly.
+- Unknown version → log + return null (fail loudly; never silently mis-decode).
+
+This preserves every in-flight manifest across the multimodal upgrade.
+
+### Phase 3 — Worker (serial, off-thread, seconds to tens of seconds; type-routed)
 
 One worker per bundle manifest, wrapped in a **foreground service** (Android) / `beginBackgroundTask` (iOS) so the OS grants time to finish. A **process-wide mutex** serialises all bundle workers — stitching a tall image allocates ~60% of heap, and two in parallel reliably OOMs mid-range devices.
 
 Per worker:
 
-1. Load `pending/{bundle-id}.json`.
-2. If `saveIndividualPhotos`:
-    - Refresh location (bounded 2s). Backfill GPS EXIF on any staged photo missing it. Stamp `UserComment = "Recon:{bundle-id}:p{kk}"`. Both in one open/save pass per file (avoids paying the ExifInterface open-cost twice).
-    - Copy each staged JPEG to `bundles/{bundle-id}/{bundle-id}-p-{kk}.jpg` via SAF/bookmark. Overwrite on name collision so retries don't produce `" (1).jpg"` duplicates.
-3. If `saveStitchedImage`:
-    - Compute stitch layout (see [Stitcher](#stitcher)) from the raw source photos.
+1. Load `pending/{bundle-id}.json` (branched decode by version, see above).
+2. **Plan routing** via a pure `planRouting(manifest)` companion that partitions `orderedItems` into `photos / videos / voices / shouldStitch`. Kept pure so tests (`BundleWorkerRoutingTest`) cover the dispatch without a WorkManager runtime.
+3. **Photos** (if present and `saveIndividualPhotos`):
+    - Refresh location (bounded 2s). Backfill GPS EXIF on any staged photo missing it. Stamp `UserComment = "Recon:{bundle-id}:p{kkk}"`. Both in one open/save pass per file (avoids paying the ExifInterface open-cost twice).
+    - Copy each staged JPEG to `bundles/{bundle-id}/photos/{bundle-id}-p-{kkk}.jpg` via SAF/bookmark. Overwrite on name collision so retries don't produce `" (1).jpg"` duplicates.
+4. **Videos** (if present and `saveIndividualPhotos`):
+    - Copy each staged MP4 to `bundles/{bundle-id}/videos/{bundle-id}-v-{kkk}.mp4`. No EXIF pass — rotation is already embedded in the MP4 by CameraX.
+    - Extract poster frame via `MediaMetadataRetriever.getFrameAtTime(0)`, scale to ~48dp square, save as `{same-basename}.mp4.thumb.jpg` alongside.
+5. **Voices** (if present and `saveIndividualPhotos`):
+    - Copy each staged `.m4a` to `bundles/{bundle-id}/audio/{bundle-id}-a-{kkk}.m4a`.
+    - Generate a static voice thumbnail (tinted navy backdrop + hand-drawn mic glyph, `Paint`/`Canvas`) and save as `{same-basename}.m4a.thumb.jpg`. Generated once at worker time rather than lazily at Bundle Preview read time for cheap read-back.
+6. **Stitch** (if `saveStitchedImage` AND `shouldStitch` from routing, i.e. photos.isNotEmpty()):
+    - Compute stitch layout (see [Stitcher](#stitcher)) from the raw source photos only — videos and voices don't participate.
     - Render to a canvas, compress JPEG at the quality tier, stamp `UserComment = "Recon:{bundle-id}:stitch"`.
     - Copy to `stitched/{bundle-id}-stitch.jpg` via SAF/bookmark.
-4. Delete the manifest file.
-5. If no other pending manifests reference the session, delete the staging session directory.
+    - **Skip** when the partition has zero photos — a video-only or voice-only bundle never emits an empty stitch file.
+7. Delete the manifest file.
+8. If no other pending manifests reference the session, delete the staging session directory (including its `.order` log).
+
+The global index `{kkk}` is derived from each item's **position in `manifest.orderedItems`**, not a per-modality counter — so a `[Photo, Video, Voice, Photo]` sequence files as `-p-001, -v-002, -a-003, -p-004`.
 
 On failure (I/O error, OOM, crash): the worker returns failure; the manifest persists so the retry at next launch (or via exponential backoff) can resume cleanly.
 
@@ -351,11 +469,15 @@ Layout math (pure function, testable without bitmap allocation):
 ### Resilience
 
 - **Photos survive process kill**: they're on internal storage the moment the shutter fires. On next launch, `OrphanRecovery` scans the staging dir, prunes any sessions marked discarded, re-enqueues manifests whose workers never ran, and restores the most recent live orphan session (the queue the user was building) back into the capture VM. Older live orphans are deleted to prevent unbounded disk growth.
+- **Videos survive mid-record process kill by default**, thanks to CameraX 1.6.0's Media3 Muxer: the MP4 is kept playable (moov atom written incrementally) through termination. `OrphanRecovery` probes `.mp4` files via `MediaMetadataRetriever.extractMetadata(DURATION)` — non-null → restore into queue with computed duration + extracted poster frame; null → torn file, delete and skip. The narrow window between start-of-recording and the first muxer flush still produces a torn file; the probe catches it.
+- **Voice files torn by process kill are detected and cleaned**. `MediaRecorder` does not have video's partial-file resilience — a killed `.m4a` is unplayable. Same `MediaMetadataRetriever` probe distinguishes: null duration → delete, valid → restore as `RestoredItem.Voice`. No sidecar marker files — the probe is authoritative.
+- **Mixed-media queue order is preserved via the `.order` log**. Start-time entries are appended on every item add (including video/voice at start-of-recording), so a `[Video, Photo, Voice]` capture restores as `[Video, Photo, Voice]` — not the `[Photo, Voice, Video]` that `lastModified` ordering would produce. Falls back to `lastModified` for legacy sessions without a log.
 - **Bundle-ID counter is atomic**: allocated from persistent storage before any output I/O. Worker failure doesn't rewind it. Retries reuse the same ID.
 - **Worker failures are observable without noise**: the failure flow filters pre-existing historical failures on first subscription (the "acknowledged set"). Without this, every app launch would re-surface yesterday's transient failure.
 - **Discard marker is synchronous**: when the user swipes-discard, a `.discarded` marker file is written to the staging session directory **synchronously** on the UI thread (one `File.createNewFile()`, ~1ms, Main-thread-safe) **before** the 3-second undo timer starts. If the process dies inside the undo window, the coroutine that would've cleaned up gets cancelled — but the marker is already on disk. `OrphanRecovery` sees the marker on next launch and deletes the session (instead of restoring it as a zombie queue). Undo removes the marker.
 - **Backpressure is natural**: the worker queue drains at its own pace. If the user commits faster than stitching, bundles pile up and catch up during a pause. Capture latency never depends on worker depth.
-- **Memory stays flat**: photos are on disk, not in RAM. The worker holds at most one bundle's decoded pixels at a time.
+- **Memory stays flat**: media is on disk, not in RAM. The worker holds at most one bundle's decoded pixels at a time.
+- **Lifecycle pause stops active recordings**: `ON_PAUSE` triggers `stopActiveRecordingSync()` (video) and `voiceController.stopRecording()` (voice) through the normal async stop paths, so the VM's `BusyState` resolves correctly to `Idle` when the Activity returns. No foreground service required — recording only runs while the Activity is foregrounded.
 
 ---
 
@@ -366,16 +488,23 @@ All persisted in a key-value store (DataStore on Android, `UserDefaults` / prope
 | Setting | Default | Meaning |
 |---|---|---|
 | **Output folder** | _unset_ (blocks capture until chosen) | The user-picked SAF tree (Android) or security-scoped bookmark (iOS). Shows the path; "Change" button re-triggers the picker. |
-| **Bundle output: Individual photos in subfolder** | On | Whether a commit writes raw JPEGs into `bundles/{bundle-id}/`. |
-| **Bundle output: Vertical stitched image** | On | Whether a commit writes the composed JPEG into `stitched/`. |
+| **Bundle output: Individual files in subfolder** | On | Whether a commit writes raw items into `bundles/{bundle-id}/{photos,videos,audio}/`. Affects all three modalities uniformly. |
+| **Bundle output: Vertical stitched image** | On | Whether a commit writes the composed JPEG into `stitched/`. Photo-only — does not affect videos/voice. |
 | **Stitch Quality** | Standard | Low / Standard / High. Affects only the stitched image (width ceiling + JPEG quality per [Stitcher](#stitcher)). Disabled when the stitched toggle is off; preference is preserved. |
-| **Shutter sound** | On | Whether to play the system shutter-click sound. |
+| **Camera mode** | ZSL | `ZSL` / `EXT`. Live-applied preference (applied at every camera bind, not frozen into a manifest). Demoted here from the old top-bar pill to make room for the modality pill. |
+| **Video quality** | Standard | `Low` / `Standard` / `High`. Maps to a `QualitySelector` on the `Recorder`. |
+| **Max video length** | Unlimited | `Unlimited / 15s / 30s / 60s / 300s`. When set, the recording coroutine enforces the cap by calling `activeRecording.stop()`. |
+| **Shutter sound** | On | Whether to play the system shutter-click sound on photo capture. Video/voice have their own haptic start/stop feedback, unaffected by this. |
 | **Confirm before deleting a bundle** | On | If off, swiping a bundle row in Bundle Preview goes straight to pending-delete (or hard delete if undo window = 0s). |
 | **Undo window for bundle deletion** | 5s | Off (0) / 1s / 2s / … / 10s. Controls the countdown shown on a pending-delete row. `Off` removes the pending state entirely — confirmed deletes go through immediately with no undo affordance. |
-| **Gesture tutorial** | _(action)_ | "Show" button clears `seenGestureTutorial` and pops back to capture so the overlay re-appears. |
+| **Gesture tutorial** | _(action)_ | "Show" button clears `seenTutorialSteps: Set<String>` and pops back to capture so the overlay re-appears. |
 | **App version** | _info only_ | Read-only. |
 
-**Output invariant**: at least one of Individual Photos / Stitched must be on. The UI locks whichever switch is the sole-on, showing an inline caption ("At least one output is required.") only while the lock is active. The settings store sanitises a `(false, false)` read (external edit, restore from backup) back to `(true, true)` at read time — a belt-and-suspenders guarantee that a corrupt pair can never silently drop bundles.
+**Output invariant**: at least one of Individual Files / Stitched must be on. The UI locks whichever switch is the sole-on, showing an inline caption ("At least one output is required.") only while the lock is active. The settings store sanitises a `(false, false)` read (external edit, restore from backup) back to `(true, true)` at read time — a belt-and-suspenders guarantee that a corrupt pair can never silently drop bundles. Note: a voice-only or video-only partition with "Stitched" as the sole-on output still lands on disk (the Individual-Files copy branch runs anyway to avoid dropping the non-photo items) — the sole-on invariant is about guaranteeing an output exists, not about forcing stitch.
+
+**Tutorial-step persistence**: the old boolean `seenGestureTutorial` has been generalised to `seenTutorialSteps: Set<String>` so new tutorial steps added in future versions don't re-surface already-seen ones. On first read post-multimodal upgrade, the old boolean's value is read once: `true` seeds the set with the v1 step IDs (`commit`, `discard`, `deleteOne`, `reorder`, `divide`) so upgraders only see the newly-added `modality` step; `false` or missing seeds an empty set. The old key is thereafter ignored.
+
+Permissions requested on-demand: `CAMERA` on capture-screen mount; `ACCESS_FINE_LOCATION` after camera permission resolves (non-fatal); `RECORD_AUDIO` on first-ever VOICE shutter tap.
 
 No accounts, no cloud, no permissions management beyond what the OS already provides.
 
@@ -394,11 +523,23 @@ No accounts, no cloud, no permissions management beyond what the OS already prov
 
 ### Gesture tutorial overlay
 
-On first entry to the capture screen (`seenGestureTutorial == false`), a full-screen overlay scrims the capture UI and walks the user through **all five queue-strip gestures** (commit, discard, delete-one, reorder, divide) with a looping animated finger over a fake 4-thumbnail demo queue. Text sits mid-screen; pager dots + Next button below; demo strip pinned to the bottom 72dp (same location and size as the real queue strip) so muscle memory transfers on dismiss.
+On first entry to the capture screen, a full-screen overlay scrims the capture UI and walks the user through the gestures they haven't yet seen. The full ordered list is **six steps**:
 
-- "Skip" (top-right) or "Got it" (last step) both write `seenGestureTutorial = true` and dismiss.
+1. **Modality switch** (new in multimodal) — swipe-to-change-mode + top-bar pill.
+2. **Commit** — drag the left handle rightward.
+3. **Discard** — drag the right handle leftward.
+4. **Delete one** — swipe a thumbnail down.
+5. **Reorder** — long-press a thumbnail and drag.
+6. **Divide** — swipe down on the gap between thumbs.
+
+Each step renders a looping animated-finger demonstration over a fake 4-thumbnail demo queue. Text sits mid-screen; pager dots + Next button below; demo strip pinned to the bottom 72dp (same location and size as the real queue strip) so muscle memory transfers on dismiss.
+
+- "Skip" (top-right) or "Got it" (last step) both union all step IDs into `seenTutorialSteps` and dismiss.
+- Shown steps are filtered against the persisted `seenTutorialSteps: Set<String>` at mount time: a fresh install sees all six; an upgrader from pre-multimodal sees only `modality` (the other five were seeded from the old `seenGestureTutorial == true` boolean). Future step additions will similarly only show the delta.
 - The scrim consumes every pointer event — users cannot accidentally fire real gestures on the (empty) queue beneath.
 - Re-triggerable anytime from Settings → "Gesture tutorial → Show".
+
+The `modality` tutorial step currently uses a placeholder demo area (static title + description); an animated swipe demo analogous to the other five is a known polish gap (see [`BACKLOG.md`](./BACKLOG.md)).
 
 ### Permissions
 
@@ -420,9 +561,9 @@ All three row states share a common skeleton with `heightIn(min = 68.dp)` so nei
 
 - **Normal row** (shipped bundle):
     - Thumbnail strip (up to 3 thumbs, 128dp fixed width — strip width is constant regardless of how many thumbs exist, so rows stay column-aligned).
-    - Monospace bundle ID + "N photos" subtitle.
-    - Modality icons on the right: `PhotoLibrary` outline when the raw subfolder exists, `ViewStream` outline when the stitched image exists. Both when both outputs were kept.
-    - Thumbnails are drawn from the raw subfolder photos when present (they crop cleanly). If only the stitched image exists for a bundle, the stitch is the single thumbnail.
+    - Monospace bundle ID + mixed-modality subtitle derived from per-modality counts: e.g. `"3 photos, 1 video, 2 voices"`, `"2 videos"`, `"1 photo"`. Counts of zero are omitted; pluralisation follows standard rules.
+    - Modality icons on the right: `PhotoLibrary` outline when the raw subfolder contains photos, `VideoLibrary` outline for videos, `Mic` outline for voice, `ViewStream` outline when the stitched image exists. Each icon shows its per-modality count as a badge.
+    - Thumbnails use a priority-chain fallback: photo raw subfolder → video poster frames (from the `.thumb.jpg` sidecars written by the worker) → voice glyph tiles (hand-drawn mic-on-navy) → stitched image as final fallback. Photo thumbnails are preferred because they crop cleanly in the 128dp strip.
 - **Pending-delete row**:
     - Same thumbnail strip (preserving row width).
     - Title replaced by "Deleting in Xs" in the error color (countdown ticks via a derived-state observer that only recomposes on whole-second boundaries).
@@ -485,6 +626,24 @@ Decisions with non-obvious rationale, captured so future ports can make equivale
 
 17. **No in-flight badge / counter on the capture screen.** No "2 bundles processing" chip. The capture screen stays silent unless there's an error. Failures surface as the non-blocking `ActionBanner`; successes surface as the transient `BundleSavedShimmer`.
 
+18. **CameraX 1.6.0 for Media3-Muxer video resilience.** A mid-record process kill on pre-1.6 video pipelines leaves an unplayable MP4; 1.6.0's Media3 Muxer keeps the moov atom flushable incrementally, so killed recordings are recoverable in most cases. The `OrphanRecovery` probe (`MediaMetadataRetriever.extractMetadata(DURATION) != null`) distinguishes playable from torn and deletes torn files, so the worst case is "lose the in-flight clip" rather than "corrupt the user's bundle".
+
+19. **No foreground service type for mic / camera.** Recording only runs while the capture Activity is foregrounded; `ON_PAUSE` routes through the normal async stop paths to finalize the in-flight recording and reset `BusyState` to `Idle`. `FOREGROUND_SERVICE_TYPE_MICROPHONE` is declared nowhere — it's only required for *background* recording, which we deliberately don't support (scope discipline).
+
+20. **Per-modality subfolders, not a flat mixed bundle folder.** `bundles/{id}/{photos,videos,audio}/` beats `bundles/{id}/` with mixed extensions because (a) file managers render homogeneous folders better than heterogeneous ones, (b) an ingestion tool that wants photos-only can `ls bundles/{id}/photos/` without extension-filtering, (c) subfolders are created lazily, so a photo-only bundle is still a single-subfolder tree. The **3-digit global capture-order index** across all modalities means files still sort chronologically inside a single mixed listing (e.g. `ls bundles/{id}/**/*` in your shell).
+
+21. **Sibling shutter composables, not one parameterised shutter.** `ShutterButton` (photo) stayed 44 lines of Kotlin and unchanged. `VideoShutterButton` and `VoiceShutterButton` are separate composables with the same 80dp geometry. Attempting to fold all three into one parameterised shutter would have bolted progress-arc animation, red pulse, and glyph morph onto a stateless component — siblings share no state, swap is a `when (modality)` in one place in `CaptureScreen`.
+
+22. **Concurrent-bind fallback for hardware level FULL.** Most devices support `Preview + ImageCapture + VideoCapture` bound simultaneously (CameraX 1.5.1+ guarantees the combined bind on hardware level LIMITED and better, which covers nearly all modern phones). On hardware level FULL or lower where `bindToLifecycle` throws `IllegalArgumentException`, `CaptureController` falls back to modality-specific binds (Preview + ImageCapture for PHOTO, Preview + VideoCapture for VIDEO), rebinding on PHOTO↔VIDEO switches. VOICE never rebinds (camera state is irrelevant to the mic).
+
+23. **Start-of-recording order-log entries, not stop-time.** `lastModified` timestamps reflect stop time for video/voice — so a `[Video, Photo, Voice]` capture sequence would orphan-restore as `[Photo, Voice, Video]` (photos finish first, the long video finishes last). The `.order` log captures start-time, so the restored queue matches the intent. Start-time also means a process kill mid-record preserves the intended ordering for any restored items even if the killed one is dropped.
+
+24. **Swipe-slab animation lives in a `rememberCoroutineScope`, not the draggable's internal scope.** `Modifier.draggable`'s `onDragStopped` scope is tied to the pointer-input coroutine that lives inside the modifier — which Compose restarts when the modifier's lambda recomposes (and it recomposes because the lambda closes over state that changes when `setModality()` flips `modality`). The spring-back animation thus got cancelled mid-flight. Running it in a composition-stable `swipeScope` fixes the stop-halfway bug and is the correct pattern for any animation that outlives a gesture.
+
+25. **Two-stage swipe animation, not a bouncy spring.** A spring with initial velocity overshoots and oscillates, which reads as "bounce back and forth" to the user. The commit path instead slides off in the drag direction with a predictable `tween`, then snaps back to 0 as the modality-swapped content arrives — the user sees a decisive slide, not a bouncy settle. The cancel path uses `DampingRatioNoBouncy` for a clean springback.
+
+26. **Per-modality explicit visibility, not a blanket layout switch.** When the user is in VOICE, `CameraPreview`'s alpha goes to 0 (layout preserved to avoid thrashing on switch-back), the flash button and lens-flip button are `if (modality != VOICE)` removed, and the `ZoomControl` alpha goes to 0 (layout preserved similarly). Each control decides its own visibility rule. This is more verbose than a single "hide everything camera-related" modifier, but it (a) makes each rule reviewable in one place, (b) lets VIDEO keep zoom and lens-flip but drop flash, (c) surfaces non-obvious cases during review (the zoom chips *layout* is preserved in VOICE so the viewfinder doesn't shuffle vertically on switch back).
+
 ---
 
 ## Implementation principles for any platform
@@ -522,23 +681,47 @@ Everything above is interaction. These are the platform-neutral **engineering pr
 
 14. **Multi-slot delete timers for bulk cleanup.** Bundle-list delete is batchy by nature; use a map of per-bundle jobs rather than a single-slot timer.
 
+15. **Sealed polymorphic manifest types with explicit `version` field.** The manifest is `sealed class PendingItem` (Photo / Video / Voice) with a kotlinx.serialization `classDiscriminator = "type"` + `version: Int = 2` on the outer `PendingBundle`. **`encodeDefaults = true` is critical** so the version field actually persists. The loader branches on `version`; unknown versions return null (fail loudly). This is the backwards-compatible pattern that earlier drafts tried to achieve via discriminator defaults — the explicit version field is simpler and fails correctly on malformed or downgrade-era manifests.
+
+16. **Capture-order log for mixed-media restoration.** An append-log in each staging session with `{ms}\t{filename}\n` rows, written synchronously at item-add time (for video/voice, at start-of-recording). `OrphanRecovery` prefers the log when present and falls back to `lastModified` for legacy sessions. Without this, mixed captures orphan-restore in the wrong order because `lastModified` reflects stop-time for recordings.
+
+17. **Torn-file probe via media duration, not sidecar markers.** Earlier drafts considered a `.recording` / `.done` sidecar pair per recording. `MediaMetadataRetriever.extractMetadata(DURATION)` distinguishes playable from torn files, so the sidecar adds no information — skipping the sidecar pattern saves ~40 lines and one class of state-machine bugs.
+
+18. **Global capture-order index, not per-modality indices.** File names use a single 3-digit counter (`-p-001, -v-002, -a-003, -p-004`) derived from the item's position in `manifest.orderedItems`. Per-modality counters (`-p-001, -v-001, -a-001, -p-002`) would have drifted index meaning on delete/reorder and broken the visual-sort-by-filename property inside a mixed listing.
+
 ---
 
 ## iOS build notes
 
 This section is the SOTA target for an iOS port, informed by the Android reference implementation. Assume minimum iOS 16; use Swift + SwiftUI + modern Swift Concurrency.
 
-### Camera
+### Camera (photo + video)
 
 - `AVFoundation` with a custom `AVCaptureSession` running on a dedicated serial queue.
 - Preview via `AVCaptureVideoPreviewLayer` (wrapped in a `UIViewRepresentable` for SwiftUI embedding). Aspect ratio 3:4 by constraining the layer bounds; use `videoGravity = .resizeAspect`.
-- Capture via `AVCapturePhotoOutput`. Equivalent of Android's two "camera modes":
+- **Photo capture** via `AVCapturePhotoOutput`. Equivalent of Android's two "camera modes":
     - **ZSL**: `AVCapturePhotoOutput.isResponsiveCaptureEnabled = true` + `isZeroShutterLagEnabled = true` (iOS 17+).
     - **Quality**: `AVCapturePhotoSettings.photoQualityPrioritization = .quality`. No direct "HDR/auto" equivalent to CameraX Extensions; rely on `AVCapturePhotoSettings.isAutoRedEyeReductionEnabled` / `isAutoStillImageStabilizationEnabled` per device capability.
-- Lens flip: set `AVCaptureDevice(discovering: ...)` for back/front via `AVCaptureDevice.DiscoverySession`; reconfigure the session on a background queue, holding a session-lock equivalent of Android's `bindMutex`.
-- Flash: `AVCapturePhotoSettings.flashMode = .off / .auto / .on`, applied per-capture. To mirror Android's "flash mode survives rebinds": store `currentFlashMode` as instance state and apply it at every `AVCapturePhotoSettings` instantiation.
-- Zoom: `AVCaptureDevice.videoZoomFactor` with `ramp(toVideoZoomFactor:withRate:)` for smooth chip-to-chip transitions; pinch gesture multiplies `videoZoomFactor`. Hardware-filter chip presets against `device.activeFormat.videoMinZoomFactorForDepthDataDelivery` / `device.maxAvailableVideoZoomFactor`.
-- Tap-to-focus: on preview tap, translate the tap into device coordinates via `previewLayer.captureDevicePointConverted(fromLayerPoint:)`; set `focusPointOfInterest` + `exposurePointOfInterest` + `focusMode = .autoFocus` + `exposureMode = .autoExpose`. Animate a 500ms ring at the tap point in SwiftUI.
+- **Video capture** via `AVCaptureMovieFileOutput` (the high-level path; `AVCaptureVideoDataOutput` is a level deeper and only needed for custom frame processing which Recon does not do). Both outputs can be attached to the same session; AVFoundation handles the multiplexing. Mirror Android's silent-video choice: configure the session with **no audio input** attached — so video clips have no audio track and the mic stays free for the separate voice-recording pipeline. Set `movieFragmentInterval` to a small value (e.g. `CMTime(seconds: 1, preferredTimescale: 600)`) so the `.mov`/`.mp4` is incrementally flushed — this is iOS's analogue of Android's Media3-Muxer resilience, giving a playable file even if the app is backgrounded or killed mid-record.
+- **Video output format**: output `.mov` then wrap / re-mux to `.mp4` container (Recon's on-disk format is `.mp4`). Alternatively, target `.mp4` directly via `AVAssetWriter` — more code but avoids a re-encode / re-mux step. Use a `QualitySelector`-equivalent preset from the settings-driven `AVCaptureSession.Preset.{hd1280x720, hd1920x1080, hd4k3840x2160}` mapped from the `Low/Standard/High` setting.
+- **Max video length**: enforce in a dispatched `DispatchWorkItem` scheduled for `Date() + maxLengthSec` at start-of-recording; `stopRecording()` on fire. Cancel the work item on manual stop.
+- Lens flip: set `AVCaptureDevice(discovering: ...)` for back/front via `AVCaptureDevice.DiscoverySession`; reconfigure the session on a background queue, holding a session-lock equivalent of Android's `bindMutex`. Disabled mid-video-recording.
+- Flash: `AVCapturePhotoSettings.flashMode = .off / .auto / .on`, applied per-capture. To mirror Android's "flash mode survives rebinds": store `currentFlashMode` as instance state and apply it at every `AVCapturePhotoSettings` instantiation. **Not offered in VIDEO** modality (iOS torch-mode toggles mid-video are a reliability hazard, mirroring the Android decision).
+- Zoom: `AVCaptureDevice.videoZoomFactor` with `ramp(toVideoZoomFactor:withRate:)` for smooth chip-to-chip transitions; pinch gesture multiplies `videoZoomFactor`. Hardware-filter chip presets against `device.activeFormat.videoMinZoomFactorForDepthDataDelivery` / `device.maxAvailableVideoZoomFactor`. Available in PHOTO + VIDEO; hidden (with layout preserved) in VOICE.
+- Tap-to-focus: on preview tap, translate the tap into device coordinates via `previewLayer.captureDevicePointConverted(fromLayerPoint:)`; set `focusPointOfInterest` + `exposurePointOfInterest` + `focusMode = .autoFocus` + `exposureMode = .autoExpose`. Animate a 500ms ring at the tap point in SwiftUI. Available in PHOTO + VIDEO; disabled in VOICE (the preview is hidden anyway).
+
+### Voice capture
+
+- `AVAudioRecorder` is the idiomatic iOS analogue of Android's `MediaRecorder`. Configure with:
+    - `AVFormatIDKey = kAudioFormatMPEG4AAC`
+    - `AVSampleRateKey = 48_000`
+    - `AVNumberOfChannelsKey = 1`
+    - `AVEncoderAudioQualityKey = .high` (or set `AVEncoderBitRateKey = 96_000`)
+- **Audio session**: configure `AVAudioSession.sharedInstance()` with `.playAndRecord` + `.defaultToSpeaker` + `.allowBluetooth`; activate on first voice-record. Deactivate on stop.
+- **Amplitude polling** for the waveform: call `recorder.updateMeters()` + `recorder.averagePower(forChannel: 0)` every ~33ms from a `Timer` or `DisplayLink`. Convert the dB value to a 0-1 normalised amplitude via `pow(10, db/20)` and feed the waveform view.
+- **Permission**: `AVAudioSession.sharedInstance().requestRecordPermission { granted in … }` on first-ever VOICE shutter tap. Surface an "Open Settings" banner on permanent denial (deep-link with `UIApplication.openSettingsURLString`).
+- **Background behaviour**: do not declare `UIBackgroundModes audio` — recording stops on backgrounding (mirror of Android's "no foreground service" decision). Hook `scenePhase` in SwiftUI or `applicationDidEnterBackground` in UIKit to call the VM's async stop path.
+- **Torn-file probe**: on orphan-recovery, open each staged `.m4a` with `AVAsset(url:)` and check `asset.duration.seconds.isFinite && duration > 0`. If not, the file was killed mid-record — delete and skip.
 
 ### Orientation
 
@@ -558,13 +741,15 @@ This section is the SOTA target for an iOS port, informed by the Android referen
 
 - Root: `FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]/staging/`.
 - Per-session dir: `staging/session-{UUID()}/`.
-- Per-photo file: `session-{uuid}/{UUID()}.jpg`.
-- Use `FileHandle` or `Data.write(to:)` for writes — direct filesystem, no bookmark dance.
+- Per-item file: `session-{uuid}/{UUID()}.{jpg|mp4|m4a}` — flat per-session directory; modality is carried in the in-memory `StagedItem` sealed type and the `PendingBundle` manifest, not the staging layout.
+- Use `FileHandle` or `Data.write(to:)` for photo writes; `AVCaptureMovieFileOutput.startRecording(to:)` for video; `AVAudioRecorder(url:)` for voice — all point at the staging file URL directly. No bookmark dance.
+- **Order log**: `session-{uuid}/.order` file, append-only, `{timestampMs}\t{filename}\n` rows. Write synchronously at item-add time for photos and at start-of-recording for video/voice — so the intended capture order is preserved even if a recording is killed mid-flight. Use `FileHandle.seekToEndOfFile()` + `write(_:)` with appending-open, or `Data.write(to:url, options: [.appendOnly])` as the platform permits.
 
 ### Manifest store
 
 - JSON-encode the manifest struct (Codable `PendingBundle`) to `application-support/pending/{bundle-id}.json` via `JSONEncoder`.
 - Atomicity: `data.write(to: url, options: [.atomic])` so a crash mid-write leaves a valid-or-absent file, never corrupt.
+- **Polymorphic `PendingItem`**: model as a Codable enum with associated values (`case photo(PendingPhoto)`, `case video(PendingVideo)`, `case voice(PendingVoice)`), or Swift sealed enums via `@CodingKeys` + a custom `init(from:)` that reads a `"type"` discriminator. Include a top-level `version: Int` field on `PendingBundle` and branch decoding for backward compatibility with pre-multimodal manifests (none exist on iOS yet since this is a greenfield port, but the pattern preserves forward compatibility).
 
 ### Bundle-ID counter
 
@@ -580,7 +765,9 @@ This section is the SOTA target for an iOS port, informed by the Android referen
     2. Run the work on a detached `Task` inside the operation.
     3. End the background task in `finally`.
 - For longer backlogs (multiple bundles queued), register a `BGProcessingTaskRequest` (`BackgroundTasks` framework) that drains remaining manifests when the system is idle and charging. Use identifier `{ios-bundle-id}.drain` (reverse-DNS, declared in `Info.plist` under `BGTaskSchedulerPermittedIdentifiers`); set `requiresNetworkConnectivity = false`, `requiresExternalPower = false` unless the queue is large (>5 bundles).
-- The worker body is manifest-driven (exact mirror of Android): load manifest → (optionally) copy raw JPEGs to bookmarked `bundles/{id}/` + stamp final EXIF → (optionally) stitch + copy to bookmarked `stitched/` → delete manifest → reap empty staging session.
+- The worker body is manifest-driven (exact mirror of Android): load manifest → partition `orderedItems` into photos/videos/voices via a pure `planRouting(manifest)` → (optionally) copy raw items into `bundles/{id}/{photos,videos,audio}/` respectively + stamp final EXIF on photos only → write per-video `.mp4.thumb.jpg` poster frames + per-voice `.m4a.thumb.jpg` glyph tiles → (optionally, and only if photos.isNotEmpty()) stitch + copy to bookmarked `stitched/` → delete manifest → reap empty staging session.
+- **Video poster frames**: extract via `AVAssetImageGenerator(asset:).copyCGImage(at: .zero, actualTime: nil)`; scale to ~48dp square; write as JPEG via `CGImageDestination`.
+- **Voice thumbnails**: programmatically render a 96×96 PNG/JPG with a navy backdrop + white mic glyph (Core Graphics paths, no SF Symbol rasterisation needed — the glyph is simple enough to hand-draw). Mirror Android's `renderVoiceThumbnail()`.
 
 ### Failure surfacing
 
@@ -611,9 +798,10 @@ This section is the SOTA target for an iOS port, informed by the Android referen
 
 ### Settings
 
-- Bookmark + flags: `UserDefaults.standard`. Keys mirror Android's set: `rootBookmark`, `stitchQuality` (enum raw), `shutterSoundOn`, `saveIndividualPhotos`, `saveStitchedImage`, `deleteDelaySeconds`, `deleteConfirmEnabled`, `seenGestureTutorial`.
+- Bookmark + flags: `UserDefaults.standard`. Keys mirror Android's set: `rootBookmark`, `stitchQuality` (enum raw), `cameraMode` (ZSL/EXT enum raw), `videoQuality` (enum raw), `maxVideoLengthSeconds: Int?` (nil = unlimited), `shutterSoundOn`, `saveIndividualPhotos`, `saveStitchedImage`, `deleteDelaySeconds`, `deleteConfirmEnabled`, `seenTutorialSteps: Set<String>`.
 - Expose as a `Published` stream (Combine) or `AsyncStream` for SwiftUI observation.
 - Enforce the at-least-one-output invariant at both write time and read time.
+- **Tutorial step IDs** match Android: `modality`, `commit`, `discard`, `deleteOne`, `reorder`, `divide`. Store as a `Set<String>` in `UserDefaults` via `Codable`-backed property or a JSON-encoded string.
 
 ### Haptics
 
@@ -639,33 +827,46 @@ The commit animation (queue contents sliding into the right zone with the zone f
 ### Visual design
 
 - Dark capture screen with white controls; system background elsewhere.
-- SF Symbols for all icons: `gearshape`, `bolt.slash` / `bolt.badge.automatic` / `bolt`, `camera.rotate`, `photo.on.rectangle`, etc.
+- SF Symbols for all icons: `gearshape`, `bolt.slash` / `bolt.badge.automatic` / `bolt`, `camera.rotate`, `photo.on.rectangle`, `video`, `mic`, `rectangle.stack`, `waveform`, etc.
 - Respect safe areas, especially bottom inset for home-indicator gesture interaction (mirror of Android's `navigationBarsPadding()` + `systemGestureExclusion`).
-- Accent colors: commit-green `#2E7D32`, discard-amber `#B26A00`, delete-red (system destructive). Map to asset catalog with dark/light variants.
+- Accent colors: commit-green `#2E7D32`, discard-amber `#B26A00`, delete-red (system destructive), record-red `#D32F2F`, voice-navy `#1F2A44`. Map to asset catalog with dark/light variants.
+
+### Modality switch (swipe + pill)
+
+- Wrap the capture slab (preview + control row) in a `DragGesture()` on the container. Translate the slab via `.offset(x: dragX)` during drag. The swipe and the pill stay visually coupled by feeding `dragProgress = dragX / slabWidth` into the pill's selected-segment indicator offset.
+- Modality state machine: `@Published var modality: Modality` + a `modalityTransition` state (stable / transitioning-with-pending) so a fast double-swipe resolves to the final intended state without lost transitions (mirror of Android's `ModalityTransition`).
+- Per-modality content visibility: `if modality != .voice { CameraPreviewView(...) }` — SwiftUI layout preservation needs an `.opacity(0)` + `.allowsHitTesting(false)` pattern to keep the slot height consistent, mirror of Android's alpha=0 pattern.
+- Animation: two-stage commit (tween slide in drag direction, then snap to 0 as modality swaps) vs cancel (`interactiveSpring(response: 0.3, dampingFraction: 1.0)`). Don't use `interactiveSpring` with a bouncy damping — iOS will oscillate identically to Compose.
 
 ### Testing
 
-- Port the three pure-function test suites 1:1:
+- Port the pure-function test suites 1:1:
     - `DividerOps` → `DividerOpsTests` (partition + remap-on-delete).
     - `OrientationCodec` → `OrientationCodecTests` (cardinal round-trip, snap boundaries, surface-rotation inverse).
     - `Stitcher.computeLayout` → `StitcherLayoutTests` (quality ceilings, height cap, heap budget, aspect preservation).
-- Manual smoke path: same as Android — first-run folder pick + permissions + tutorial; capture 3–5 photos; swipe-commit; verify raw + stitched in bookmarked folder; swipe-discard + undo; let undo time out; delete-one; reorder; kill the app mid-queue; relaunch; queue is restored.
+    - `StorageLayout` → `StorageLayoutTests` (3-digit zero-pad at 1/99/100/999; per-modality subfolder paths; `mimeFor` dispatch).
+    - `PendingBundle` round-trip → `PendingBundleSerializationTests` (v1 legacy decode → v2 in-memory shape; v2 round-trips with `version:2`; unknown version returns nil).
+    - `BundleWorker.planRouting` → `BundleWorkerRoutingTests` (photo-only, video-only, voice-only, mixed-modality partitions; `shouldStitch` flag).
+    - `ModalitySwipeMath.resolveTarget` → `ModalitySwipeMathTests` (distance-threshold, velocity-shortcut, endpoint-no-wrap from VIDEO and VOICE).
+- Manual smoke path: same as Android — first-run folder pick + permissions + tutorial; capture 3–5 photos; swipe to VIDEO + record a clip; swipe to VOICE + record a memo (grant mic permission); commit; verify per-modality subfolders + stitch in bookmarked folder; swipe-discard + undo; let undo time out; delete-one; reorder; kill the app mid-record; relaunch; torn file is dropped, remaining queue is restored in capture order.
 
 ### Effort estimate (from Android delta)
 
-- Camera + orientation + zoom + flash + lens flip: **~4 days**.
-- Staging + manifest store + bookmark I/O helpers: **~2 days**.
-- Worker + background task + operation queue: **~2 days**.
+- Camera photo + orientation + zoom + flash + lens flip: **~4 days**.
+- Video capture (`AVCaptureMovieFileOutput`, concurrent session config, max-length, poster extraction): **~2 days**.
+- Voice capture (`AVAudioRecorder`, audio session lifecycle, amplitude polling, waveform overlay): **~1.5 days**.
+- Staging + manifest store (Codable + polymorphic item) + bookmark I/O helpers: **~2 days**.
+- Worker + background task + operation queue + per-modality routing: **~2 days**.
 - Stitcher port: **~1 day** (layout math is pure; CoreImage composition is straightforward).
-- EXIF (capture-time + final-pass): **~1 day**.
+- EXIF (capture-time + final-pass, photos only): **~1 day**.
 - Location provider with TTL: **~0.5 day**.
-- Settings + DataStore-equivalent: **~1 day**.
-- Capture UI + queue strip + gestures: **~4 days** (the gesture mechanics are the most subtle part; budget for playtesting).
-- Bundle Preview + pending-delete + processing-row: **~2 days**.
-- Gesture tutorial: **~1 day**.
-- Polish (haptics tuning, shimmer animations, icon counter-rotation): **~2 days**.
+- Settings + UserDefaults-equivalent (plus cameraMode + videoQuality + maxVideoLength + seenTutorialSteps): **~1 day**.
+- Capture UI + queue strip + gestures **including modality-switch swipe** + per-modality control visibility: **~5 days** (gesture mechanics are the most subtle part; the modality-switch slab animation is a re-learnable headache — budget for playtesting).
+- Bundle Preview + pending-delete + processing-row + mixed-modality subtitle + per-modality icons: **~2 days**.
+- Gesture tutorial (6-step, step-set-persisted) — including the modality-swipe animation once designed: **~1.5 days**.
+- Polish (haptics tuning, shimmer animations, icon counter-rotation, waveform performance on older devices): **~2 days**.
 
-**Total: ~3 weeks solo.** The Android reference is a 1:1 specification; most time goes to the gesture feel, not the architecture.
+**Total: ~4–4.5 weeks solo.** The multimodal surface adds about a week to the pre-multimodal estimate; most of the additional time is video+voice pipelines and the modality-swipe gesture tuning, not architecture.
 
 ---
 
