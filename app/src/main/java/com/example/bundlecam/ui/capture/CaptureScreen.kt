@@ -120,12 +120,10 @@ private fun CaptureScreenContent(
     val vm: CaptureViewModel = viewModel(factory = CaptureViewModel.Factory)
     val state by vm.uiState.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
-    val cameraMode by vm.cameraMode.collectAsStateWithLifecycle()
     val lensFacing by vm.lensFacing.collectAsStateWithLifecycle()
     val flashMode by vm.flashMode.collectAsStateWithLifecycle()
     val modality by vm.modality.collectAsStateWithLifecycle()
-    val videoRecording by vm.videoRecording.collectAsStateWithLifecycle()
-    val voiceRecording by vm.voiceRecording.collectAsStateWithLifecycle()
+    val recordingStartedAtMs by vm.recordingStartedAtMs.collectAsStateWithLifecycle()
     val zoomInfo by vm.zoomInfo.collectAsStateWithLifecycle()
     val deviceOrientation by vm.deviceOrientation.collectAsStateWithLifecycle()
     val contentRotation = rememberContentRotation(deviceOrientation)
@@ -357,7 +355,7 @@ private fun CaptureScreenContent(
                 // alpha is what hides it.
                 CameraPreview(
                     controller = vm.captureController,
-                    mode = cameraMode,
+                    mode = settings.cameraMode,
                     lens = lensFacing,
                     onRebindingChange = vm::setRebinding,
                     modifier = Modifier
@@ -370,7 +368,7 @@ private fun CaptureScreenContent(
                     VoiceOverlay(
                         recording = state.busy == BusyState.Recording,
                         amplitudeFlow = vm.voiceAmplitudeFlow,
-                        recordingStartedAtMs = voiceRecording?.startedAt,
+                        recordingStartedAtMs = recordingStartedAtMs,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
@@ -378,10 +376,9 @@ private fun CaptureScreenContent(
                 // visually just above the zoom chips, but inside the preview Box so
                 // it doesn't reflow the control column below it. Modality swipe is
                 // disabled while recording, so moving with translationX is fine.
-                val videoRecordingStartedAt = videoRecording?.startedAt
-                if (videoRecordingStartedAt != null) {
+                if (modality == Modality.VIDEO && recordingStartedAtMs != null) {
                     VideoRecordingPill(
-                        startedAtMs = videoRecordingStartedAt,
+                        startedAtMs = recordingStartedAtMs!!,
                         contentRotation = contentRotation,
                         modifier = Modifier
                             .align(Alignment.BottomCenter)

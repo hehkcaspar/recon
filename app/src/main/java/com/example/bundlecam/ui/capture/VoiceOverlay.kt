@@ -1,18 +1,11 @@
 package com.example.bundlecam.ui.capture
 
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -27,10 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,6 +28,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.unit.dp
+import com.example.bundlecam.ui.common.formatClockDuration
+import com.example.bundlecam.ui.common.rememberElapsedMs
 import kotlinx.coroutines.flow.StateFlow
 
 /** Max history length — 128 samples at ~33ms each is ~4.2 seconds of visible waveform. */
@@ -82,9 +74,12 @@ fun VoiceOverlay(
         var writeIndex = 0
         amplitudeFlow.collect { amp ->
             val normalized = (amp / 32767f).coerceIn(0f, 1f)
+            val previous = history[writeIndex]
             history[writeIndex] = normalized
             writeIndex = (writeIndex + 1) % history.size
-            historyRevision.intValue++
+            // Skip the redraw when the write doesn't change the buffer at this index
+            // (silence overwriting silence). Keeps Canvas idle during mic-quiet stretches.
+            if (normalized != previous) historyRevision.intValue++
         }
     }
 
@@ -113,15 +108,8 @@ fun VoiceOverlay(
                 )
                 Spacer(Modifier.height(20.dp))
             } else {
-                val infiniteTransition = rememberInfiniteTransition(label = "voice-rec-dot")
-                val dotAlpha by infiniteTransition.animateFloat(
-                    initialValue = 0.4f,
-                    targetValue = 1f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(durationMillis = 700, easing = FastOutSlowInEasing),
-                        repeatMode = RepeatMode.Reverse,
-                    ),
-                    label = "voice-rec-dot-alpha",
+                val dotAlpha by rememberRecordPulseAlpha(
+                    from = 0.4f, to = 1f, durationMs = 700, label = "voice-rec-dot",
                 )
                 androidx.compose.foundation.layout.Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -130,7 +118,7 @@ fun VoiceOverlay(
                     Icon(
                         imageVector = Icons.Filled.FiberManualRecord,
                         contentDescription = null,
-                        tint = Color(0xFFEF5350).copy(alpha = dotAlpha),
+                        tint = CaptureColors.RecordRed.copy(alpha = dotAlpha),
                         modifier = Modifier
                             .size(10.dp)
                             .clip(CircleShape),
@@ -157,30 +145,14 @@ fun VoiceOverlay(
             // slot on the control row.)
             if (recording && recordingStartedAtMs != null) {
                 Spacer(Modifier.height(14.dp))
-                ElapsedTimeText(startedAtMs = recordingStartedAtMs)
+                Text(
+                    text = formatClockDuration(rememberElapsedMs(recordingStartedAtMs)),
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleLarge,
+                )
             }
         }
     }
-}
-
-@Composable
-private fun ElapsedTimeText(startedAtMs: Long) {
-    var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(startedAtMs) {
-        while (true) {
-            nowMs = System.currentTimeMillis()
-            delay(500L)
-        }
-    }
-    val elapsedMs = (nowMs - startedAtMs).coerceAtLeast(0L)
-    val totalSeconds = elapsedMs / 1000L
-    val minutes = totalSeconds / 60L
-    val seconds = totalSeconds % 60L
-    Text(
-        text = "%d:%02d".format(minutes, seconds),
-        color = Color.White,
-        style = MaterialTheme.typography.titleLarge,
-    )
 }
 
 /**
@@ -202,11 +174,11 @@ private fun WaveformStrip(
         val width = size.width
         val height = size.height
         val centerY = height / 2f
-        val lineColor = if (recording) Color(0xFFEF5350) else Color.White.copy(alpha = 0.55f)
+        val lineColor = if (recording) CaptureColors.RecordRed else Color.White.copy(alpha = 0.55f)
         val barWidth = width / history.size
-        // Read revision here so the draw lambda depends on it and the Canvas invalidates
-        // when the ring buffer writes. The parameter is also keyed into this Canvas' input
-        // via the lambda closure.
+        // Force the draw lambda's closure to capture `revision` — without this, two
+        // invocations with identical history/recording produce a structurally-equal
+        // modifier and Canvas skips the redraw on a revision bump.
         @Suppress("UNUSED_EXPRESSION") revision
         // Minimum visible centerline so idle-state "flat line" is perceptible.
         val minBarHalfHeight = 0.5.dp.toPx()

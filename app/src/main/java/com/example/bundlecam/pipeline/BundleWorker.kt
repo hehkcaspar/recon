@@ -1,10 +1,9 @@
 package com.example.bundlecam.pipeline
 
 import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.ServiceInfo
+import android.net.Uri
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -25,7 +24,6 @@ import java.io.File
 
 private const val TAG = "Recon/BundleWorker"
 private const val NOTIFICATION_ID = 2026
-private const val CHANNEL_ID = "recon_pipeline"
 private const val LOCATION_REFRESH_TIMEOUT_MS = 2000L
 
 class BundleWorker(
@@ -97,47 +95,25 @@ class BundleWorker(
             val backfillLocation = container.locationProvider.getCachedOrNull()
 
             plan.photos.forEach { (photo, globalIndex) ->
-                val file = File(photo.localPath)
                 container.exifWriter.stampFinalMetadata(
-                    file = file,
+                    file = File(photo.localPath),
                     comment = StorageLayout.photoExifComment(manifest.bundleId, globalIndex),
                     backfillLocation = backfillLocation,
                 )
             }
 
-            val entries = plan.photos.map { (photo, globalIndex) ->
-                StorageLayout.bundlePhotoName(manifest.bundleId, globalIndex) to File(photo.localPath)
+            copyModality(rootUri, plan.photos, StorageLayout.bundlePhotosPath(manifest.bundleId)) { i ->
+                StorageLayout.bundlePhotoName(manifest.bundleId, i)
             }
-            container.safStorage.copyLocalFiles(
-                rootUri = rootUri,
-                subPath = StorageLayout.bundlePhotosPath(manifest.bundleId),
-                entries = entries,
-            )
         }
 
-        if (plan.videos.isNotEmpty()) {
-            // Video files are stored as-is: no EXIF pass (MP4 uses `tkhd.matrix` for
-            // rotation, already set by CameraX Recorder at start-time), no stitch.
-            val entries = plan.videos.map { (video, globalIndex) ->
-                StorageLayout.bundleVideoName(manifest.bundleId, globalIndex) to File(video.localPath)
-            }
-            container.safStorage.copyLocalFiles(
-                rootUri = rootUri,
-                subPath = StorageLayout.bundleVideosPath(manifest.bundleId),
-                entries = entries,
-            )
+        // Video/voice: stored as-is. MP4 rotation lives in tkhd.matrix (written by
+        // Recorder at start-time), .m4a has no orientation. No EXIF, no stitch.
+        copyModality(rootUri, plan.videos, StorageLayout.bundleVideosPath(manifest.bundleId)) { i ->
+            StorageLayout.bundleVideoName(manifest.bundleId, i)
         }
-
-        if (plan.voices.isNotEmpty()) {
-            // Voice files: .m4a AAC-LC as produced by MediaRecorder. No EXIF, no stitch.
-            val entries = plan.voices.map { (voice, globalIndex) ->
-                StorageLayout.bundleAudioName(manifest.bundleId, globalIndex) to File(voice.localPath)
-            }
-            container.safStorage.copyLocalFiles(
-                rootUri = rootUri,
-                subPath = StorageLayout.bundleAudioPath(manifest.bundleId),
-                entries = entries,
-            )
+        copyModality(rootUri, plan.voices, StorageLayout.bundleAudioPath(manifest.bundleId)) { i ->
+            StorageLayout.bundleAudioName(manifest.bundleId, i)
         }
 
         if (saveStitched && plan.photos.isNotEmpty()) {
@@ -186,8 +162,18 @@ class BundleWorker(
         }
     }
 
+    private suspend fun copyModality(
+        rootUri: Uri,
+        items: List<IndexedItem<out PendingItem>>,
+        subPath: List<String>,
+        nameFor: (Int) -> String,
+    ) {
+        if (items.isEmpty()) return
+        val entries = items.map { (item, index) -> nameFor(index) to File(item.localPath) }
+        container.safStorage.copyLocalFiles(rootUri = rootUri, subPath = subPath, entries = entries)
+    }
+
     private fun createForegroundInfo(bundleId: String): ForegroundInfo {
-        ensureChannel()
         val notification: Notification =
             NotificationCompat.Builder(applicationContext, CHANNEL_ID)
                 .setContentTitle("Saving bundle")
@@ -207,23 +193,11 @@ class BundleWorker(
         }
     }
 
-    private fun ensureChannel() {
-        val mgr = applicationContext.getSystemService(NotificationManager::class.java) ?: return
-        if (mgr.getNotificationChannel(CHANNEL_ID) == null) {
-            mgr.createNotificationChannel(
-                NotificationChannel(
-                    CHANNEL_ID,
-                    "Saving bundles",
-                    NotificationManager.IMPORTANCE_LOW,
-                ),
-            )
-        }
-    }
-
     companion object {
         const val KEY_BUNDLE_ID = "bundle_id"
         const val KEY_ERROR = "error"
         const val TAG_ALL = "recon_bundle"
+        const val CHANNEL_ID = "recon_pipeline"
 
         // Process-wide single-concurrency gate for bundle workers.
         private val workMutex = Mutex()

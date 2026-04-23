@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -36,6 +37,7 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import com.example.bundlecam.ui.common.formatClockDuration
 import kotlin.math.roundToInt
 
 @Composable
@@ -149,7 +151,6 @@ fun QueueThumbnail(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
                 )
-                // Play-glyph overlay to distinguish from photos at 56dp.
                 Icon(
                     imageVector = Icons.Filled.PlayArrow,
                     contentDescription = null,
@@ -158,17 +159,7 @@ fun QueueThumbnail(
                         .size(20.dp)
                         .align(androidx.compose.ui.Alignment.Center),
                 )
-                // Duration badge, bottom-right.
-                Text(
-                    text = formatDuration(item.durationMs),
-                    color = Color.White,
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier
-                        .align(androidx.compose.ui.Alignment.BottomEnd)
-                        .padding(2.dp)
-                        .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(2.dp))
-                        .padding(horizontal = 2.dp),
-                )
+                DurationBadge(item.durationMs)
             }
             is StagedItem.Voice -> {
                 // Tinted backdrop (the "thumbnail" bitmap is a tiny tinted square —
@@ -187,24 +178,22 @@ fun QueueThumbnail(
                         .size(28.dp)
                         .align(androidx.compose.ui.Alignment.Center),
                 )
-                Text(
-                    text = formatDuration(item.durationMs),
-                    color = Color.White,
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier
-                        .align(androidx.compose.ui.Alignment.BottomEnd)
-                        .padding(2.dp)
-                        .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(2.dp))
-                        .padding(horizontal = 2.dp),
-                )
+                DurationBadge(item.durationMs)
             }
         }
     }
 }
 
-private fun formatDuration(ms: Long): String {
-    val totalSec = ms / 1000
-    val min = totalSec / 60
-    val sec = totalSec % 60
-    return "%d:%02d".format(min, sec)
+@Composable
+private fun BoxScope.DurationBadge(durationMs: Long) {
+    Text(
+        text = formatClockDuration(durationMs),
+        color = Color.White,
+        style = MaterialTheme.typography.labelSmall,
+        modifier = Modifier
+            .align(androidx.compose.ui.Alignment.BottomEnd)
+            .padding(2.dp)
+            .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(2.dp))
+            .padding(horizontal = 2.dp),
+    )
 }

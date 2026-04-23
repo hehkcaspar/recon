@@ -40,20 +40,14 @@ class BundleLibrary(context: Context) {
                         val photosSource =
                             dir.findFile(StorageLayout.PHOTOS_SUBDIR)?.takeIf { it.isDirectory }
                                 ?: dir
-                        val photos = photosSource.listFiles()
-                            .filter { it.isFile && it.name?.endsWith(".jpg", ignoreCase = true) == true }
-                            .sortedBy { it.name }
+                        val photos = photosSource.mediaChildren(StorageLayout.MediaKind.Photo)
                         val videos = dir.findFile(StorageLayout.VIDEOS_SUBDIR)
                             ?.takeIf { it.isDirectory }
-                            ?.listFiles()
-                            ?.filter { it.isFile && it.name?.endsWith(".mp4", ignoreCase = true) == true }
-                            ?.sortedBy { it.name }
+                            ?.mediaChildren(StorageLayout.MediaKind.Video)
                             .orEmpty()
                         val voices = dir.findFile(StorageLayout.AUDIO_SUBDIR)
                             ?.takeIf { it.isDirectory }
-                            ?.listFiles()
-                            ?.filter { it.isFile && it.name?.endsWith(".m4a", ignoreCase = true) == true }
-                            ?.sortedBy { it.name }
+                            ?.mediaChildren(StorageLayout.MediaKind.Voice)
                             .orEmpty()
                         BundleDirEntry(
                             id = id,
@@ -167,3 +161,9 @@ sealed class DeleteResult {
     data class Partial(val failedParts: List<String>) : DeleteResult()
     data class Failed(val failedParts: List<String>) : DeleteResult()
 }
+
+/** Files of [kind] inside this directory, sorted lexicographically. */
+private fun DocumentFile.mediaChildren(kind: StorageLayout.MediaKind): List<DocumentFile> =
+    listFiles()
+        .filter { it.isFile && StorageLayout.mediaKindFor(it.name.orEmpty()) == kind }
+        .sortedBy { it.name }

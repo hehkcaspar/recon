@@ -17,11 +17,9 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 
 /**
- * Top-bar modality selector: VIDEO · PHOTO · VOICE. Photo is the hub; Phase F adds a
- * viewfinder swipe peer and the [dragProgress] parameter drives a linear indicator
- * animation. In Phase C only PHOTO is in [enabledModalities] — D lights up VIDEO and
- * E lights up VOICE. Segments outside [enabledModalities] render at 35% alpha and are
- * non-clickable.
+ * Top-bar modality selector: VIDEO · PHOTO · VOICE. Segments outside [enabledModalities]
+ * render at 35% alpha and are non-clickable; callers use this to dim the pill while a
+ * recording is live.
  */
 @Composable
 fun ModalityPill(
@@ -29,7 +27,6 @@ fun ModalityPill(
     enabledModalities: Set<Modality>,
     onChange: (Modality) -> Unit,
     modifier: Modifier = Modifier,
-    @Suppress("UNUSED_PARAMETER") dragProgress: Float = 0f,
 ) {
     Row(
         modifier = modifier
@@ -38,7 +35,7 @@ fun ModalityPill(
             .padding(2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Fixed left-to-right order matches the viewfinder swipe carousel added in Phase F:
+        // Fixed left-to-right order matches the viewfinder swipe carousel:
         // swipe right from PHOTO → VIDEO, swipe left from PHOTO → VOICE.
         Segment(
             label = "VIDEO",

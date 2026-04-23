@@ -1,5 +1,7 @@
 package com.example.bundlecam.di
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
 import android.net.Uri
 import android.util.Log
@@ -11,6 +13,7 @@ import com.example.bundlecam.data.storage.BundleCounterStore
 import com.example.bundlecam.data.storage.BundleLibrary
 import com.example.bundlecam.data.storage.SafStorage
 import com.example.bundlecam.data.storage.StagingStore
+import com.example.bundlecam.pipeline.BundleWorker
 import com.example.bundlecam.pipeline.ManifestStore
 import com.example.bundlecam.pipeline.OrphanRecovery
 import com.example.bundlecam.pipeline.WorkScheduler
@@ -41,6 +44,20 @@ class AppContainer(context: Context) {
     // would cancel mid-ensureBundleFolders, leaving the directories half-created and the
     // first bundle worker racing to create them itself.
     val appScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+    init {
+        appContext.getSystemService(NotificationManager::class.java)?.run {
+            if (getNotificationChannel(BundleWorker.CHANNEL_ID) == null) {
+                createNotificationChannel(
+                    NotificationChannel(
+                        BundleWorker.CHANNEL_ID,
+                        "Saving bundles",
+                        NotificationManager.IMPORTANCE_LOW,
+                    ),
+                )
+            }
+        }
+    }
 
     fun configureRoot(uri: Uri): Job = appScope.launch {
         try {

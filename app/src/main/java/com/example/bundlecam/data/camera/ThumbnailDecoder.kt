@@ -8,6 +8,8 @@ import android.net.Uri
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.exifinterface.media.ExifInterface
+import com.example.bundlecam.data.storage.StorageLayout
+import com.example.bundlecam.data.storage.StorageLayout.MediaKind
 import java.io.File
 
 private const val TARGET_PX = 160
@@ -49,12 +51,11 @@ fun decodeThumbnail(file: File, rotationDegrees: Int): ImageBitmap {
  */
 fun decodeThumbnail(contentResolver: ContentResolver, uri: Uri): ImageBitmap? {
     val name = uri.lastPathSegment.orEmpty()
-    val extension = name.substringAfterLast('.', "").lowercase()
-    return when (extension) {
-        "jpg", "jpeg" -> decodeJpegThumbnail(contentResolver, uri)
-        "mp4" -> decodeVideoPoster(contentResolver, uri)
-        "m4a" -> renderVoiceThumbnail()
-        else -> null
+    return when (StorageLayout.mediaKindFor(name)) {
+        MediaKind.Photo -> decodeJpegThumbnail(contentResolver, uri)
+        MediaKind.Video -> decodeVideoPoster(contentResolver, uri)
+        MediaKind.Voice -> renderVoiceThumbnail()
+        null -> null
     }
 }
 
@@ -86,20 +87,18 @@ private fun sampleSizeFor(w: Int, h: Int): Int {
 }
 
 /**
- * Extract a poster frame from an MP4 via MediaMetadataRetriever. Used both when pushing
- * a freshly-recorded video onto the queue and by OrphanRecovery when restoring a video
- * from a killed-mid-session staging folder. Returns null if the file is unreadable or
- * corrupt (e.g., zero-byte from a process kill before the muxer flushed).
+ * Open a [MediaMetadataRetriever], run [block] with it, and guarantee release. Returns
+ * null if the data source rejected the file (torn/unreadable) or the block threw.
  */
-fun decodeVideoPoster(file: File): ImageBitmap? {
-    if (!file.exists() || file.length() == 0L) return null
+internal inline fun <T> withMediaRetriever(
+    setup: MediaMetadataRetriever.() -> Unit,
+    block: MediaMetadataRetriever.() -> T?,
+): T? {
     val retriever = MediaMetadataRetriever()
     return try {
-        retriever.setDataSource(file.absolutePath)
-        val frame = retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-            ?: return null
-        scaleToPosterSize(frame).asImageBitmap()
-    } catch (t: Throwable) {
+        retriever.setup()
+        retriever.block()
+    } catch (_: Throwable) {
         null
     } finally {
         runCatching { retriever.release() }
@@ -107,23 +106,36 @@ fun decodeVideoPoster(file: File): ImageBitmap? {
 }
 
 /**
+ * Extract a poster frame from an MP4 via MediaMetadataRetriever. Used both when pushing
+ * a freshly-recorded video onto the queue and by OrphanRecovery when restoring a video
+ * from a killed-mid-session staging folder. Returns null if the file is unreadable or
+ * corrupt (e.g., zero-byte from a process kill before the muxer flushed).
+ */
+fun decodeVideoPoster(file: File): ImageBitmap? {
+    if (!file.exists() || file.length() == 0L) return null
+    return withMediaRetriever(
+        setup = { setDataSource(file.absolutePath) },
+        block = { extractPoster() },
+    )
+}
+
+/**
  * SAF URI overload of the video poster extractor. Used by Bundle Preview when a video
  * file is in the SAF tree and we want its first-frame thumbnail for the row.
  */
 fun decodeVideoPoster(contentResolver: ContentResolver, uri: Uri): ImageBitmap? {
-    val retriever = MediaMetadataRetriever()
-    return try {
-        contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
-            retriever.setDataSource(pfd.fileDescriptor)
-            val frame = retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                ?: return null
-            scaleToPosterSize(frame).asImageBitmap()
-        }
-    } catch (t: Throwable) {
-        null
-    } finally {
-        runCatching { retriever.release() }
+    val pfd = contentResolver.openFileDescriptor(uri, "r") ?: return null
+    return pfd.use {
+        withMediaRetriever(
+            setup = { setDataSource(it.fileDescriptor) },
+            block = { extractPoster() },
+        )
     }
+}
+
+private fun MediaMetadataRetriever.extractPoster(): ImageBitmap? {
+    val frame = getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC) ?: return null
+    return scaleToPosterSize(frame).asImageBitmap()
 }
 
 private fun scaleToPosterSize(frame: Bitmap): Bitmap {
@@ -147,7 +159,7 @@ private fun renderVoiceThumbnail(): ImageBitmap {
     val size = TARGET_PX * 2
     val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
     val canvas = android.graphics.Canvas(bmp)
-    canvas.drawColor(0xFF1F2A44.toInt())
+    canvas.drawColor(VOICE_NAVY_ARGB)
 
     val white = 0xFFFFFFFF.toInt()
     val fill = android.graphics.Paint().apply {
@@ -205,9 +217,13 @@ fun decodeVoiceThumbnail(): ImageBitmap {
     // 8x8 tinted square. Smaller than 1x1 actually isn't cheaper to allocate and 8x8
     // side-steps any zero-size sanity check in a downstream consumer.
     val bmp = Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888)
-    bmp.eraseColor(0xFF1F2A44.toInt()) // deep navy; the mic glyph reads well on top
+    bmp.eraseColor(VOICE_NAVY_ARGB)
     return bmp.asImageBitmap()
 }
+
+// Raw-ARGB twin of CaptureColors.VoiceNavy — android.graphics.Canvas doesn't take
+// compose Color, so we keep the Int representation adjacent for the two Canvas sites.
+private const val VOICE_NAVY_ARGB: Int = 0xFF1F2A44.toInt()
 
 /**
  * True if the MP4/M4A at [file] exposes a readable duration via MediaMetadataRetriever.
@@ -217,14 +233,17 @@ fun decodeVoiceThumbnail(): ImageBitmap {
  */
 fun isMediaFileReadable(file: File): Boolean {
     if (!file.exists() || file.length() == 0L) return false
-    val retriever = MediaMetadataRetriever()
-    return try {
-        retriever.setDataSource(file.absolutePath)
-        val duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-        duration != null
-    } catch (t: Throwable) {
-        false
-    } finally {
-        runCatching { retriever.release() }
-    }
+    return withMediaRetriever(
+        setup = { setDataSource(file.absolutePath) },
+        block = { extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION) },
+    ) != null
 }
+
+/**
+ * Read the MP4/M4A duration in ms, or 0 if unreadable. Shared by OrphanRecovery so it
+ * doesn't have to re-open a retriever for every restored video/voice file.
+ */
+fun readMediaDurationMs(file: File): Long = withMediaRetriever(
+    setup = { setDataSource(file.absolutePath) },
+    block = { extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() },
+) ?: 0L

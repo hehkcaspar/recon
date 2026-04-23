@@ -1,12 +1,7 @@
 package com.example.bundlecam.ui.capture
 
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -40,15 +35,8 @@ fun VoiceShutterButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "voice-shutter-pulse")
-    val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.95f,
-        targetValue = 0.65f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 800, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "voice-shutter-pulse-alpha",
+    val pulseAlpha by rememberRecordPulseAlpha(
+        from = 0.95f, to = 0.65f, durationMs = 800, label = "voice-shutter-pulse",
     )
     val fillSize by animateDpAsState(
         targetValue = if (recording) 28.dp else 58.dp,
@@ -82,7 +70,7 @@ fun VoiceShutterButton(
                 modifier = Modifier
                     .size(fillSize)
                     .clip(RoundedCornerShape(fillCorner))
-                    .background(Color(0xFFEF5350).copy(alpha = pulseAlpha)),
+                    .background(CaptureColors.RecordRed.copy(alpha = pulseAlpha)),
             )
         } else {
             Box(

@@ -11,7 +11,6 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.bundlecam.ReconApp
 import com.example.bundlecam.data.audio.VoiceRecordingResult
-import com.example.bundlecam.data.camera.CameraMode
 import com.example.bundlecam.data.camera.CaptureController
 import com.example.bundlecam.data.camera.FlashMode
 import com.example.bundlecam.data.camera.LensFacing
@@ -38,7 +37,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -86,14 +84,6 @@ sealed class StagedItem {
     ) : StagedItem()
 }
 
-data class VideoRecordingState(
-    val startedAt: Long,
-)
-
-data class VoiceRecordingState(
-    val startedAt: Long,
-)
-
 data class PendingDiscard(
     val items: List<StagedItem>,
     val dividers: Set<Int> = emptySet(),
@@ -124,27 +114,20 @@ class CaptureViewModel(
     val settings: StateFlow<SettingsState> = container.settingsRepository.settings
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SettingsState())
 
-    // Projection from settings: live-applied preference, edited from the Settings screen.
-    // Change triggers CameraPreview's LaunchedEffect(mode, ...) to rebind under bindMutex.
-    val cameraMode: StateFlow<CameraMode> = settings
-        .map { it.cameraMode }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), CameraMode.ZSL)
-
     private val _lensFacing = MutableStateFlow(LensFacing.Back)
     val lensFacing: StateFlow<LensFacing> = _lensFacing.asStateFlow()
 
     private val _flashMode = MutableStateFlow(FlashMode.Off)
     val flashMode: StateFlow<FlashMode> = _flashMode.asStateFlow()
 
-    // Modality selector. Phase C gates non-PHOTO to no-op; D and E lift the gate.
     private val _modality = MutableStateFlow(Modality.PHOTO)
     val modality: StateFlow<Modality> = _modality.asStateFlow()
 
-    private val _videoRecording = MutableStateFlow<VideoRecordingState?>(null)
-    val videoRecording: StateFlow<VideoRecordingState?> = _videoRecording.asStateFlow()
-
-    private val _voiceRecording = MutableStateFlow<VoiceRecordingState?>(null)
-    val voiceRecording: StateFlow<VoiceRecordingState?> = _voiceRecording.asStateFlow()
+    // Wall-clock start time of the active video/voice take, null when idle. Consumed
+    // by the VIDEO pill and the VOICE overlay's elapsed-time readout; gated at the
+    // read site on modality because only one recording modality is active at a time.
+    private val _recordingStartedAtMs = MutableStateFlow<Long?>(null)
+    val recordingStartedAtMs: StateFlow<Long?> = _recordingStartedAtMs.asStateFlow()
 
     // Live mic amplitude from VoiceController's getMaxAmplitude() poll. Passes through
     // as-is — 0 whenever not recording; sampled at ~30Hz during a take. Consumed by
@@ -318,9 +301,7 @@ class CaptureViewModel(
                 _uiState.update {
                     it.copy(busy = BusyState.Recording, lastError = null)
                 }
-                _videoRecording.value = VideoRecordingState(
-                    startedAt = System.currentTimeMillis(),
-                )
+                _recordingStartedAtMs.value = System.currentTimeMillis()
             } else {
                 // Recorder wasn't bound (fallback device). Reset busy from Capturing
                 // back to Idle and surface the banner.
@@ -373,7 +354,7 @@ class CaptureViewModel(
                     _uiState.update {
                         it.copy(busy = BusyState.Recording, lastError = null)
                     }
-                    _voiceRecording.value = VoiceRecordingState(System.currentTimeMillis())
+                    _recordingStartedAtMs.value = System.currentTimeMillis()
                 }
                 is VoiceRecordingResult.PermissionDenied -> {
                     _uiState.update { it.copy(busy = BusyState.Idle) }
@@ -392,10 +373,10 @@ class CaptureViewModel(
     }
 
     private fun stopVoiceRecordingFlow() {
-        val recordingState = _voiceRecording.value ?: return
+        val startedAt = _recordingStartedAtMs.value ?: return
         viewModelScope.launch {
             val result = container.voiceController.stopRecording()
-            _voiceRecording.value = null
+            _recordingStartedAtMs.value = null
             when (result) {
                 is VoiceRecordingResult.Success -> {
                     val thumbnail = withContext(Dispatchers.Default) {
@@ -405,7 +386,7 @@ class CaptureViewModel(
                         id = UUID.randomUUID().toString(),
                         localFile = result.file,
                         thumbnail = thumbnail,
-                        capturedAt = recordingState.startedAt,
+                        capturedAt = startedAt,
                         durationMs = result.durationMs,
                     )
                     _uiState.update {
@@ -448,10 +429,10 @@ class CaptureViewModel(
     }
 
     private fun stopVideoRecordingFlow() {
-        val recordingState = _videoRecording.value ?: return
+        val startedAt = _recordingStartedAtMs.value ?: return
         viewModelScope.launch {
             val result = captureController.stopVideoRecording()
-            _videoRecording.value = null
+            _recordingStartedAtMs.value = null
             when (result) {
                 is RecordingResult.Success -> {
                     val poster = withContext(Dispatchers.Default) {
@@ -471,7 +452,7 @@ class CaptureViewModel(
                         id = UUID.randomUUID().toString(),
                         localFile = result.file,
                         thumbnail = poster,
-                        capturedAt = recordingState.startedAt,
+                        capturedAt = startedAt,
                         rotationDegrees = videoStartRotation,
                         durationMs = result.durationMs,
                     )
@@ -700,8 +681,8 @@ class CaptureViewModel(
      * fires (video) or MediaRecorder.stop() returns (voice).
      *
      * An earlier variant called sync-stop methods directly, which produced a stuck
-     * `BusyState.Recording` after resume because nothing cleared `_videoRecording`
-     * / `_voiceRecording` or re-entered the state machine.
+     * `BusyState.Recording` after resume because nothing cleared the recording-start
+     * timestamp or re-entered the state machine.
      */
     fun onLifecyclePaused() {
         if (_uiState.value.busy != BusyState.Recording) return

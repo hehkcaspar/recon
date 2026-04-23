@@ -1,6 +1,5 @@
 package com.example.bundlecam.pipeline
 
-import android.media.MediaMetadataRetriever
 import android.util.Log
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.exifinterface.media.ExifInterface
@@ -8,9 +7,12 @@ import com.example.bundlecam.data.camera.decodeThumbnail
 import com.example.bundlecam.data.camera.decodeVideoPoster
 import com.example.bundlecam.data.camera.decodeVoiceThumbnail
 import com.example.bundlecam.data.camera.isMediaFileReadable
+import com.example.bundlecam.data.camera.readMediaDurationMs
 import com.example.bundlecam.data.exif.OrientationCodec
 import com.example.bundlecam.data.storage.StagingSession
 import com.example.bundlecam.data.storage.StagingStore
+import com.example.bundlecam.data.storage.StorageLayout
+import com.example.bundlecam.data.storage.StorageLayout.MediaKind
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -95,9 +97,7 @@ class OrphanRecovery(
         // flushed), skip hidden dot-files like `.order` and `.discarded`.
         val candidates = mostRecent.dir.listFiles { f ->
             f.isFile && f.length() > 0 && !f.name.startsWith('.') &&
-                (f.extension.equals("jpg", ignoreCase = true) ||
-                    f.extension.equals("mp4", ignoreCase = true) ||
-                    f.extension.equals("m4a", ignoreCase = true))
+                StorageLayout.mediaKindFor(f.name) != null
         }?.toList() ?: emptyList()
 
         if (candidates.isEmpty()) return@withContext null
@@ -119,60 +119,7 @@ class OrphanRecovery(
             }
         }
 
-        val items = orderedCandidates.mapNotNull { file ->
-            when {
-                file.extension.equals("jpg", ignoreCase = true) -> {
-                    val rotation = readExifRotation(file)
-                    RestoredItem.Photo(
-                        localFile = file,
-                        thumbnail = decodeThumbnail(file, rotation),
-                        rotationDegrees = rotation,
-                        capturedAt = file.lastModified(),
-                    )
-                }
-                file.extension.equals("mp4", ignoreCase = true) -> {
-                    // CameraX 1.6 Media3 Muxer makes killed-mid-record mp4s usually
-                    // playable; when it doesn't (edge case, very early kill), the
-                    // retriever probe fails and we drop the file so the queue isn't
-                    // polluted with a dead entry.
-                    if (!isMediaFileReadable(file)) {
-                        Log.w(TAG, "Dropping unplayable mp4 from orphan session: ${file.name}")
-                        runCatching { file.delete() }
-                        return@mapNotNull null
-                    }
-                    val poster = decodeVideoPoster(file) ?: return@mapNotNull null
-                    val durationMs = readMp4DurationMs(file)
-                    RestoredItem.Video(
-                        localFile = file,
-                        thumbnail = poster,
-                        // Rotation is baked into the MP4 container (tkhd.matrix), so
-                        // UI treats it as 0° and relies on the container for correct
-                        // playback orientation. ExifInterface on mp4 would return 0 anyway.
-                        rotationDegrees = 0,
-                        durationMs = durationMs,
-                        capturedAt = file.lastModified(),
-                    )
-                }
-                file.extension.equals("m4a", ignoreCase = true) -> {
-                    // MediaRecorder has no equivalent of Media3 Muxer's crash resilience;
-                    // a killed-mid-record .m4a is typically unplayable. The retriever
-                    // probe tells us; drop torn files so the restored queue is clean.
-                    if (!isMediaFileReadable(file)) {
-                        Log.w(TAG, "Dropping unplayable m4a from orphan session: ${file.name}")
-                        runCatching { file.delete() }
-                        return@mapNotNull null
-                    }
-                    val durationMs = readMp4DurationMs(file)
-                    RestoredItem.Voice(
-                        localFile = file,
-                        thumbnail = decodeVoiceThumbnail(),
-                        durationMs = durationMs,
-                        capturedAt = file.lastModified(),
-                    )
-                }
-                else -> null
-            }
-        }
+        val items = orderedCandidates.mapNotNull { file -> restoreItem(file) }
 
         if (items.isEmpty()) return@withContext null
 
@@ -180,16 +127,57 @@ class OrphanRecovery(
         RestoredQueue(session = mostRecent, items = items)
     }
 
-    private fun readMp4DurationMs(file: File): Long = runCatching {
-        val retriever = MediaMetadataRetriever()
-        try {
-            retriever.setDataSource(file.absolutePath)
-            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-                ?.toLongOrNull() ?: 0L
-        } finally {
-            runCatching { retriever.release() }
+    private fun restoreItem(file: File): RestoredItem? = when (StorageLayout.mediaKindFor(file.name)) {
+        MediaKind.Photo -> {
+            val rotation = readExifRotation(file)
+            RestoredItem.Photo(
+                localFile = file,
+                thumbnail = decodeThumbnail(file, rotation),
+                rotationDegrees = rotation,
+                capturedAt = file.lastModified(),
+            )
         }
-    }.getOrDefault(0L)
+        MediaKind.Video -> {
+            // CameraX 1.6 Media3 Muxer makes killed-mid-record mp4s usually playable;
+            // when it doesn't (edge case, very early kill), the retriever probe fails
+            // and we drop the file so the queue isn't polluted with a dead entry.
+            if (!isMediaFileReadable(file)) {
+                Log.w(TAG, "Dropping unplayable mp4 from orphan session: ${file.name}")
+                runCatching { file.delete() }
+                null
+            } else {
+                val poster = decodeVideoPoster(file)
+                if (poster == null) null else RestoredItem.Video(
+                    localFile = file,
+                    thumbnail = poster,
+                    // Rotation is baked into the MP4 container (tkhd.matrix), so UI
+                    // treats it as 0° and relies on the container for correct playback
+                    // orientation. ExifInterface on mp4 would return 0 anyway.
+                    rotationDegrees = 0,
+                    durationMs = readMediaDurationMs(file),
+                    capturedAt = file.lastModified(),
+                )
+            }
+        }
+        MediaKind.Voice -> {
+            // MediaRecorder has no equivalent of Media3 Muxer's crash resilience; a
+            // killed-mid-record .m4a is typically unplayable. Drop torn files so the
+            // restored queue is clean.
+            if (!isMediaFileReadable(file)) {
+                Log.w(TAG, "Dropping unplayable m4a from orphan session: ${file.name}")
+                runCatching { file.delete() }
+                null
+            } else {
+                RestoredItem.Voice(
+                    localFile = file,
+                    thumbnail = decodeVoiceThumbnail(),
+                    durationMs = readMediaDurationMs(file),
+                    capturedAt = file.lastModified(),
+                )
+            }
+        }
+        null -> null
+    }
 
     private fun readExifRotation(file: File): Int {
         val orientation = runCatching {

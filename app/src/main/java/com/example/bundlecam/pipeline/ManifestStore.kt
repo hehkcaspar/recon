@@ -120,18 +120,24 @@ class ManifestStore(context: Context) {
     // Whether any pending manifest (other than excludeBundleId) references the given session.
     // Fails closed on decode errors: an unreadable manifest is treated as a live reference
     // so we don't delete staging a retryable worker still needs.
+    //
+    // Only the top-level `sessionId` field is read — skipping the polymorphic decode of
+    // `orderedItems` keeps a multi-bundle commit's finalizer cost linear in manifest
+    // count, not in total item count.
     suspend fun isSessionReferenced(sessionId: String, excludeBundleId: String? = null): Boolean =
         withContext(Dispatchers.IO) {
             for (bundleId in listPendingIds()) {
                 if (bundleId == excludeBundleId) continue
-                val loaded = load(bundleId)
-                if (loaded == null) {
-                    // Either the file vanished or decode failed. Fail closed: keep staging
-                    // so a retryable worker can still run.
+                val file = File(dir, "$bundleId.json")
+                val parsedSessionId = runCatching {
+                    json.parseToJsonElement(file.readText())
+                        .jsonObject["sessionId"]?.jsonPrimitive?.content
+                }.getOrNull()
+                if (parsedSessionId == null) {
                     Log.w(TAG, "Manifest $bundleId unreadable; assuming session $sessionId referenced")
                     return@withContext true
                 }
-                if (loaded.sessionId == sessionId) return@withContext true
+                if (parsedSessionId == sessionId) return@withContext true
             }
             false
         }

@@ -11,6 +11,11 @@ object StorageLayout {
     const val VIDEOS_SUBDIR = "videos"
     const val AUDIO_SUBDIR = "audio"
 
+    const val EXT_JPG = "jpg"
+    const val EXT_JPEG = "jpeg"
+    const val EXT_MP4 = "mp4"
+    const val EXT_M4A = "m4a"
+
     const val MIME_JPEG = "image/jpeg"
     const val MIME_MP4 = "video/mp4"
     const val MIME_M4A = "audio/mp4"
@@ -55,13 +60,23 @@ object StorageLayout {
      * because `DocumentFile.createFile(mime, name)` is mime-aware on strict
      * DocumentsProviders (Drive rejects a `video/mp4` filename created with `image/jpeg`).
      */
-    fun mimeFor(fileName: String): String {
-        val ext = fileName.substringAfterLast('.', "").lowercase()
+    fun mimeFor(fileName: String): String = when (mediaKindFor(fileName)) {
+        MediaKind.Photo -> MIME_JPEG
+        MediaKind.Video -> MIME_MP4
+        MediaKind.Voice -> MIME_M4A
+        null -> MIME_OCTET_STREAM
+    }
+
+    enum class MediaKind { Photo, Video, Voice }
+
+    /** Classify a filename (or bare extension) into one of the three capture modalities. */
+    fun mediaKindFor(fileName: String): MediaKind? {
+        val ext = fileName.substringAfterLast('.', fileName).lowercase()
         return when (ext) {
-            "jpg", "jpeg" -> MIME_JPEG
-            "mp4" -> MIME_MP4
-            "m4a" -> MIME_M4A
-            else -> MIME_OCTET_STREAM
+            EXT_JPG, EXT_JPEG -> MediaKind.Photo
+            EXT_MP4 -> MediaKind.Video
+            EXT_M4A -> MediaKind.Voice
+            else -> null
         }
     }
 }

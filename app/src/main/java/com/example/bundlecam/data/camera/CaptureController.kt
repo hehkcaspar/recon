@@ -279,6 +279,7 @@ class CaptureController(context: Context) {
 
 
     fun setFlashMode(mode: FlashMode) {
+        if (currentFlashMode == mode) return
         currentFlashMode = mode
         mainHandler.post { imageCapture?.flashMode = toCxFlashMode(mode) }
     }
