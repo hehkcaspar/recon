@@ -109,3 +109,42 @@ Action lives on a future bundles-browser row (long-press → action sheet → bo
 - Whether to also implement **receive** (would need an embedded HTTP server — Ktor server-cio or NanoHTTPD — and a SAF-folder write target, useful symmetrically for getting the MinerU companion's `.md` back).
 - Whether to allow batch-share of multiple bundles in one session or keep it one-bundle-per-share for simplicity.
 
+---
+
+## 3. Background recording via foreground service
+
+Keep recordings running when the Activity pauses — screen lock, home-button press, switching to another app. Currently `CaptureScreen`'s `LifecycleEventEffect(ON_PAUSE)` routes to `CaptureViewModel.onLifecyclePaused()`, which stops both video and voice takes. The MVP ships a `view.keepScreenOn = true` flag scoped to `busy == Recording`, which prevents the display timeout from firing `ON_PAUSE` mid-take; but that fix doesn't help when the user locks the phone manually or switches apps, and voice memos in particular are a modality where it's natural to tap-start then pocket the phone.
+
+### Why a full service, not just dropping the `ON_PAUSE` stop
+
+Android 11+ forbids background access to mic/camera unless the process runs a **foreground service** with the matching `foregroundServiceType`. Without FGS, two failure modes compound: (a) Samsung-class OEMs kill the process on screen lock despite the mic technically still being held; (b) Android 14+ returns silence from `MediaRecorder` (mic muted) even when the recorder reports running. Silently losing audio is the worst possible failure for a voice memo, so the reliable path is FGS, not wake locks.
+
+### Shape of the change — voice-only first cut (recommended)
+
+- New `RecordingService : Service` bound from `MainActivity`. `onStartCommand` calls `startForeground(notification, FOREGROUND_SERVICE_TYPE_MICROPHONE)` with a "Recon is recording" notification carrying a Stop action and a live `elapsedRealtime` timer fed from `_voiceRecording.startedAt`. The service is a **process anchor** — it holds no recording state. `VoiceController` keeps owning `MediaRecorder`; its coroutine scope outlives the Activity already.
+- Manifest: add `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MICROPHONE`; declare `<service android:name=".RecordingService" android:foregroundServiceType="microphone"/>`.
+- `CaptureViewModel.startVoiceRecordingFlow` binds the service before calling `voiceController.startRecording`; `stopVoiceRecordingFlow` unbinds + `stopService` after the recorder finalizes. Bind is async, so the shutter-tap UX needs to kick off the bind and start the recorder only in `onServiceConnected` — acceptable added latency ~50 ms.
+- Drop the `VOICE` branch out of `onLifecyclePaused`. The `VIDEO` branch stays.
+- Notification Stop action routes a `PendingIntent` into the service, which posts to a `Channel<Unit>` the VM observes; the handler re-enters `stopVoiceRecordingFlow` on the same path as a normal shutter-tap-to-stop, so `BusyState` transitions stay coherent.
+
+### Video is meaningfully harder
+
+CameraX `Recorder` is bound to the Activity's `LifecycleOwner` via `bindToLifecycle`. `ON_STOP` unbinds all use cases, tearing the recorder down mid-stream — no amount of FGS plumbing on the Activity side changes this. Two paths, both invasive:
+
+- Move `CaptureController` out of the Activity and give it a synthetic `LifecycleOwner` tied to the service's lifetime. Camera stays bound while the service is foregrounded; the viewfinder rebinds to the Activity on resume. Triple-bind (`Preview + ImageCapture + VideoCapture`) contention semantics all need re-validation.
+- Swap `CameraX.Recorder` for `MediaRecorder` + `Camera2` `CameraCaptureSession` on a dedicated `HandlerThread`. Loses CameraX's orientation/rotation handling; would need to re-implement the `tkhd.matrix` write that `Recorder` does automatically.
+
+Either is a multi-day refactor and also requires `FOREGROUND_SERVICE_CAMERA`. Defer until voice FGS has shipped and the same request returns for video.
+
+### Architectural rules
+
+- The service is an **anchor**, not a new owner of the recorder. Keep all state in `CaptureViewModel` / `AppContainer` so `CaptureScreen`, `OrphanRecovery`, and `BundleWorker` don't need to learn about the service.
+- Notification content matches the active modality (`Voice memo recording…` / `Video recording…`) and a tap on the notification body returns to `CaptureScreen`. The Stop action stops the take and leaves the app in whatever state the user last had it in.
+- Orphan recovery is unchanged — FGS reduces the probability of a low-memory kill, doesn't eliminate it. `.order` log + the `.m4a`'s `moov`-atom flush cadence are still what restore a torn voice file.
+
+### Open questions
+
+- Dismissibility: on API 34+ the user can swipe the notification away. `setOngoing(true)` (can't dismiss while recording) is the safer default; confirm before shipping.
+- Does the user expect a PiP viewfinder while VIDEO-backgrounded? Probably no — PiP is its own scope — but worth flagging.
+- If the user backgrounds during VIDEO (voice has FGS, video doesn't), should the app **block** backgrounding with a snackbar, or let the recording get cut? MVP is the latter; product decision pending once voice FGS lands.
+

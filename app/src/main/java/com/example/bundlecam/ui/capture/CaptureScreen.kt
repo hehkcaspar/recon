@@ -171,6 +171,14 @@ private fun CaptureScreenContent(
         vm.onLifecyclePaused()
     }
 
+    // Hold the screen on while recording. Without this, the display timeout (30s on
+    // Samsung defaults) fires ON_PAUSE mid-record → onLifecyclePaused stops the take.
+    val isRecording = state.busy == BusyState.Recording
+    DisposableEffect(isRecording) {
+        view.keepScreenOn = isRecording
+        onDispose { view.keepScreenOn = false }
+    }
+
     val handleShutter = {
         view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
         if (settings.shutterSoundOn) {
