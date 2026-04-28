@@ -5,6 +5,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,8 +17,10 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Mic
@@ -46,6 +49,7 @@ import android.net.Uri
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -86,9 +90,12 @@ fun BundleRow(
     bundle: CompletedBundle,
     thumbnails: Map<Uri, ImageBitmap>,
     pendingDelete: PendingDelete?,
+    selected: Boolean,
+    selectionMode: Boolean,
     onRequestThumbnail: (Uri) -> Unit,
     onRequestDelete: () -> Unit,
     onUndo: () -> Unit,
+    onToggleSelection: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LaunchedEffect(bundle.id) {
@@ -111,7 +118,10 @@ fun BundleRow(
     SwipeableBundleRow(
         bundle = bundle,
         thumbnails = thumbnails,
+        selected = selected,
+        selectionMode = selectionMode,
         onRequestDelete = onRequestDelete,
+        onToggleSelection = onToggleSelection,
         modifier = modifier,
     )
 }
@@ -120,7 +130,10 @@ fun BundleRow(
 private fun SwipeableBundleRow(
     bundle: CompletedBundle,
     thumbnails: Map<Uri, ImageBitmap>,
+    selected: Boolean,
+    selectionMode: Boolean,
     onRequestDelete: () -> Unit,
+    onToggleSelection: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val view = LocalView.current
@@ -135,45 +148,69 @@ private fun SwipeableBundleRow(
     var rowWidthPx by remember { mutableLongStateOf(0L) }
     var triggeredAbove by remember(bundle.id) { mutableStateOf(false) }
 
+    val deleteRevealColor = MaterialTheme.colorScheme.errorContainer
+    val selectRevealColor = MaterialTheme.colorScheme.primaryContainer
+    val containerColor = when {
+        offsetX < 0f -> deleteRevealColor
+        offsetX > 0f -> selectRevealColor
+        else -> Color.Transparent
+    }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.errorContainer),
+            .background(containerColor),
     ) {
-        val progress = if (rowWidthPx > 0) {
-            (-offsetX / rowWidthPx.toFloat()).coerceIn(0f, 1f)
+        val widthF = rowWidthPx.toFloat()
+        val deleteProgress = if (widthF > 0f && offsetX < 0f) {
+            (-offsetX / widthF).coerceIn(0f, 1f)
         } else 0f
-        val hintColor = MaterialTheme.colorScheme.onErrorContainer
-        val hintAlpha = (progress * 2f).coerceAtMost(1f)
-        if (hintAlpha > 0.01f) {
-            // Compact row aligned to center-end of the parent Box so vertical centering
-            // is guaranteed regardless of the Surface's measured height.
-            Row(
+        val selectProgress = if (widthF > 0f && offsetX > 0f) {
+            (offsetX / widthF).coerceIn(0f, 1f)
+        } else 0f
+
+        if (deleteProgress > 0f) {
+            DeleteHint(
+                color = MaterialTheme.colorScheme.onErrorContainer,
+                progress = deleteProgress,
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .padding(end = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "Delete",
-                    color = hintColor.copy(alpha = hintAlpha),
-                    style = MaterialTheme.typography.labelLarge,
-                )
-                Spacer(Modifier.width(8.dp))
-                Icon(
-                    imageVector = Icons.Filled.Delete,
-                    contentDescription = null,
-                    tint = hintColor.copy(alpha = hintAlpha),
-                    modifier = Modifier.size(20.dp),
-                )
-            }
+            )
+        }
+        if (selectProgress > 0f) {
+            SelectHint(
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                progress = selectProgress,
+                alreadySelected = selected,
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 16.dp),
+            )
         }
 
+        // Selected rows get a subtle tone shift via `surfaceContainerHighest`. Sticking
+        // with M3's tonal palette (rather than ad-hoc primaryContainer alpha) keeps the
+        // selected state distinguishable in both light + dark themes without code paths
+        // for color-mode handling.
+        val rowColor =
+            if (selected) MaterialTheme.colorScheme.surfaceContainerHighest
+            else MaterialTheme.colorScheme.surface
+
         Surface(
-            color = MaterialTheme.colorScheme.surface,
+            color = rowColor,
             modifier = Modifier
                 .fillMaxWidth()
                 .graphicsLayer { translationX = offsetX }
+                .pointerInput(bundle.id) {
+                    detectTapGestures(
+                        onLongPress = { onToggleSelection() },
+                        // Tap is a no-op outside selection mode (matches existing behavior;
+                        // bundles don't open into a detail screen yet). In selection mode,
+                        // tap is the primary toggle so users don't have to swipe every row.
+                        onTap = { if (selectionMode) onToggleSelection() },
+                    )
+                }
                 .pointerInput(bundle.id) {
                     rowWidthPx = size.width.toLong()
                     val triggerPx = size.width * SWIPE_TRIGGER_FRACTION
@@ -184,14 +221,23 @@ private fun SwipeableBundleRow(
                         },
                         onDragEnd = {
                             val velocity = velocityTracker.calculateVelocity().x
+                            val absVelocity = abs(velocity)
                             val shouldTrigger =
-                                abs(offsetX) >= triggerPx || velocity <= -SWIPE_VELOCITY_PX_PER_S
+                                abs(offsetX) >= triggerPx || absVelocity >= SWIPE_VELOCITY_PX_PER_S
+                            val direction = when {
+                                offsetX < 0f -> -1
+                                offsetX > 0f -> 1
+                                else -> 0
+                            }
                             coroutineScope.launch {
                                 animatable.snapTo(offsetX)
-                                if (shouldTrigger) {
-                                    animatable.animateTo(-triggerPx)
+                                if (shouldTrigger && direction != 0) {
+                                    animatable.animateTo(direction * triggerPx)
                                     offsetX = animatable.value
-                                    onRequestDelete()
+                                    when (direction) {
+                                        -1 -> onRequestDelete()
+                                        1 -> onToggleSelection()
+                                    }
                                     animatable.snapTo(0f)
                                     offsetX = 0f
                                 } else {
@@ -209,9 +255,10 @@ private fun SwipeableBundleRow(
                         },
                         onHorizontalDrag = { change, delta ->
                             velocityTracker.addPosition(change.uptimeMillis, change.position)
-                            val next = (offsetX + delta).coerceAtMost(0f)
+                            // Signed offset — left fires delete, right fires selection toggle.
+                            val next = offsetX + delta
                             offsetX = next
-                            val aboveNow = -next >= triggerPx
+                            val aboveNow = abs(next) >= triggerPx
                             // Haptic on both crossings so dragging back below the line
                             // gives the same "you're in cancel territory" confirmation
                             // that the initial arming already signals.
@@ -219,13 +266,69 @@ private fun SwipeableBundleRow(
                                 view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                             }
                             triggeredAbove = aboveNow
-                            if (next < 0f) change.consume()
+                            if (next != 0f) change.consume()
                         },
                     )
                 },
         ) {
-            BundleRowContent(bundle = bundle, thumbnails = thumbnails)
+            BundleRowContent(
+                bundle = bundle,
+                thumbnails = thumbnails,
+                selected = selected,
+            )
         }
+    }
+}
+
+@Composable
+private fun DeleteHint(
+    color: Color,
+    progress: Float,
+    modifier: Modifier = Modifier,
+) {
+    val alpha = (progress * 2f).coerceAtMost(1f)
+    if (alpha < 0.01f) return
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = "Delete",
+            color = color.copy(alpha = alpha),
+            style = MaterialTheme.typography.labelLarge,
+        )
+        Spacer(Modifier.width(8.dp))
+        Icon(
+            imageVector = Icons.Filled.Delete,
+            contentDescription = null,
+            tint = color.copy(alpha = alpha),
+            modifier = Modifier.size(20.dp),
+        )
+    }
+}
+
+@Composable
+private fun SelectHint(
+    color: Color,
+    progress: Float,
+    alreadySelected: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val alpha = (progress * 2f).coerceAtMost(1f)
+    if (alpha < 0.01f) return
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            imageVector = Icons.Filled.Check,
+            contentDescription = null,
+            tint = color.copy(alpha = alpha),
+            modifier = Modifier.size(20.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            // Toggle wording mirrors the actual semantic — swiping right on an already-
+            // selected row deselects it. Helps the user form the right mental model the
+            // first time they discover the gesture.
+            text = if (alreadySelected) "Deselect" else "Select",
+            color = color.copy(alpha = alpha),
+            style = MaterialTheme.typography.labelLarge,
+        )
     }
 }
 
@@ -233,12 +336,17 @@ private fun SwipeableBundleRow(
 private fun BundleRowContent(
     bundle: CompletedBundle,
     thumbnails: Map<Uri, ImageBitmap>,
+    selected: Boolean = false,
 ) {
     Row(
         modifier = Modifier.bundleRowLayout(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ThumbnailStrip(uris = bundle.thumbnailUris, thumbnails = thumbnails)
+        ThumbnailStrip(
+            uris = bundle.thumbnailUris,
+            thumbnails = thumbnails,
+            checkedOverlay = selected,
+        )
 
         Spacer(Modifier.width(12.dp))
 
@@ -268,13 +376,14 @@ private fun BundleRowContent(
 private fun ThumbnailStrip(
     uris: List<Uri>,
     thumbnails: Map<Uri, ImageBitmap>,
+    checkedOverlay: Boolean = false,
 ) {
     Row(
         modifier = Modifier.width(ThumbStripWidth),
         horizontalArrangement = Arrangement.spacedBy(ThumbGap),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        uris.take(3).forEach { uri ->
+        uris.take(3).forEachIndexed { index, uri ->
             Box(
                 modifier = Modifier
                     .size(ThumbSize)
@@ -297,6 +406,28 @@ private fun ThumbnailStrip(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp),
                     )
+                }
+                if (checkedOverlay && index == 0) {
+                    // Filled check disc in the bottom-right corner of the leading thumb
+                    // — a single targeted glance-affordance that survives the row's
+                    // subtle tone-shift selected state without competing with the existing
+                    // modality-icons cluster on the trailing edge.
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(2.dp)
+                            .size(16.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Check,
+                            contentDescription = "Selected",
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(12.dp),
+                        )
+                    }
                 }
             }
         }

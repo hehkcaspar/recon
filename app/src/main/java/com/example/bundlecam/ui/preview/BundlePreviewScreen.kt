@@ -1,5 +1,6 @@
 package com.example.bundlecam.ui.preview
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,6 +10,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -33,10 +36,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.bundlecam.ReconApp
 import com.example.bundlecam.data.settings.SettingsState
 import com.example.bundlecam.data.storage.CompletedBundle
 import com.example.bundlecam.ui.common.ActionBanner
 import com.example.bundlecam.ui.common.openFolderInSystemBrowser
+import com.example.bundlecam.ui.settings.LocalSendDebugSheet
 
 private const val PROCESSING_ROW_KEY_PREFIX = "processing:"
 
@@ -57,34 +62,54 @@ fun BundlePreviewScreen(
     LaunchedEffect(settings.rootUri) { vm.refresh() }
 
     var confirmDeleteId by remember { mutableStateOf<String?>(null) }
+    var sendBundle by remember { mutableStateOf<CompletedBundle?>(null) }
+
+    // Back press in selection mode is "exit selection mode", not "leave the screen" —
+    // standard M3 multi-select behavior. Outside selection mode, the existing screen-
+    // level BackHandler in MainActivity takes over.
+    BackHandler(enabled = state.selectionMode && sendBundle == null) { vm.clearSelection() }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
-            TopAppBar(
-                title = { Text("Bundles") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(
-                        onClick = {
-                            settings.rootUri?.let { openFolderInSystemBrowser(context, it) }
-                        },
-                        enabled = settings.rootUri != null,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.FolderOpen,
-                            contentDescription = "Open in system file browser",
-                        )
-                    }
-                },
-            )
+            if (state.selectionMode) {
+                SelectionTopBar(
+                    selectedCount = state.selectedBundleIds.size,
+                    canSend = vm.selectedBundlesSnapshot().isNotEmpty(),
+                    onClose = { vm.clearSelection() },
+                    onSend = {
+                        // Phase 3 single-bundle send — picks the first selected bundle and
+                        // opens the same sheet the Settings debug entry uses. Phase 4 will
+                        // replace this with a multi-bundle production sheet.
+                        sendBundle = vm.selectedBundlesSnapshot().firstOrNull()
+                    },
+                )
+            } else {
+                TopAppBar(
+                    title = { Text("Bundles") },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                            )
+                        }
+                    },
+                    actions = {
+                        IconButton(
+                            onClick = {
+                                settings.rootUri?.let { openFolderInSystemBrowser(context, it) }
+                            },
+                            enabled = settings.rootUri != null,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.FolderOpen,
+                                contentDescription = "Open in system file browser",
+                            )
+                        }
+                    },
+                )
+            }
         },
     ) { padding ->
         Box(
@@ -119,6 +144,8 @@ fun BundlePreviewScreen(
                         processingIds = processingOnly,
                         bundles = state.bundles,
                         pendingDeletes = state.pendingDeletes,
+                        selectedIds = state.selectedBundleIds,
+                        selectionMode = state.selectionMode,
                         thumbnails = state.thumbnails,
                         onRequestThumbnail = vm::loadThumbnail,
                         onRequestDelete = { id ->
@@ -129,6 +156,7 @@ fun BundlePreviewScreen(
                             }
                         },
                         onUndo = vm::onUndo,
+                        onToggleSelection = vm::toggleSelection,
                     )
                 }
             }
@@ -164,6 +192,47 @@ fun BundlePreviewScreen(
             onDismiss = { confirmDeleteId = null },
         )
     }
+
+    sendBundle?.let { bundle ->
+        val app = context.applicationContext as ReconApp
+        LocalSendDebugSheet(
+            container = app.container,
+            bundle = bundle,
+            onDismiss = {
+                sendBundle = null
+                vm.clearSelection()
+            },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SelectionTopBar(
+    selectedCount: Int,
+    canSend: Boolean,
+    onClose: () -> Unit,
+    onSend: () -> Unit,
+) {
+    TopAppBar(
+        title = { Text("$selectedCount selected") },
+        navigationIcon = {
+            IconButton(onClick = onClose) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = "Exit selection",
+                )
+            }
+        },
+        actions = {
+            IconButton(onClick = onSend, enabled = canSend) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.Send,
+                    contentDescription = "Send via LocalSend",
+                )
+            }
+        },
+    )
 }
 
 @Composable
@@ -171,10 +240,13 @@ private fun BundleList(
     processingIds: List<String>,
     bundles: List<CompletedBundle>,
     pendingDeletes: Map<String, PendingDelete>,
+    selectedIds: Set<String>,
+    selectionMode: Boolean,
     thumbnails: Map<android.net.Uri, androidx.compose.ui.graphics.ImageBitmap>,
     onRequestThumbnail: (android.net.Uri) -> Unit,
     onRequestDelete: (String) -> Unit,
     onUndo: (String) -> Unit,
+    onToggleSelection: (String) -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -196,9 +268,12 @@ private fun BundleList(
                 bundle = bundle,
                 thumbnails = thumbnails,
                 pendingDelete = pendingDeletes[bundle.id],
+                selected = bundle.id in selectedIds,
+                selectionMode = selectionMode,
                 onRequestThumbnail = onRequestThumbnail,
                 onRequestDelete = { onRequestDelete(bundle.id) },
                 onUndo = { onUndo(bundle.id) },
+                onToggleSelection = { onToggleSelection(bundle.id) },
             )
             HorizontalDivider(
                 color = MaterialTheme.colorScheme.outlineVariant,

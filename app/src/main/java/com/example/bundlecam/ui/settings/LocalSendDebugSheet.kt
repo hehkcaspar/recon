@@ -30,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import com.example.bundlecam.data.storage.CompletedBundle
 import com.example.bundlecam.di.AppContainer
 import com.example.bundlecam.network.localsend.Peer
 import com.example.bundlecam.network.localsend.SendBundleResult
@@ -38,15 +39,20 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
- * Temporary debug entry — Phase 2 of the LocalSend rollout. Opened from a Settings row,
- * lets the user discover peers and ship the most-recent completed bundle to validate
- * against a real LocalSend desktop install before the production selection-mode UI in
- * the bundles browser ships in Phase 4. Delete this file once Phase 4 lands.
+ * Single-bundle send sheet — opens from the bundles browser's contextual app bar (with
+ * the first selected bundle) and from the Settings debug entry (with the most-recent
+ * completed bundle). Phase 4 will introduce a multi-bundle variant that supersedes this
+ * for the bundles-browser path; the Settings debug entry will be removed at the same
+ * time.
+ *
+ * Discovers peers, lets the user pick one, ships [bundle] to the picked peer, surfaces
+ * progress + the final [SendBundleResult].
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LocalSendDebugSheet(
     container: AppContainer,
+    bundle: CompletedBundle?,
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -77,50 +83,51 @@ fun LocalSendDebugSheet(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
-            Text("LocalSend (debug)", style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = if (bundle != null) "Send ${bundle.id}" else "LocalSend",
+                style = MaterialTheme.typography.titleMedium,
+            )
             Spacer(Modifier.height(2.dp))
             Text(
-                text = "Sends the most-recent completed bundle to the picked peer.",
+                text = "Pick a peer on the same Wi-Fi network.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(16.dp))
 
             when (val s = sendState) {
-                DebugSendState.Idle -> PeerListBlock(
-                    peers = peers,
-                    onPick = { peer ->
-                        scope.launch {
-                            sendState = DebugSendState.Resolving
-                            val rootUri = container.settingsRepository.settings.first().rootUri
-                            if (rootUri == null) {
-                                sendState = DebugSendState.Error("No output folder set")
-                                return@launch
-                            }
-                            val bundle = container.bundleLibrary.listBundles(rootUri).firstOrNull()
-                            if (bundle == null) {
-                                sendState = DebugSendState.Error("No completed bundle to send")
-                                return@launch
-                            }
-                            sendState = DebugSendState.Sending(
-                                peerAlias = peer.alias,
-                                bundleId = bundle.id,
-                                progress = null,
-                            )
-                            val result = container.localSendController.send(
-                                peer = peer,
-                                bundle = bundle,
-                                onProgress = { p ->
-                                    val cur = sendState
-                                    if (cur is DebugSendState.Sending) {
-                                        sendState = cur.copy(progress = p)
-                                    }
-                                },
-                            )
-                            sendState = DebugSendState.Done(result)
-                        }
-                    },
-                )
+                DebugSendState.Idle -> {
+                    if (bundle == null) {
+                        ErrorBlock(
+                            message = "No completed bundle to send.",
+                            onDone = { closeAndDismiss() },
+                        )
+                    } else {
+                        PeerListBlock(
+                            peers = peers,
+                            onPick = { peer ->
+                                scope.launch {
+                                    sendState = DebugSendState.Sending(
+                                        peerAlias = peer.alias,
+                                        bundleId = bundle.id,
+                                        progress = null,
+                                    )
+                                    val result = container.localSendController.send(
+                                        peer = peer,
+                                        bundle = bundle,
+                                        onProgress = { p ->
+                                            val cur = sendState
+                                            if (cur is DebugSendState.Sending) {
+                                                sendState = cur.copy(progress = p)
+                                            }
+                                        },
+                                    )
+                                    sendState = DebugSendState.Done(result)
+                                }
+                            },
+                        )
+                    }
+                }
                 DebugSendState.Resolving -> CenteredSpinner("Resolving bundle…")
                 is DebugSendState.Sending -> SendingBlock(s)
                 is DebugSendState.Done -> DoneBlock(

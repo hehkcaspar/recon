@@ -51,7 +51,11 @@ data class BundlePreviewUiState(
     val thumbnails: Map<Uri, ImageBitmap> = emptyMap(),
     /** Bundle IDs whose worker is ENQUEUED/RUNNING/BLOCKED, sorted newest-first. */
     val processingBundleIds: List<String> = emptyList(),
-)
+    /** Bundle IDs the user has selected via swipe-right or long-press. */
+    val selectedBundleIds: Set<String> = emptySet(),
+) {
+    val selectionMode: Boolean get() = selectedBundleIds.isNotEmpty()
+}
 
 class BundlePreviewViewModel(
     app: Application,
@@ -160,7 +164,12 @@ class BundlePreviewViewModel(
         val delaySeconds = settings.value.deleteDelaySeconds
 
         if (delaySeconds <= 0) {
-            _uiState.update { it.copy(bundles = it.bundles.filterNot { b -> b.id == bundleId }) }
+            _uiState.update {
+                it.copy(
+                    bundles = it.bundles.filterNot { b -> b.id == bundleId },
+                    selectedBundleIds = it.selectedBundleIds - bundleId,
+                )
+            }
             viewModelScope.launch(Dispatchers.IO) { hardDelete(bundle) }
             return
         }
@@ -173,7 +182,13 @@ class BundlePreviewViewModel(
         val windowMs = delaySeconds * 1000L
         val expiresAt = System.currentTimeMillis() + windowMs
         _uiState.update {
-            it.copy(pendingDeletes = it.pendingDeletes + (bundleId to PendingDelete(expiresAt)))
+            it.copy(
+                // Auto-deselect on swipe-to-delete — user thinks the bundle is gone, so
+                // it shouldn't continue sitting in the selection set and being shippable
+                // from the contextual app bar.
+                selectedBundleIds = it.selectedBundleIds - bundleId,
+                pendingDeletes = it.pendingDeletes + (bundleId to PendingDelete(expiresAt)),
+            )
         }
 
         pendingJobs[bundleId] = viewModelScope.launch {
@@ -192,6 +207,41 @@ class BundlePreviewViewModel(
     fun onUndo(bundleId: String) {
         pendingJobs.remove(bundleId)?.cancel() ?: return
         _uiState.update { it.copy(pendingDeletes = it.pendingDeletes - bundleId) }
+    }
+
+    /**
+     * Toggle [bundleId] in the selection set. No-ops on bundles that aren't currently
+     * shippable: pending-delete rows (the user thinks they've already deleted these),
+     * processing rows (worker hasn't finished writing — `LocalSendController.send` would
+     * find an empty file list), and bundles not in the completed list at all.
+     */
+    fun toggleSelection(bundleId: String) {
+        val state = _uiState.value
+        if (!isSelectable(bundleId, state)) return
+        _uiState.update {
+            val current = it.selectedBundleIds
+            val next = if (bundleId in current) current - bundleId else current + bundleId
+            it.copy(selectedBundleIds = next)
+        }
+    }
+
+    fun clearSelection() {
+        _uiState.update { it.copy(selectedBundleIds = emptySet()) }
+    }
+
+    /**
+     * The set of currently-selected, still-completed [CompletedBundle]s — fed into the
+     * LocalSend send sheet when the user taps the contextual app bar's send icon. Drops
+     * any IDs that have since transitioned to pending-delete or processing (e.g. the
+     * user selected a bundle and then swiped left to delete the same row before tapping
+     * send).
+     */
+    fun selectedBundlesSnapshot(): List<CompletedBundle> {
+        val state = _uiState.value
+        val byId = state.bundles.associateBy { it.id }
+        return state.selectedBundleIds.mapNotNull { id ->
+            byId[id]?.takeIf { isSelectable(id, state) }
+        }
     }
 
     private suspend fun hardDelete(bundle: CompletedBundle) {
@@ -243,5 +293,14 @@ class BundlePreviewViewModel(
                 BundlePreviewViewModel(app, app.container)
             }
         }
+
+        /**
+         * Pure helper — testable. A bundle is selectable when it exists in the completed
+         * list, isn't mid-countdown, and isn't still being processed by the worker.
+         */
+        fun isSelectable(bundleId: String, state: BundlePreviewUiState): Boolean =
+            state.bundles.any { it.id == bundleId } &&
+                bundleId !in state.pendingDeletes &&
+                bundleId !in state.processingBundleIds
     }
 }
