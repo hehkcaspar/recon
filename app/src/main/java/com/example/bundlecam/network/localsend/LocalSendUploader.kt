@@ -36,6 +36,11 @@ import kotlin.coroutines.resumeWithException
 private const val TAG = "Recon/LocalSendUploader"
 private const val PARALLEL_UPLOADS = 3
 private const val UPLOAD_BUFFER_BYTES = 64 * 1024
+// 50 ms cap on progress emissions — chunk callbacks fire every 64 KB on each of up to
+// 3 parallel uploads (~120 events/s peak on a fast Wi-Fi). The UI is latest-wins, so
+// rate-limiting to 20 Hz keeps recomposition cheap while still showing live motion.
+// Per-file completion bypasses the throttle so the count never lags.
+private const val PROGRESS_THROTTLE_MS = 50L
 private val APPLICATION_JSON = "application/json".toMediaType()
 
 /**
@@ -114,8 +119,19 @@ class LocalSendUploader(
         val totalBytes = items.sumOf { it.source.size }
         val sentBytes = AtomicLong(0L)
         val completedFiles = AtomicLong(0L)
+        val lastEmitMs = AtomicLong(0L)
 
-        fun emitProgress(currentFileName: String?) {
+        fun emitProgress(currentFileName: String?, force: Boolean = false) {
+            // Force-emit on lifecycle moments (start, file completion, terminal state)
+            // bypasses the throttle so the count + state never lag visibly. Mid-stream
+            // chunk callbacks honor PROGRESS_THROTTLE_MS to keep recomposition cheap.
+            if (!force) {
+                val now = System.currentTimeMillis()
+                if (now - lastEmitMs.get() < PROGRESS_THROTTLE_MS) return
+                lastEmitMs.set(now)
+            } else {
+                lastEmitMs.set(System.currentTimeMillis())
+            }
             onProgress(
                 SendProgress(
                     totalFiles = items.size,
@@ -127,7 +143,7 @@ class LocalSendUploader(
             )
         }
 
-        emitProgress(null)
+        emitProgress(null, force = true)
 
         // Phase 1 — prepare-upload.
         val prepRequest = buildPrepareUploadRequest(items, info)
@@ -140,7 +156,13 @@ class LocalSendUploader(
                 204 -> SendBundleResult.AlreadyReceived
                 401 -> SendBundleResult.Failed("Peer requires a PIN — not supported yet", 401)
                 403 -> SendBundleResult.Failed("Peer rejected the bundle", 403)
-                409 -> SendBundleResult.Failed("Peer is busy with another transfer", 409)
+                // The receiver's session stays active until the user dismisses the
+                // receive panel on their desktop — even after a previous transfer
+                // shows "Finished". 409 here is almost always that lingering panel.
+                409 -> SendBundleResult.Failed(
+                    "Receiver still has the previous transfer open. Tap Done on the receiving device, then retry.",
+                    409,
+                )
                 429 -> SendBundleResult.Failed("Too many requests; try again", 429)
                 else -> SendBundleResult.Failed("Prepare failed (HTTP ${e.status})", e.status)
             }
@@ -151,15 +173,25 @@ class LocalSendUploader(
         // Phase 2 — parallel raw uploads.
         val tokens = prepResponse.files
         val sessionId = prepResponse.sessionId
+
+        // The spec doesn't strictly forbid the receiver from omitting tokens for some
+        // requested files (e.g. partial dedup), but doing so silently and shipping the
+        // rest would tell the user "Sent" while losing files. Fail explicitly so the
+        // user knows. Best-effort cancel so the peer doesn't sit on the half-session.
+        val missing = items.filter { it.wireName !in tokens }
+        if (missing.isNotEmpty()) {
+            sendCancelBestEffort(client, peer, sessionId)
+            Log.w(TAG, "peer omitted ${missing.size} token(s); failing rather than partial-ship")
+            return@withContext SendBundleResult.Failed(
+                "Receiver dropped ${missing.size} file(s); refusing to send a partial bundle",
+            )
+        }
+
         val semaphore = Semaphore(PARALLEL_UPLOADS)
         try {
             coroutineScope {
                 items.map { item ->
-                    val token = tokens[item.wireName]
-                    if (token == null) {
-                        Log.w(TAG, "no upload token for ${item.wireName} — peer may dedup or reject")
-                        return@map null
-                    }
+                    val token = tokens.getValue(item.wireName)
                     async {
                         semaphore.withPermit {
                             uploadOne(
@@ -175,10 +207,10 @@ class LocalSendUploader(
                                 },
                             )
                             completedFiles.incrementAndGet()
-                            emitProgress(item.wireName)
+                            emitProgress(item.wireName, force = true)
                         }
                     }
-                }.filterNotNull().awaitAll()
+                }.awaitAll()
             }
         } catch (ce: CancellationException) {
             sendCancelBestEffort(client, peer, sessionId)

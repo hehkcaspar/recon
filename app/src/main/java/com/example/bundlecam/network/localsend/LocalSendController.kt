@@ -7,6 +7,8 @@ import com.example.bundlecam.data.storage.BundleLibrary
 import com.example.bundlecam.data.storage.CompletedBundle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import okhttp3.OkHttpClient
 
 /**
@@ -35,6 +37,12 @@ class LocalSendController(
 
     private val discovery = LocalSendDiscovery(appContext)
     private val uploader by lazy { LocalSendUploader(baseClient, appContext.contentResolver) }
+
+    // The local Info (alias + deviceModel + fingerprint) is stable per-install; cache
+    // it so discover/send don't each hit DataStore (mutex-guarded suspend) and
+    // certManager (lazy cert generation on first call, ~100 ms) on every invocation.
+    @Volatile private var cachedInfo: Info? = null
+    private val infoMutex = Mutex()
 
     /**
      * Starts (or rejoins) the multicast discovery session and returns a flow of
@@ -74,20 +82,30 @@ class LocalSendController(
             }
         }
         if (items.isEmpty()) return SendBundleResult.Failed("Selection has no shippable files")
-        val info = Info(
-            alias = settings.getOrCreateDeviceAlias(),
-            deviceModel = Build.MODEL,
-            deviceType = LOCALSEND_DEVICE_TYPE_MOBILE,
-            fingerprint = certManager.fingerprintHex(),
-        )
-        return uploader.send(peer, info, items, onProgress)
+        return uploader.send(peer, localInfo(), items, onProgress)
     }
 
-    private suspend fun buildOwnAnnounce(): Announce = Announce(
-        alias = settings.getOrCreateDeviceAlias(),
-        deviceModel = Build.MODEL,
-        deviceType = LOCALSEND_DEVICE_TYPE_MOBILE,
-        fingerprint = certManager.fingerprintHex(),
-        announce = true,
-    )
+    private suspend fun buildOwnAnnounce(): Announce {
+        val info = localInfo()
+        return Announce(
+            alias = info.alias,
+            deviceModel = info.deviceModel,
+            deviceType = info.deviceType,
+            fingerprint = info.fingerprint,
+            announce = true,
+        )
+    }
+
+    /** Lazily-built local identity, cached for the controller's lifetime. */
+    private suspend fun localInfo(): Info {
+        cachedInfo?.let { return it }
+        return infoMutex.withLock {
+            cachedInfo ?: Info(
+                alias = settings.getOrCreateDeviceAlias(),
+                deviceModel = Build.MODEL,
+                deviceType = LOCALSEND_DEVICE_TYPE_MOBILE,
+                fingerprint = certManager.fingerprintHex(),
+            ).also { cachedInfo = it }
+        }
+    }
 }
