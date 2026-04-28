@@ -139,7 +139,6 @@ fun BundlePreviewScreen(
                         bundles = state.bundles,
                         pendingDeletes = state.pendingDeletes,
                         selectedIds = state.selectedBundleIds,
-                        selectionMode = state.selectionMode,
                         thumbnails = state.thumbnails,
                         onRequestThumbnail = vm::loadThumbnail,
                         onRequestDelete = { id ->
@@ -235,7 +234,6 @@ private fun BundleList(
     bundles: List<CompletedBundle>,
     pendingDeletes: Map<String, PendingDelete>,
     selectedIds: Set<String>,
-    selectionMode: Boolean,
     thumbnails: Map<android.net.Uri, androidx.compose.ui.graphics.ImageBitmap>,
     onRequestThumbnail: (android.net.Uri) -> Unit,
     onRequestDelete: (String) -> Unit,
@@ -263,7 +261,6 @@ private fun BundleList(
                 thumbnails = thumbnails,
                 pendingDelete = pendingDeletes[bundle.id],
                 selected = bundle.id in selectedIds,
-                selectionMode = selectionMode,
                 onRequestThumbnail = onRequestThumbnail,
                 onRequestDelete = { onRequestDelete(bundle.id) },
                 onUndo = { onUndo(bundle.id) },

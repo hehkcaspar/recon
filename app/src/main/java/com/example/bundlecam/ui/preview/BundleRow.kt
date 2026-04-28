@@ -4,8 +4,8 @@ import android.view.HapticFeedbackConstants
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,10 +17,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Mic
@@ -44,6 +43,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import android.net.Uri
 import androidx.compose.ui.Alignment
@@ -55,6 +55,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
@@ -63,11 +64,25 @@ import androidx.compose.ui.unit.dp
 import com.example.bundlecam.data.storage.CompletedBundle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.math.abs
 
-private const val SWIPE_TRIGGER_FRACTION = 0.4f
+// Width of the selection reveal zone — the row settles here when selected, exposing
+// the green check affordance on the leading edge.
+private val SwipeRevealWidth = 80.dp
+// Fractions of revealWidth / row-width that count as a release-commit. Keeping the
+// select midpoint at 0.5 of the reveal width means a half-pull is enough to commit;
+// keeping the delete trigger at 0.4 of the row width matches the pre-existing delete
+// gesture's hard reach so swipe-left muscle memory carries over.
+private const val SWIPE_SELECT_FRACTION = 0.5f
+private const val SWIPE_DELETE_FRACTION = 0.4f
 private const val SWIPE_VELOCITY_PX_PER_S = 800f
 private const val COUNTDOWN_TICK_MS = 200L
+
+// M3 dynamic-color palettes can land anywhere — but "green = selected/confirm" is a
+// universally-readable signal, so the reveal background is hardcoded rather than
+// pulled from `colorScheme.primary`. Material green-800 reads cleanly on both light
+// and dark themes.
+private val SelectionGreen = Color(0xFF2E7D32)
+
 private val ThumbSize = 40.dp
 private val ThumbGap = 4.dp
 // Shared min-height so the pending-delete row and the normal row measure identically.
@@ -91,7 +106,6 @@ fun BundleRow(
     thumbnails: Map<Uri, ImageBitmap>,
     pendingDelete: PendingDelete?,
     selected: Boolean,
-    selectionMode: Boolean,
     onRequestThumbnail: (Uri) -> Unit,
     onRequestDelete: () -> Unit,
     onUndo: () -> Unit,
@@ -119,7 +133,6 @@ fun BundleRow(
         bundle = bundle,
         thumbnails = thumbnails,
         selected = selected,
-        selectionMode = selectionMode,
         onRequestDelete = onRequestDelete,
         onToggleSelection = onToggleSelection,
         modifier = modifier,
@@ -131,28 +144,47 @@ private fun SwipeableBundleRow(
     bundle: CompletedBundle,
     thumbnails: Map<Uri, ImageBitmap>,
     selected: Boolean,
-    selectionMode: Boolean,
     onRequestDelete: () -> Unit,
     onToggleSelection: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val view = LocalView.current
     val coroutineScope = rememberCoroutineScope()
-    // Two backing stores: `offsetX` is the live drag position (cheap plain state so we
-    // don't launch a coroutine per touch delta), `animatable` drives the release
-    // animation (snap-back on cancel, slide-out before firing the dialog). They're
-    // synced in onDragStart so the animation picks up from the current finger position.
-    var offsetX by remember(bundle.id) { mutableFloatStateOf(0f) }
-    val animatable = remember(bundle.id) { Animatable(0f) }
+    val density = LocalDensity.current
+    val revealWidthPx = with(density) { SwipeRevealWidth.toPx() }
+
+    // pointerInput is keyed only on bundle.id, so its drag-handler closures see stale
+    // values for `selected` / callbacks if those props change without a key bump (which
+    // would cancel an in-flight gesture). rememberUpdatedState gives us a State<T> the
+    // closures re-read on each invocation.
+    val currentSelected by rememberUpdatedState(selected)
+    val currentOnToggleSelection by rememberUpdatedState(onToggleSelection)
+    val currentOnRequestDelete by rememberUpdatedState(onRequestDelete)
+
+    // offsetX is the live drag position — plain state so we don't launch a coroutine
+    // per touch delta. animatable drives release / external-change animations and is
+    // kept in sync via snapTo at the start of every animated transition.
+    val initialOffset = if (selected) revealWidthPx else 0f
+    var offsetX by remember(bundle.id) { mutableFloatStateOf(initialOffset) }
+    val animatable = remember(bundle.id) { Animatable(initialOffset) }
     val velocityTracker = remember(bundle.id) { VelocityTracker() }
     var rowWidthPx by remember { mutableLongStateOf(0L) }
     var triggeredAbove by remember(bundle.id) { mutableStateOf(false) }
 
-    val deleteRevealColor = MaterialTheme.colorScheme.errorContainer
-    val selectRevealColor = MaterialTheme.colorScheme.primaryContainer
+    // External selection changes (e.g. contextual app bar's clear-all) animate the row
+    // back to its rest target, so the snap-out/in stays visually consistent with the
+    // user's own swipe.
+    LaunchedEffect(selected, revealWidthPx) {
+        val target = if (selected) revealWidthPx else 0f
+        if (offsetX != target) {
+            animatable.snapTo(offsetX)
+            animatable.animateTo(target) { offsetX = value }
+        }
+    }
+
     val containerColor = when {
-        offsetX < 0f -> deleteRevealColor
-        offsetX > 0f -> selectRevealColor
+        offsetX < 0f -> MaterialTheme.colorScheme.errorContainer
+        offsetX > 0f -> SelectionGreen
         else -> Color.Transparent
     }
 
@@ -165,9 +197,6 @@ private fun SwipeableBundleRow(
         val deleteProgress = if (widthF > 0f && offsetX < 0f) {
             (-offsetX / widthF).coerceIn(0f, 1f)
         } else 0f
-        val selectProgress = if (widthF > 0f && offsetX > 0f) {
-            (offsetX / widthF).coerceIn(0f, 1f)
-        } else 0f
 
         if (deleteProgress > 0f) {
             DeleteHint(
@@ -178,42 +207,41 @@ private fun SwipeableBundleRow(
                     .padding(end = 16.dp),
             )
         }
-        if (selectProgress > 0f) {
-            SelectHint(
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                progress = selectProgress,
-                alreadySelected = selected,
+
+        // Selection reveal: 80dp wide tap target on the leading edge, vertically
+        // centered, with a check-circle icon. Composed only when offsetX > 0 so it
+        // doesn't intercept clicks on an unselected row. Clickable when the row is
+        // at-rest selected — tapping fires the toggle (deselect). During mid-drag
+        // (offsetX > 0 but selected still false) the click is disabled; the gesture
+        // committer is the drag's release, not a tap.
+        if (offsetX > 0f) {
+            Box(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
-                    .padding(start = 16.dp),
-            )
+                    .width(SwipeRevealWidth)
+                    .heightIn(min = BundleRowMinHeight)
+                    .clickable(enabled = selected) { onToggleSelection() },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.CheckCircle,
+                    contentDescription = if (selected) "Deselect bundle" else null,
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
         }
 
-        // Selected rows get a subtle tone shift via `surfaceContainerHighest`. Sticking
-        // with M3's tonal palette (rather than ad-hoc primaryContainer alpha) keeps the
-        // selected state distinguishable in both light + dark themes without code paths
-        // for color-mode handling.
-        val rowColor =
-            if (selected) MaterialTheme.colorScheme.surfaceContainerHighest
-            else MaterialTheme.colorScheme.surface
-
         Surface(
-            color = rowColor,
+            color = MaterialTheme.colorScheme.surface,
             modifier = Modifier
                 .fillMaxWidth()
                 .graphicsLayer { translationX = offsetX }
                 .pointerInput(bundle.id) {
-                    detectTapGestures(
-                        onLongPress = { onToggleSelection() },
-                        // Tap is a no-op outside selection mode (matches existing behavior;
-                        // bundles don't open into a detail screen yet). In selection mode,
-                        // tap is the primary toggle so users don't have to swipe every row.
-                        onTap = { if (selectionMode) onToggleSelection() },
-                    )
-                }
-                .pointerInput(bundle.id) {
                     rowWidthPx = size.width.toLong()
-                    val triggerPx = size.width * SWIPE_TRIGGER_FRACTION
+                    val deleteTriggerPx = -size.width * SWIPE_DELETE_FRACTION
+                    val selectMidpointPx = revealWidthPx * SWIPE_SELECT_FRACTION
+
                     detectHorizontalDragGestures(
                         onDragStart = {
                             triggeredAbove = false
@@ -221,61 +249,80 @@ private fun SwipeableBundleRow(
                         },
                         onDragEnd = {
                             val velocity = velocityTracker.calculateVelocity().x
-                            val absVelocity = abs(velocity)
-                            val shouldTrigger =
-                                abs(offsetX) >= triggerPx || absVelocity >= SWIPE_VELOCITY_PX_PER_S
-                            val direction = when {
-                                offsetX < 0f -> -1
-                                offsetX > 0f -> 1
-                                else -> 0
-                            }
+                            val isFastRight = velocity >= SWIPE_VELOCITY_PX_PER_S
+                            val isFastLeft = velocity <= -SWIPE_VELOCITY_PX_PER_S
                             coroutineScope.launch {
                                 animatable.snapTo(offsetX)
-                                if (shouldTrigger && direction != 0) {
-                                    animatable.animateTo(direction * triggerPx)
-                                    offsetX = animatable.value
-                                    when (direction) {
-                                        -1 -> onRequestDelete()
-                                        1 -> onToggleSelection()
+                                when {
+                                    // Selected → deselect: dragged left toward 0, or fast left flick.
+                                    currentSelected &&
+                                        (offsetX <= selectMidpointPx ||
+                                            (isFastLeft && offsetX < revealWidthPx)) -> {
+                                        animatable.animateTo(0f) { offsetX = value }
+                                        currentOnToggleSelection()
                                     }
-                                    animatable.snapTo(0f)
-                                    offsetX = 0f
-                                } else {
-                                    animatable.animateTo(0f) { offsetX = value }
-                                    offsetX = 0f
+                                    // Unselected → select: dragged right past midpoint, or fast right flick.
+                                    !currentSelected && offsetX > 0f &&
+                                        (offsetX >= selectMidpointPx || isFastRight) -> {
+                                        animatable.animateTo(revealWidthPx) { offsetX = value }
+                                        currentOnToggleSelection()
+                                    }
+                                    // Unselected → delete: dragged left past delete threshold, or fast left flick.
+                                    !currentSelected && offsetX < 0f &&
+                                        (offsetX <= deleteTriggerPx || isFastLeft) -> {
+                                        animatable.animateTo(deleteTriggerPx) { offsetX = value }
+                                        currentOnRequestDelete()
+                                        // pendingDeleteRow takes over on the next recomposition;
+                                        // snap the gesture state to 0 in case the bundle reappears
+                                        // (e.g. user undoes the delete) so the row shows at rest.
+                                        animatable.snapTo(0f)
+                                        offsetX = 0f
+                                    }
+                                    // Otherwise: spring back to current rest.
+                                    else -> {
+                                        val rest = if (currentSelected) revealWidthPx else 0f
+                                        animatable.animateTo(rest) { offsetX = value }
+                                    }
                                 }
                             }
                         },
                         onDragCancel = {
                             coroutineScope.launch {
+                                val rest = if (currentSelected) revealWidthPx else 0f
                                 animatable.snapTo(offsetX)
-                                animatable.animateTo(0f) { offsetX = value }
-                                offsetX = 0f
+                                animatable.animateTo(rest) { offsetX = value }
                             }
                         },
                         onHorizontalDrag = { change, delta ->
                             velocityTracker.addPosition(change.uptimeMillis, change.position)
-                            // Signed offset — left fires delete, right fires selection toggle.
-                            val next = offsetX + delta
-                            offsetX = next
-                            val aboveNow = abs(next) >= triggerPx
-                            // Haptic on both crossings so dragging back below the line
-                            // gives the same "you're in cancel territory" confirmation
-                            // that the initial arming already signals.
-                            if (aboveNow != triggeredAbove) {
-                                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                            // Clamp depends on starting state at drag-start (= currentSelected
+                            // since no toggle fires until drag-end): selected rows can only
+                            // travel between 0 and revealWidth (no delete from a selected row,
+                            // no over-drag past reveal). Unselected rows can swipe right up to
+                            // revealWidth (selection cap) or arbitrarily left (delete reveal).
+                            val raw = offsetX + delta
+                            val next = if (currentSelected) {
+                                raw.coerceIn(0f, revealWidthPx)
+                            } else {
+                                raw.coerceAtMost(revealWidthPx)
                             }
-                            triggeredAbove = aboveNow
-                            if (next != 0f) change.consume()
+                            offsetX = next
+                            // Haptic on each crossing of "would-fire-on-release" so the user
+                            // gets confirmation that their pull is committable.
+                            val wouldFire = when {
+                                currentSelected -> next <= selectMidpointPx
+                                else -> next >= selectMidpointPx || next <= deleteTriggerPx
+                            }
+                            if (wouldFire != triggeredAbove) {
+                                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                triggeredAbove = wouldFire
+                            }
+                            if (next != offsetX - delta) change.consume()
                         },
                     )
                 },
         ) {
-            BundleRowContent(
-                bundle = bundle,
-                thumbnails = thumbnails,
-                selected = selected,
-            )
+            BundleRowContent(bundle = bundle, thumbnails = thumbnails)
         }
     }
 }
@@ -305,48 +352,15 @@ private fun DeleteHint(
 }
 
 @Composable
-private fun SelectHint(
-    color: Color,
-    progress: Float,
-    alreadySelected: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    val alpha = (progress * 2f).coerceAtMost(1f)
-    if (alpha < 0.01f) return
-    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
-        Icon(
-            imageVector = Icons.Filled.Check,
-            contentDescription = null,
-            tint = color.copy(alpha = alpha),
-            modifier = Modifier.size(20.dp),
-        )
-        Spacer(Modifier.width(8.dp))
-        Text(
-            // Toggle wording mirrors the actual semantic — swiping right on an already-
-            // selected row deselects it. Helps the user form the right mental model the
-            // first time they discover the gesture.
-            text = if (alreadySelected) "Deselect" else "Select",
-            color = color.copy(alpha = alpha),
-            style = MaterialTheme.typography.labelLarge,
-        )
-    }
-}
-
-@Composable
 private fun BundleRowContent(
     bundle: CompletedBundle,
     thumbnails: Map<Uri, ImageBitmap>,
-    selected: Boolean = false,
 ) {
     Row(
         modifier = Modifier.bundleRowLayout(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ThumbnailStrip(
-            uris = bundle.thumbnailUris,
-            thumbnails = thumbnails,
-            checkedOverlay = selected,
-        )
+        ThumbnailStrip(uris = bundle.thumbnailUris, thumbnails = thumbnails)
 
         Spacer(Modifier.width(12.dp))
 
@@ -376,14 +390,13 @@ private fun BundleRowContent(
 private fun ThumbnailStrip(
     uris: List<Uri>,
     thumbnails: Map<Uri, ImageBitmap>,
-    checkedOverlay: Boolean = false,
 ) {
     Row(
         modifier = Modifier.width(ThumbStripWidth),
         horizontalArrangement = Arrangement.spacedBy(ThumbGap),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        uris.take(3).forEachIndexed { index, uri ->
+        uris.take(3).forEach { uri ->
             Box(
                 modifier = Modifier
                     .size(ThumbSize)
@@ -406,28 +419,6 @@ private fun ThumbnailStrip(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp),
                     )
-                }
-                if (checkedOverlay && index == 0) {
-                    // Filled check disc in the bottom-right corner of the leading thumb
-                    // — a single targeted glance-affordance that survives the row's
-                    // subtle tone-shift selected state without competing with the existing
-                    // modality-icons cluster on the trailing edge.
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(2.dp)
-                            .size(16.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Check,
-                            contentDescription = "Selected",
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(12.dp),
-                        )
-                    }
                 }
             }
         }
@@ -600,3 +591,4 @@ fun ProcessingBundleRow(
         }
     }
 }
+
