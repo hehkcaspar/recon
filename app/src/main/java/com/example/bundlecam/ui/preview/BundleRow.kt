@@ -170,6 +170,11 @@ private fun SwipeableBundleRow(
     val velocityTracker = remember(bundle.id) { VelocityTracker() }
     var rowWidthPx by remember { mutableLongStateOf(0L) }
     var triggeredAbove by remember(bundle.id) { mutableStateOf(false) }
+    // True while the row is mid-animation from an external selection change (e.g. the
+    // contextual app bar's X click). Drag handlers consult this on drag-start to ignore
+    // any finger motion that's actually a follow-through from the user's tap on X — a
+    // common pattern that would otherwise trigger swipe-right and re-select the row.
+    var animatingExternally by remember(bundle.id) { mutableStateOf(false) }
 
     // External selection changes (e.g. contextual app bar's clear-all) animate the row
     // back to its rest target, so the snap-out/in stays visually consistent with the
@@ -177,8 +182,13 @@ private fun SwipeableBundleRow(
     LaunchedEffect(selected, revealWidthPx) {
         val target = if (selected) revealWidthPx else 0f
         if (offsetX != target) {
-            animatable.snapTo(offsetX)
-            animatable.animateTo(target) { offsetX = value }
+            animatingExternally = true
+            try {
+                animatable.snapTo(offsetX)
+                animatable.animateTo(target) { offsetX = value }
+            } finally {
+                animatingExternally = false
+            }
         }
     }
 
@@ -241,13 +251,22 @@ private fun SwipeableBundleRow(
                     rowWidthPx = size.width.toLong()
                     val deleteTriggerPx = -size.width * SWIPE_DELETE_FRACTION
                     val selectMidpointPx = revealWidthPx * SWIPE_SELECT_FRACTION
+                    // Per-gesture suppression flag — set on drag-start when the row is
+                    // mid-animation from an external selection change. Stays set for the
+                    // remainder of the gesture so a follow-through finger motion right
+                    // after the user tapped X doesn't drive offsetX or commit a toggle.
+                    var dragSuppressed = false
 
                     detectHorizontalDragGestures(
                         onDragStart = {
-                            triggeredAbove = false
-                            velocityTracker.resetTracking()
+                            dragSuppressed = animatingExternally
+                            if (!dragSuppressed) {
+                                triggeredAbove = false
+                                velocityTracker.resetTracking()
+                            }
                         },
                         onDragEnd = {
+                            if (dragSuppressed) return@detectHorizontalDragGestures
                             val velocity = velocityTracker.calculateVelocity().x
                             val isFastRight = velocity >= SWIPE_VELOCITY_PX_PER_S
                             val isFastLeft = velocity <= -SWIPE_VELOCITY_PX_PER_S
@@ -287,6 +306,7 @@ private fun SwipeableBundleRow(
                             }
                         },
                         onDragCancel = {
+                            if (dragSuppressed) return@detectHorizontalDragGestures
                             coroutineScope.launch {
                                 val rest = if (currentSelected) revealWidthPx else 0f
                                 animatable.snapTo(offsetX)
@@ -294,6 +314,13 @@ private fun SwipeableBundleRow(
                             }
                         },
                         onHorizontalDrag = { change, delta ->
+                            if (dragSuppressed) {
+                                // Claim the gesture so it doesn't propagate, but ignore the
+                                // delta — the LaunchedEffect's animation owns offsetX while
+                                // the row is animating to rest.
+                                change.consume()
+                                return@detectHorizontalDragGestures
+                            }
                             velocityTracker.addPosition(change.uptimeMillis, change.position)
                             // Clamp depends on starting state at drag-start (= currentSelected
                             // since no toggle fires until drag-end): selected rows can only
