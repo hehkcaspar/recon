@@ -76,6 +76,20 @@ class LocalSendDiscoveryFilterTest {
     }
 
     @Test
+    fun http_peer_is_rejected() {
+        // Peers advertising protocol="http" are dropped — their fingerprint is a random
+        // string per spec (not a cert hash), so we have no way to authenticate them.
+        val httpPeer = Announce(
+            alias = "Insecure",
+            fingerprint = "randomString",
+            protocol = "http",
+            announce = true,
+        )
+        val bytes = bytesOf(httpPeer)
+        assertNull(LocalSendDiscovery.parseAnnounce(bytes, bytes.size, ownFp))
+    }
+
+    @Test
     fun length_truncates_buffer() {
         // First 7 bytes "{garbage" so the JSON parser fails — stable null even though
         // the trailing bytes might form a valid payload.

@@ -21,6 +21,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,7 +37,10 @@ import com.example.bundlecam.network.localsend.Peer
 import com.example.bundlecam.network.localsend.SendBundleResult
 import com.example.bundlecam.network.localsend.SendProgress
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+private const val DISCOVERY_TIMEOUT_MS = 12_000L
 
 /**
  * Production multi-bundle send sheet — opens from the bundles browser's contextual app
@@ -55,8 +59,11 @@ fun LocalSendSheet(
     val scope = rememberCoroutineScope()
 
     val peers = remember { mutableStateListOf<Peer>() }
-    var ui by remember { mutableStateOf<SendUiState>(SendUiState.Discovering) }
+    var ui by remember { mutableStateOf<SendUiState>(SendUiState.Discovering(timedOut = false)) }
     var sendJob by remember { mutableStateOf<Job?>(null) }
+    // Bumped on retry — re-keys both LaunchedEffects so we get a fresh discovery
+    // session and a fresh timeout countdown.
+    var discoveryAttempt by remember { mutableIntStateOf(0) }
 
     fun closeAndDismiss() {
         scope.launch {
@@ -66,9 +73,16 @@ fun LocalSendSheet(
         }
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(discoveryAttempt) {
         container.localSendController.discover(scope).collect { peer ->
             if (peers.none { it.fingerprint == peer.fingerprint }) peers.add(peer)
+        }
+    }
+
+    LaunchedEffect(discoveryAttempt) {
+        delay(DISCOVERY_TIMEOUT_MS)
+        if (peers.isEmpty() && ui is SendUiState.Discovering) {
+            ui = SendUiState.Discovering(timedOut = true)
         }
     }
 
@@ -85,10 +99,19 @@ fun LocalSendSheet(
             Spacer(Modifier.height(16.dp))
 
             when (val s = ui) {
-                SendUiState.Discovering -> PeerListBlock(
+                is SendUiState.Discovering -> PeerListBlock(
                     peers = peers,
+                    timedOut = s.timedOut,
                     onPick = { peer ->
                         sendJob = scope.launch { runSendQueue(container, peer, bundles) { ui = it } }
+                    },
+                    onRetry = {
+                        scope.launch {
+                            container.localSendController.stopDiscovery()
+                            peers.clear()
+                            ui = SendUiState.Discovering(timedOut = false)
+                            discoveryAttempt++
+                        }
                     },
                 )
                 is SendUiState.Sending -> SendingBlock(s)
@@ -141,7 +164,7 @@ private suspend fun runSendQueue(
 }
 
 private sealed interface SendUiState {
-    data object Discovering : SendUiState
+    data class Discovering(val timedOut: Boolean) : SendUiState
     data class Sending(
         val peerAlias: String,
         val totalBundles: Int,
@@ -158,21 +181,25 @@ private data class BundleSendOutcome(val bundleId: String, val result: SendBundl
 @Composable
 private fun Header(bundles: List<CompletedBundle>, ui: SendUiState) {
     val title = when (ui) {
-        SendUiState.Discovering -> when (bundles.size) {
+        is SendUiState.Discovering -> when (bundles.size) {
             1 -> "Send 1 bundle"
             else -> "Send ${bundles.size} bundles"
         }
         is SendUiState.Sending -> "Sending to ${ui.peerAlias}"
         is SendUiState.Done -> {
-            val ok = ui.results.count { it.result is SendBundleResult.Success || it.result is SendBundleResult.AlreadyReceived }
+            // AlreadyReceived counts as success for the user — the bundle ended up on
+            // the peer regardless of whether bytes flowed in this session.
+            val ok = ui.results.count {
+                it.result is SendBundleResult.Success || it.result is SendBundleResult.AlreadyReceived
+            }
             val total = ui.results.size
-            if (ok == total) "Sent $total ✓" else "Sent $ok / $total"
+            if (ok == total) "Done · $total / $total" else "Done · $ok / $total"
         }
     }
     Text(text = title, style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(2.dp))
     val subtitle = when (ui) {
-        SendUiState.Discovering -> "Pick a peer on the same Wi-Fi network."
+        is SendUiState.Discovering -> "Pick a peer on the same Wi-Fi network."
         is SendUiState.Sending ->
             "Bundle ${ui.currentIndex + 1} of ${ui.totalBundles} · ${ui.currentBundleId}"
         is SendUiState.Done -> "Tap close to return to the bundles list."
@@ -185,9 +212,14 @@ private fun Header(bundles: List<CompletedBundle>, ui: SendUiState) {
 }
 
 @Composable
-private fun PeerListBlock(peers: List<Peer>, onPick: (Peer) -> Unit) {
-    if (peers.isEmpty()) {
-        Row(
+private fun PeerListBlock(
+    peers: List<Peer>,
+    timedOut: Boolean,
+    onPick: (Peer) -> Unit,
+    onRetry: () -> Unit,
+) {
+    when {
+        peers.isEmpty() && !timedOut -> Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -197,8 +229,27 @@ private fun PeerListBlock(peers: List<Peer>, onPick: (Peer) -> Unit) {
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
-    } else {
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        peers.isEmpty() && timedOut -> Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = "No peers found.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = "Make sure both devices are on the same Wi-Fi network and that " +
+                    "LocalSend is open on the receiver.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                TextButton(onClick = onRetry) { Text("Try again") }
+            }
+        }
+        else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             items(peers, key = { it.fingerprint }) { peer ->
                 TextButton(
                     onClick = { onPick(peer) },
@@ -226,11 +277,17 @@ private fun PeerListBlock(peers: List<Peer>, onPick: (Peer) -> Unit) {
 @Composable
 private fun SendingBlock(s: SendUiState.Sending) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        // Aggregate progress: bytes-completed-across-all-bundles / total-bytes is most
-        // user-meaningful, but we don't have that without enumerating every file in
-        // every queued bundle upfront. Use bundle-count progress as the outer bar +
-        // per-file progress within the active bundle.
-        val outerFrac = (s.currentIndex.toFloat() / s.totalBundles.toFloat()).coerceIn(0f, 1f)
+        // Outer bar = bundle-completion fraction blended with current bundle's byte
+        // fraction so it advances smoothly within each bundle instead of stepping in
+        // chunks of 1/N. Smooth motion is meaningful feedback that the transfer is
+        // alive — a stalled outer bar would worry the user even when files are
+        // streaming inside the current bundle.
+        val perBundleFrac = s.progress?.let { p ->
+            if (p.totalBytes > 0L) (p.sentBytes.toFloat() / p.totalBytes.toFloat()).coerceIn(0f, 1f)
+            else 0f
+        } ?: 0f
+        val outerFrac = ((s.currentIndex.toFloat() + perBundleFrac) / s.totalBundles.toFloat())
+            .coerceIn(0f, 1f)
         LinearProgressIndicator(
             progress = { outerFrac },
             modifier = Modifier.fillMaxWidth(),
@@ -240,9 +297,8 @@ private fun SendingBlock(s: SendUiState.Sending) {
         if (p == null || p.totalBytes == 0L) {
             CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
         } else {
-            val frac = (p.sentBytes.toFloat() / p.totalBytes.toFloat()).coerceIn(0f, 1f)
             LinearProgressIndicator(
-                progress = { frac },
+                progress = { perBundleFrac },
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(4.dp))
@@ -294,6 +350,5 @@ private fun outcomeLabel(result: SendBundleResult): Pair<String, androidx.compos
     when (result) {
         SendBundleResult.Success -> "sent" to MaterialTheme.colorScheme.primary
         SendBundleResult.AlreadyReceived -> "already received" to MaterialTheme.colorScheme.onSurfaceVariant
-        SendBundleResult.Cancelled -> "cancelled" to MaterialTheme.colorScheme.onSurfaceVariant
         is SendBundleResult.Failed -> "failed: ${result.message}" to MaterialTheme.colorScheme.error
     }

@@ -14,8 +14,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import java.io.Closeable
 import java.io.IOException
 import java.net.DatagramPacket
 import java.net.InetAddress
@@ -26,7 +27,11 @@ import java.net.SocketTimeoutException
 import kotlinx.serialization.encodeToString
 
 private const val TAG = "Recon/LocalSendDiscovery"
+// 64 KB buffer covers the IPv4 UDP datagram max (~65 KB) — LocalSend announces are
+// typically <1 KB but the spec doesn't cap them, so we size for the worst case.
 private const val RECEIVE_BUFFER_BYTES = 64 * 1024
+// receive() blocks the IO thread; the soTimeout lets the loop wake up periodically to
+// re-check scope.isActive so cancelling the discovery scope shuts down within ~1s.
 private const val RECEIVE_TIMEOUT_MS = 1_000
 
 /**
@@ -61,90 +66,92 @@ data class Peer(
  * Sender-only: this class does NOT run an HTTP `/register` server. Per spec, peers also
  * fall back to multicast UDP responses (with `announce:false`) when no HTTP server is
  * reachable, so we still discover most peers via this single socket.
+ *
+ * Thread-safety: [start]/[stop]/[broadcastAnnounce] are serialized through a suspending
+ * [lifecycleMutex] so a stop() running mid-flight always finishes its socket close
+ * before a subsequent start() tries to bind the port (otherwise a tight stop-then-start
+ * sequence would race the SO_REUSEADDR setup against an in-flight close).
  */
-class LocalSendDiscovery(context: Context) : Closeable {
+class LocalSendDiscovery(context: Context) {
     private val appContext: Context = context.applicationContext
     private val wifiManager: WifiManager? =
         appContext.applicationContext.getSystemService(WifiManager::class.java)
 
-    @Volatile
+    private val lifecycleMutex = Mutex()
     private var session: Session? = null
 
     /**
-     * Starts discovery. Sends an immediate announce; receive loop continues until [stop]
-     * or [close]. Multiple concurrent calls share the same session — re-calling start
-     * is a no-op (returns the existing flow).
+     * Starts discovery. Sends an immediate announce; receive loop continues until [stop].
+     * Multiple concurrent calls share the same session — re-calling start is a no-op
+     * (returns the existing flow). Suspending so callers wait through any in-flight
+     * stop() before this start() runs.
      */
-    fun start(scope: CoroutineScope, ownAnnounce: Announce): Flow<Peer> {
-        synchronized(this) {
-            session?.let { return it.peers.consumeAsFlow() }
-            val newSession = Session(appContext, wifiManager, ownAnnounce, scope)
-            session = newSession
-            newSession.run()
-            return newSession.peers.consumeAsFlow()
+    suspend fun start(scope: CoroutineScope, ownAnnounce: Announce): Flow<Peer> =
+        lifecycleMutex.withLock {
+            session?.let { return@withLock it.peers.consumeAsFlow() }
+            val newSession = Session(wifiManager, ownAnnounce, scope)
+            try {
+                newSession.startUp()
+                session = newSession
+                newSession.peers.consumeAsFlow()
+            } catch (t: Throwable) {
+                // setUp() may have partially acquired resources; ensure both lock and
+                // socket are released even on full failure so a follow-up start() can
+                // try again from a clean slate.
+                runCatching { newSession.shutdown() }
+                throw t
+            }
         }
-    }
 
     suspend fun stop() {
-        val s = synchronized(this) {
-            val current = session
+        lifecycleMutex.withLock {
+            val s = session ?: return@withLock
             session = null
-            current
-        } ?: return
-        s.shutdown()
-    }
-
-    override fun close() {
-        // Closeable for try-with-resources contracts; suspend stop() is preferred.
-        synchronized(this) {
-            session?.let {
-                it.peers.close()
-                it.socket?.runCatching { close() }
-                runCatching { it.lock?.release() }
-            }
-            session = null
+            s.shutdown()
         }
     }
 
     /** Send the announce on demand — useful to re-broadcast if a peer joined late. */
     suspend fun broadcastAnnounce() {
-        session?.broadcastOnce()
+        lifecycleMutex.withLock { session?.broadcastOnce() }
     }
 
     private class Session(
-        appContext: Context,
         private val wifiManager: WifiManager?,
         private val ownAnnounce: Announce,
         private val scope: CoroutineScope,
     ) {
-        var socket: MulticastSocket? = null
-        var lock: WifiManager.MulticastLock? = null
+        private var socket: MulticastSocket? = null
+        private var lock: WifiManager.MulticastLock? = null
         val peers: Channel<Peer> = Channel(capacity = Channel.UNLIMITED)
         private var receiveJob: Job? = null
         private val groupAddress: InetAddress = InetAddress.getByName(LOCALSEND_MULTICAST_GROUP)
         private val groupSocketAddress: InetSocketAddress =
             InetSocketAddress(groupAddress, LOCALSEND_PORT)
 
-        fun run() {
-            lock = wifiManager?.createMulticastLock("recon-localsend")?.apply {
+        fun startUp() {
+            val newLock = wifiManager?.createMulticastLock("recon-localsend")?.apply {
                 setReferenceCounted(false)
                 runCatching { acquire() }
                     .onFailure { Log.w(TAG, "MulticastLock acquire failed", it) }
             }
-            try {
-                socket = MulticastSocket(LOCALSEND_PORT).apply {
+            val newSocket = try {
+                MulticastSocket(LOCALSEND_PORT).apply {
                     reuseAddress = true
                     soTimeout = RECEIVE_TIMEOUT_MS
                     joinAllInterfaces(this)
                 }
             } catch (t: Throwable) {
-                Log.w(TAG, "MulticastSocket setup failed", t)
-                return
+                // Socket open failed (e.g. port still bound from a previous session
+                // mid-close) — release the lock we just acquired so we don't hold the
+                // wifi awake forever.
+                runCatching { newLock?.release() }
+                throw IOException("MulticastSocket(${LOCALSEND_PORT}) setup failed", t)
             }
+            socket = newSocket
+            lock = newLock
             broadcastOnceBlocking()
-            receiveJob = scope.launch(Dispatchers.IO) {
-                receiveLoop()
-            }
+            receiveJob = scope.launch(Dispatchers.IO) { receiveLoop() }
         }
 
         suspend fun broadcastOnce() = withContext(Dispatchers.IO) { broadcastOnceBlocking() }
@@ -185,6 +192,9 @@ class LocalSendDiscovery(context: Context) : Closeable {
         }
 
         suspend fun shutdown() {
+            // NonCancellable so a parent-scope cancellation (e.g. user dismissing the
+            // sheet) doesn't leave the socket open and the lock held — we have to
+            // finish cleanup even if the caller's job is being torn down.
             withContext(NonCancellable) {
                 receiveJob?.cancelAndJoin()
                 runCatching { socket?.close() }
@@ -204,7 +214,10 @@ class LocalSendDiscovery(context: Context) : Closeable {
     companion object {
         /**
          * Pure helper — testable. Decodes the inbound announce, drops self-echoes by
-         * fingerprint, drops malformed JSON. Length cap is enforced by the caller's
+         * fingerprint, drops malformed JSON, and refuses non-HTTPS peers (their
+         * advertised fingerprint is per spec a random string, not a cert hash, so we
+         * have no way to authenticate them — sending to such a peer would be a MITM-
+         * vulnerable channel). Length cap is enforced by the caller's
          * [DatagramPacket.length]; we never look past `length`.
          */
         fun parseAnnounce(buffer: ByteArray, length: Int, ownFingerprint: String): Announce? {
@@ -213,6 +226,7 @@ class LocalSendDiscovery(context: Context) : Closeable {
             val announce = runCatching { LocalSendJson.decodeFromString<Announce>(text) }
                 .getOrNull() ?: return null
             if (announce.fingerprint == ownFingerprint) return null
+            if (announce.protocol != "https") return null
             return announce
         }
 

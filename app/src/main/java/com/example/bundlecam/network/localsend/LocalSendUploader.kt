@@ -5,9 +5,11 @@ import android.util.Log
 import com.example.bundlecam.data.storage.BundleFile
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -33,11 +35,16 @@ private const val PARALLEL_UPLOADS = 3
 private const val UPLOAD_BUFFER_BYTES = 64 * 1024
 private val APPLICATION_JSON = "application/json".toMediaType()
 
-/** Best-effort report of how a bundle send went. UI surfaces these into the banner. */
+/**
+ * Best-effort report of how a bundle send went. UI surfaces these into the banner.
+ * Note: there's intentionally no `Cancelled` case — coroutine cancellation throws
+ * [CancellationException] out of [LocalSendUploader.sendBundle] before any result can
+ * be returned, so a Cancelled outcome would be unreachable. The sheet's cancellation
+ * path tears down the sheet entirely instead of recording outcomes.
+ */
 sealed class SendBundleResult {
     data object Success : SendBundleResult()
     data class Failed(val message: String, val httpStatus: Int? = null) : SendBundleResult()
-    data object Cancelled : SendBundleResult()
     data object AlreadyReceived : SendBundleResult()
 }
 
@@ -192,12 +199,18 @@ class LocalSendUploader(
             .addQueryParameter("fileId", fileId)
             .addQueryParameter("token", token)
             .build()
+        // Capture the calling job so the streaming body can fail-fast on cancellation —
+        // OkHttp's Call.cancel() does eventually unwind a stuck writeTo via socket
+        // close, but checking the Job inside the chunk loop drops the latency from
+        // "next socket write attempt" to "next 64 KB chunk".
+        val callingJob = currentCoroutineContext()[Job]
         val body = StreamingSafBody(
             resolver = resolver,
             uri = file.uri,
             mediaType = file.mimeType.toMediaType(),
             sizeBytes = file.size,
             onChunk = onChunk,
+            isActive = { callingJob?.isActive != false },
         )
         val request = Request.Builder()
             .url(url)
@@ -256,6 +269,7 @@ private class StreamingSafBody(
     private val mediaType: okhttp3.MediaType?,
     private val sizeBytes: Long,
     private val onChunk: (delta: Long) -> Unit,
+    private val isActive: () -> Boolean,
 ) : RequestBody() {
     override fun contentType() = mediaType
     override fun contentLength(): Long = sizeBytes
@@ -266,6 +280,7 @@ private class StreamingSafBody(
         input.use { stream ->
             val buf = ByteArray(UPLOAD_BUFFER_BYTES)
             while (true) {
+                if (!isActive()) throw IOException("upload cancelled mid-stream")
                 val n = stream.read(buf)
                 if (n < 0) break
                 sink.write(buf, 0, n)
@@ -274,8 +289,8 @@ private class StreamingSafBody(
         }
     }
 
-    // OkHttp may retry — but our SAF stream is one-shot (and large bodies shouldn't be
-    // double-read anyway), so refuse retries to avoid double-reading the same file.
+    // SAF ContentProvider streams are single-pass — refusing retries avoids OkHttp
+    // double-reading a cursor that's already at EOF after the first attempt.
     override fun isOneShot(): Boolean = true
 }
 

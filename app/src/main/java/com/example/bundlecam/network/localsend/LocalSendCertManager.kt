@@ -7,7 +7,7 @@ import java.io.File
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
-private const val TAG = "Recon/LocalSendCert"
+private const val TAG = "Recon/LocalSendCertManager"
 private const val CERT_DIR_NAME = "localsend"
 private const val CERT_FILE_NAME = "cert.pem"
 
