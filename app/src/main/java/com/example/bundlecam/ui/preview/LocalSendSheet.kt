@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
@@ -66,11 +67,16 @@ fun LocalSendSheet(
     var discoveryAttempt by remember { mutableIntStateOf(0) }
 
     fun closeAndDismiss() {
-        scope.launch {
-            sendJob?.cancel()
-            container.localSendController.stopDiscovery()
-            onDismiss()
-        }
+        // Dismiss the sheet immediately so the modal scrim stops intercepting touches
+        // on the bundles page underneath. The cleanup (cancel send + stop discovery)
+        // runs on the AppContainer's process-scoped appScope so it survives this
+        // sheet's coroutineScope being cancelled when the parent removes us from the
+        // composition. Without this, a slow stopDiscovery (the receive loop's soTimeout
+        // can hold up cancelAndJoin for ~1 s) freezes the bundle page until cleanup
+        // finishes, even though there's nothing the user can do during that wait.
+        sendJob?.cancel()
+        container.appScope.launch { container.localSendController.stopDiscovery() }
+        onDismiss()
     }
 
     LaunchedEffect(discoveryAttempt) {
@@ -113,6 +119,7 @@ fun LocalSendSheet(
                             discoveryAttempt++
                         }
                     },
+                    onClose = { closeAndDismiss() },
                 )
                 is SendUiState.Sending -> SendingBlock(s)
                 is SendUiState.Done -> DoneBlock(
@@ -217,6 +224,7 @@ private fun PeerListBlock(
     timedOut: Boolean,
     onPick: (Peer) -> Unit,
     onRetry: () -> Unit,
+    onClose: () -> Unit,
 ) {
     when {
         peers.isEmpty() && !timedOut -> Row(
@@ -246,6 +254,8 @@ private fun PeerListBlock(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
             ) {
+                TextButton(onClick = onClose) { Text("Close") }
+                Spacer(Modifier.width(4.dp))
                 TextButton(onClick = onRetry) { Text("Try again") }
             }
         }

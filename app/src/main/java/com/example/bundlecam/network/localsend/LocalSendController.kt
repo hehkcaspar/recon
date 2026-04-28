@@ -8,14 +8,13 @@ import com.example.bundlecam.data.storage.CompletedBundle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import okhttp3.OkHttpClient
-import java.security.SecureRandom
-import javax.net.ssl.SSLContext
-import javax.net.ssl.TrustManager
 
 /**
- * Top-level coordinator for LocalSend peer-to-peer transfer. Owns the OkHttp client
- * (configured with the no-op trust manager + fingerprint-pinning interceptor), the
- * multicast discovery socket, and the per-file uploader.
+ * Top-level coordinator for LocalSend peer-to-peer transfer. Owns the multicast
+ * discovery socket and a base OkHttp client; per-peer SSL configuration (fingerprint-
+ * pinning trust manager) is layered on by the uploader via `client.newBuilder()` so the
+ * connection pool / dispatcher / timeouts are shared while each peer's TLS identity is
+ * verified during its own handshake.
  *
  * Sender-only — does NOT run an HTTP server. Per the v2.1 spec, peers can also reply
  * via UDP multicast (`announce: false`), so single-socket discovery still surfaces most
@@ -30,20 +29,12 @@ class LocalSendController(
 ) {
     private val appContext: Context = context.applicationContext
 
-    private val client: OkHttpClient by lazy {
-        val trustManager = LocalSendTrustManager()
-        val sslContext = SSLContext.getInstance("TLS").apply {
-            init(null, arrayOf<TrustManager>(trustManager), SecureRandom())
-        }
-        OkHttpClient.Builder()
-            .sslSocketFactory(sslContext.socketFactory, trustManager)
-            .hostnameVerifier(LocalSendHostnameVerifier)
-            .addInterceptor(FingerprintPinningInterceptor())
-            .build()
-    }
+    // Base client with no SSL config — the uploader newBuilder()s a peer-specific
+    // client per send so the trust manager carries that peer's expected fingerprint.
+    private val baseClient: OkHttpClient by lazy { OkHttpClient.Builder().build() }
 
     private val discovery = LocalSendDiscovery(appContext)
-    private val uploader by lazy { LocalSendUploader(client, appContext.contentResolver) }
+    private val uploader by lazy { LocalSendUploader(baseClient, appContext.contentResolver) }
 
     /**
      * Starts (or rejoins) the multicast discovery session and returns a flow of
@@ -67,7 +58,7 @@ class LocalSendController(
     /**
      * Send one bundle to one peer. Sequential per-bundle; per-file uploads parallelize
      * inside the uploader. Returns the final [SendBundleResult] when the session
-     * completes (success / failure / cancelled / already-received).
+     * completes (success / failure / already-received).
      */
     suspend fun send(
         peer: Peer,

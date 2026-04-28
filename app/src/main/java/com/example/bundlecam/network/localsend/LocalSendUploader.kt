@@ -26,7 +26,10 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okio.BufferedSink
 import java.io.IOException
+import java.security.SecureRandom
 import java.util.concurrent.atomic.AtomicLong
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -62,7 +65,7 @@ data class SendProgress(
 )
 
 class LocalSendUploader(
-    private val client: OkHttpClient,
+    private val baseClient: OkHttpClient,
     private val resolver: ContentResolver,
 ) {
     /**
@@ -81,6 +84,12 @@ class LocalSendUploader(
         onProgress: (SendProgress) -> Unit = {},
     ): SendBundleResult = withContext(Dispatchers.IO) {
         if (files.isEmpty()) return@withContext SendBundleResult.Success
+
+        // Per-peer client: a fresh SSLContext whose trust manager pins this specific
+        // peer's announced fingerprint. The check runs inside the trust manager during
+        // the TLS handshake, so a successful handshake implies a verified peer (and the
+        // session's peerCertificates populate normally for any downstream consumer).
+        val client = buildPeerClient(peer.fingerprint)
 
         val totalBytes = files.sumOf { it.size }
         val sentBytes = AtomicLong(0L)
@@ -104,7 +113,7 @@ class LocalSendUploader(
         // Phase 1 — prepare-upload.
         val prepRequest = buildPrepareUploadRequest(files, info)
         val prepResponse = try {
-            prepareUpload(peer, prepRequest)
+            prepareUpload(client, peer, prepRequest)
         } catch (ce: CancellationException) {
             throw ce
         } catch (e: HttpStatusException) {
@@ -135,6 +144,7 @@ class LocalSendUploader(
                     async {
                         semaphore.withPermit {
                             uploadOne(
+                                client = client,
                                 peer = peer,
                                 sessionId = sessionId,
                                 fileId = f.fileName,
@@ -152,30 +162,44 @@ class LocalSendUploader(
                 }.filterNotNull().awaitAll()
             }
         } catch (ce: CancellationException) {
-            sendCancelBestEffort(peer, sessionId)
+            sendCancelBestEffort(client, peer, sessionId)
             throw ce
         } catch (e: HttpStatusException) {
-            sendCancelBestEffort(peer, sessionId)
+            sendCancelBestEffort(client, peer, sessionId)
             return@withContext when (e.status) {
                 403 -> SendBundleResult.Failed("Peer rejected mid-transfer", 403)
                 409 -> SendBundleResult.Failed("Peer dropped the session", 409)
                 else -> SendBundleResult.Failed("Upload failed (HTTP ${e.status})", e.status)
             }
         } catch (e: IOException) {
-            sendCancelBestEffort(peer, sessionId)
+            sendCancelBestEffort(client, peer, sessionId)
             return@withContext SendBundleResult.Failed("Upload failed: ${e.message}")
         }
 
         SendBundleResult.Success
     }
 
-    private suspend fun prepareUpload(peer: Peer, payload: PrepareUploadRequest): PrepareUploadResponse {
+    private fun buildPeerClient(expectedFingerprint: String): OkHttpClient {
+        val tm = FingerprintPinningTrustManager(expectedFingerprint)
+        val sslContext = SSLContext.getInstance("TLS").apply {
+            init(null, arrayOf<TrustManager>(tm), SecureRandom())
+        }
+        return baseClient.newBuilder()
+            .sslSocketFactory(sslContext.socketFactory, tm)
+            .hostnameVerifier(LocalSendHostnameVerifier)
+            .build()
+    }
+
+    private suspend fun prepareUpload(
+        client: OkHttpClient,
+        peer: Peer,
+        payload: PrepareUploadRequest,
+    ): PrepareUploadResponse {
         val url = "${peer.baseUrl()}$LOCALSEND_API_PATH_PREPARE_UPLOAD".toHttpUrl()
         val body = LocalSendJson.encodeToString(payload).toRequestBody(APPLICATION_JSON)
         val request = Request.Builder()
             .url(url)
             .post(body)
-            .expectFingerprint(peer.fingerprint)
             .build()
         client.newCall(request).awaitResponse().use { response ->
             if (!response.isSuccessful) throw HttpStatusException(response.code)
@@ -186,6 +210,7 @@ class LocalSendUploader(
     }
 
     private suspend fun uploadOne(
+        client: OkHttpClient,
         peer: Peer,
         sessionId: String,
         fileId: String,
@@ -215,14 +240,13 @@ class LocalSendUploader(
         val request = Request.Builder()
             .url(url)
             .post(body)
-            .expectFingerprint(peer.fingerprint)
             .build()
         client.newCall(request).awaitResponse().use { response ->
             if (!response.isSuccessful) throw HttpStatusException(response.code)
         }
     }
 
-    private suspend fun sendCancelBestEffort(peer: Peer, sessionId: String) {
+    private suspend fun sendCancelBestEffort(client: OkHttpClient, peer: Peer, sessionId: String) {
         val url = "${peer.baseUrl()}$LOCALSEND_API_PATH_CANCEL".toHttpUrl()
             .newBuilder()
             .addQueryParameter("sessionId", sessionId)
@@ -230,7 +254,6 @@ class LocalSendUploader(
         val request = Request.Builder()
             .url(url)
             .post(ByteArray(0).toRequestBody(null))
-            .expectFingerprint(peer.fingerprint)
             .build()
         runCatching { client.newCall(request).awaitResponse().close() }
             .onFailure { Log.w(TAG, "cancel failed for $sessionId", it) }

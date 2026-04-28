@@ -10,6 +10,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.trySendBlocking
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.isActive
@@ -23,6 +24,7 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.MulticastSocket
 import java.net.NetworkInterface
+import java.net.SocketException
 import java.net.SocketTimeoutException
 import kotlinx.serialization.encodeToString
 
@@ -129,7 +131,11 @@ class LocalSendDiscovery(context: Context) {
         private val groupSocketAddress: InetSocketAddress =
             InetSocketAddress(groupAddress, LOCALSEND_PORT)
 
-        fun startUp() {
+        suspend fun startUp() = withContext(Dispatchers.IO) {
+            // The whole bring-up runs on IO so the blocking network calls (socket bind,
+            // joinGroup, send) don't trip Android's NetworkOnMainThreadException. The
+            // call chain is LaunchedEffect → discover() → start() → startUp(), and the
+            // top of that chain is the Main dispatcher.
             val newLock = wifiManager?.createMulticastLock("recon-localsend")?.apply {
                 setReferenceCounted(false)
                 runCatching { acquire() }
@@ -174,15 +180,25 @@ class LocalSendDiscovery(context: Context) {
         private suspend fun receiveLoop() {
             val s = socket ?: return
             val buffer = ByteArray(RECEIVE_BUFFER_BYTES)
-            while (scope.isActive) {
+            // currentCoroutineContext().isActive checks THIS coroutine's job state — not
+            // the outer scope's. cancelAndJoin from shutdown() cancels this Job, which
+            // flips isActive to false and lets the loop exit. Using `scope.isActive`
+            // would check the PARENT scope, which stays active, so cancelAndJoin would
+            // hang until the socket was closed externally.
+            while (currentCoroutineContext().isActive) {
                 val packet = DatagramPacket(buffer, buffer.size)
-                val received = runCatching { s.receive(packet) }
-                if (received.isFailure) {
-                    val err = received.exceptionOrNull()
-                    if (err is SocketTimeoutException) continue
-                    if (s.isClosed) break
-                    Log.w(TAG, "receive failed", err)
+                try {
+                    s.receive(packet)
+                } catch (_: SocketTimeoutException) {
                     continue
+                } catch (e: SocketException) {
+                    // Socket closed by shutdown() — exit cleanly.
+                    if (s.isClosed) break
+                    Log.w(TAG, "receive failed", e)
+                    continue
+                } catch (_: java.io.InterruptedIOException) {
+                    // Thread interrupt while blocked in native receive — treat as cancel.
+                    break
                 }
                 val announce = parseAnnounce(packet.data, packet.length, ownAnnounce.fingerprint)
                     ?: continue
@@ -196,8 +212,12 @@ class LocalSendDiscovery(context: Context) {
             // sheet) doesn't leave the socket open and the lock held — we have to
             // finish cleanup even if the caller's job is being torn down.
             withContext(NonCancellable) {
-                receiveJob?.cancelAndJoin()
+                // Close the socket BEFORE joining the receive job. socket.close() makes
+                // the in-flight receive() throw SocketException, which the loop catches
+                // and breaks out of within a few ms — far faster than waiting for the
+                // soTimeout to roll over. cancelAndJoin then completes immediately.
                 runCatching { socket?.close() }
+                receiveJob?.cancelAndJoin()
                 runCatching { lock?.release() }
                 peers.close()
             }

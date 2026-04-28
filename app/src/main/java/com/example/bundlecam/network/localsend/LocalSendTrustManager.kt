@@ -1,26 +1,85 @@
 package com.example.bundlecam.network.localsend
 
-import okhttp3.Interceptor
-import okhttp3.Request
-import okhttp3.Response
+import java.net.Socket
+import java.security.cert.CertificateException
 import java.security.cert.X509Certificate
 import javax.net.ssl.HostnameVerifier
-import javax.net.ssl.SSLPeerUnverifiedException
-import javax.net.ssl.X509TrustManager
+import javax.net.ssl.SSLEngine
+import javax.net.ssl.X509ExtendedTrustManager
 
 /**
- * No-op trust manager — LocalSend peers present per-install self-signed certs that
- * cannot be validated by any CA, so the X509TrustManager is a passthrough and trust is
- * enforced post-handshake by [FingerprintPinningInterceptor] comparing the leaf cert's
- * SHA-256 against the fingerprint advertised in the peer's discovery announcement.
+ * Trust manager that pins the peer's leaf cert SHA-256 to the fingerprint advertised in
+ * the peer's discovery announcement.
+ *
+ * The check runs INSIDE checkServerTrusted (i.e. during the TLS handshake) rather than
+ * post-handshake in an OkHttp interceptor. The post-handshake approach left the session
+ * in an ambiguous authentication state: Conscrypt on Android, when the trust manager is
+ * a pure no-op, marks the session as unverified, which makes
+ * `SSLSession.getPeerCertificates()` throw and OkHttp's `Handshake.get` swallows it into
+ * an empty cert list — at which point an interceptor reading
+ * `response.handshake.peerCertificates` has nothing to verify against and aborts with
+ * "no peer certificate".
+ *
+ * Doing the check here means: cert matches expected fingerprint → return → session is
+ * authenticated → peerCertificates populates normally and the connection succeeds. Cert
+ * doesn't match → throw → handshake fails fast with a clear cause.
+ *
+ * Implements [X509ExtendedTrustManager] (not just X509TrustManager) so the JDK doesn't
+ * wrap us in `AbstractTrustManagerWrapper`, which adds its OWN hostname-check against
+ * the cert's CN/SAN — incompatible with LocalSend's per-install certs whose CN is a
+ * device alias, not a peer IP. Hostname semantics are owned by the no-op
+ * [LocalSendHostnameVerifier].
  */
-class LocalSendTrustManager : X509TrustManager {
-    override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {
-        // No-op: we present a cert but never validate clients (we're the sender).
-    }
+class FingerprintPinningTrustManager(
+    private val expectedFingerprintHex: String,
+) : X509ExtendedTrustManager() {
 
     override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
-        // No-op: trust is fingerprint-pinned in the interceptor, not chain-validated here.
+        verify(chain)
+    }
+
+    override fun checkServerTrusted(
+        chain: Array<out X509Certificate>?,
+        authType: String?,
+        socket: Socket?,
+    ) {
+        verify(chain)
+    }
+
+    override fun checkServerTrusted(
+        chain: Array<out X509Certificate>?,
+        authType: String?,
+        engine: SSLEngine?,
+    ) {
+        verify(chain)
+    }
+
+    private fun verify(chain: Array<out X509Certificate>?) {
+        val leaf = chain?.firstOrNull()
+            ?: throw CertificateException("no peer cert presented")
+        val actual = LocalSendCertManager.computeFingerprintHex(leaf.encoded)
+        if (!actual.equals(expectedFingerprintHex, ignoreCase = true)) {
+            throw CertificateException(
+                "fingerprint mismatch: expected $expectedFingerprintHex, got $actual",
+            )
+        }
+    }
+
+    // Client side: we don't run a server, so a client-cert chain shouldn't ever be
+    // presented to us. If one is, treat as a no-op (don't throw — would break TLS
+    // for setups that present an unrequested client cert).
+    override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
+    override fun checkClientTrusted(
+        chain: Array<out X509Certificate>?,
+        authType: String?,
+        socket: Socket?,
+    ) {
+    }
+    override fun checkClientTrusted(
+        chain: Array<out X509Certificate>?,
+        authType: String?,
+        engine: SSLEngine?,
+    ) {
     }
 
     override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
@@ -28,51 +87,7 @@ class LocalSendTrustManager : X509TrustManager {
 
 /**
  * Returns true for any hostname — LocalSend peers are reached by IP address, not DNS,
- * and the cert's CN is the alias which doesn't match the peer's IP. Identity is enforced
- * via fingerprint, not hostname.
+ * and the cert's CN is the alias which doesn't match the peer's IP. Identity is
+ * enforced via fingerprint pinning in [FingerprintPinningTrustManager], not hostname.
  */
 val LocalSendHostnameVerifier: HostnameVerifier = HostnameVerifier { _, _ -> true }
-
-/** Typed tag attached to a [Request] to convey the expected fingerprint to the interceptor. */
-data class ExpectedFingerprint(val hex: String)
-
-/** Helper for builders. */
-fun Request.Builder.expectFingerprint(hex: String): Request.Builder =
-    tag(ExpectedFingerprint::class.java, ExpectedFingerprint(hex))
-
-/**
- * Verifies the server cert's SHA-256 fingerprint matches the value supplied via the
- * [ExpectedFingerprint] request tag. Throws [SSLPeerUnverifiedException] on mismatch so
- * the call fails just like a CA-validation failure would.
- *
- * If no [ExpectedFingerprint] tag is present (e.g. a request that doesn't go through
- * the LocalSend client), the interceptor passes through — but in practice every request
- * issued through the LocalSend OkHttpClient should carry the tag.
- */
-class FingerprintPinningInterceptor : Interceptor {
-    override fun intercept(chain: Interceptor.Chain): Response {
-        val request = chain.request()
-        val expected = request.tag(ExpectedFingerprint::class.java)?.hex
-        val response = chain.proceed(request)
-        if (expected != null) {
-            val handshake = response.handshake
-                ?: run {
-                    response.close()
-                    throw SSLPeerUnverifiedException("no TLS handshake on ${request.url}")
-                }
-            val leaf = handshake.peerCertificates.firstOrNull() as? X509Certificate
-                ?: run {
-                    response.close()
-                    throw SSLPeerUnverifiedException("no peer certificate on ${request.url}")
-                }
-            val actual = LocalSendCertManager.computeFingerprintHex(leaf.encoded)
-            if (!actual.equals(expected, ignoreCase = true)) {
-                response.close()
-                throw SSLPeerUnverifiedException(
-                    "fingerprint mismatch on ${request.url}: expected $expected, got $actual"
-                )
-            }
-        }
-        return response
-    }
-}
