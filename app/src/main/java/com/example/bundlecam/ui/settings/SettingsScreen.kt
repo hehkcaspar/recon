@@ -287,6 +287,26 @@ fun SettingsScreen(
                 }
             }
 
+            // LocalSend debug — Phase 2 of BACKLOG item 2. Reveals a peer-discovery
+            // bottom sheet that ships the most-recent completed bundle to the picked
+            // peer. Debug-only: gets removed when Phase 4 wires send into the bundles
+            // browser's selection mode.
+            if (BuildConfig.DEBUG) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+                var showLocalSendSheet by remember { mutableStateOf(false) }
+                SettingsRow(label = "LocalSend (debug)") {
+                    TextButton(onClick = { showLocalSendSheet = true }) {
+                        Text("Send first bundle")
+                    }
+                }
+                if (showLocalSendSheet) {
+                    LocalSendDebugSheet(
+                        container = container,
+                        onDismiss = { showLocalSendSheet = false },
+                    )
+                }
+            }
+
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
             SettingBlock(label = "App version") {

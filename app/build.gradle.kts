@@ -30,8 +30,8 @@ android {
         applicationId = "com.example.bundlecam"
         minSdk = 26
         targetSdk = 36
-        versionCode = 30
-        versionName = "3.9"
+        versionCode = 31
+        versionName = "4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -77,6 +77,15 @@ android {
         compose = true
         buildConfig = true
     }
+    testOptions {
+        unitTests {
+            // Unit tests for pure-function helpers that incidentally hold android.net.Uri
+            // references (e.g. BundleFile, used in LocalSendUploaderRoutingTest) need this
+            // — without it the Android stub jar throws "Method getEmpty in android.net.Uri
+            // not mocked" the moment Uri.EMPTY is evaluated.
+            isReturnDefaultValues = true
+        }
+    }
 }
 
 dependencies {
@@ -111,6 +120,7 @@ dependencies {
     implementation(libs.okhttp.tls)
 
     testImplementation(libs.junit)
+    testImplementation(libs.mockito.core)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

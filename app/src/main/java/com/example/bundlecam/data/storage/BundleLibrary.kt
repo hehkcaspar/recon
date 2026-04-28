@@ -122,6 +122,86 @@ class BundleLibrary(context: Context) {
      * `fromSingleUri` won't recursively delete a directory's contents. Best-effort:
      * partial failure is reported but doesn't resurrect the row.
      */
+    /**
+     * Enumerate every shippable file in [bundle] (per-modality subfolder contents +
+     * stitched composite). Order: photos → videos → voice → stitch, lexicographic
+     * within each modality so receivers see a stable order. Skips non-media files and
+     * files with zero length (shouldn't occur, but defends against torn writes).
+     *
+     * Used by the LocalSend sender — sender treats one bundle as the atomic transfer
+     * unit, and this is the single point that decides what counts as "every byte of
+     * the bundle". Forward-compatible with future `.md` sidecars (BACKLOG item 1):
+     * if the worker writes one alongside, it'll fall through to the bundle subfolder
+     * branch and be picked up automatically.
+     */
+    suspend fun listBundleFiles(bundle: CompletedBundle): List<BundleFile> = withContext(Dispatchers.IO) {
+        val files = mutableListOf<BundleFile>()
+
+        bundle.subfolderUri?.let { subfolderUri ->
+            val sub = DocumentFile.fromTreeUri(appContext, subfolderUri)
+            if (sub != null && sub.isDirectory) {
+                listOf(
+                    StorageLayout.PHOTOS_SUBDIR,
+                    StorageLayout.VIDEOS_SUBDIR,
+                    StorageLayout.AUDIO_SUBDIR,
+                ).forEach { subdirName ->
+                    sub.findFile(subdirName)?.takeIf { it.isDirectory }?.let { dir ->
+                        dir.listFiles()
+                            .filter { it.isFile }
+                            .sortedBy { it.name.orEmpty() }
+                            .forEach { f ->
+                                val name = f.name ?: return@forEach
+                                if (StorageLayout.mediaKindFor(name) == null) return@forEach
+                                val length = f.length()
+                                if (length <= 0L) return@forEach
+                                files += BundleFile(
+                                    uri = f.uri,
+                                    fileName = name,
+                                    size = length,
+                                    mimeType = StorageLayout.mimeFor(name),
+                                )
+                            }
+                    }
+                }
+                // Legacy flat layout (pre-Phase B photo-only bundles): pick up any
+                // media files directly under the bundle subfolder. Non-media + non-
+                // length-bearing entries are skipped so the per-modality subdirs we
+                // already iterated don't double-list.
+                sub.listFiles()
+                    .filter { it.isFile }
+                    .sortedBy { it.name.orEmpty() }
+                    .forEach { f ->
+                        val name = f.name ?: return@forEach
+                        if (StorageLayout.mediaKindFor(name) == null) return@forEach
+                        val length = f.length()
+                        if (length <= 0L) return@forEach
+                        files += BundleFile(
+                            uri = f.uri,
+                            fileName = name,
+                            size = length,
+                            mimeType = StorageLayout.mimeFor(name),
+                        )
+                    }
+            }
+        }
+
+        bundle.stitchUri?.let { stitchUri ->
+            val stitchFile = DocumentFile.fromSingleUri(appContext, stitchUri)
+            val name = stitchFile?.name ?: StorageLayout.stitchFileName(bundle.id)
+            val size = stitchFile?.length() ?: 0L
+            if (size > 0L) {
+                files += BundleFile(
+                    uri = stitchUri,
+                    fileName = name,
+                    size = size,
+                    mimeType = StorageLayout.MIME_JPEG,
+                )
+            }
+        }
+
+        files
+    }
+
     suspend fun deleteBundle(bundle: CompletedBundle): DeleteResult = withContext(Dispatchers.IO) {
         val resolver = appContext.contentResolver
         var deletedAny = false
