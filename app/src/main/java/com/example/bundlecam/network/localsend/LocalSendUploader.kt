@@ -39,11 +39,11 @@ private const val UPLOAD_BUFFER_BYTES = 64 * 1024
 private val APPLICATION_JSON = "application/json".toMediaType()
 
 /**
- * Best-effort report of how a bundle send went. UI surfaces these into the banner.
- * Note: there's intentionally no `Cancelled` case — coroutine cancellation throws
- * [CancellationException] out of [LocalSendUploader.sendBundle] before any result can
- * be returned, so a Cancelled outcome would be unreachable. The sheet's cancellation
- * path tears down the sheet entirely instead of recording outcomes.
+ * Best-effort report of how a send went. UI surfaces these into the banner. Note:
+ * there's intentionally no `Cancelled` case — coroutine cancellation throws
+ * [CancellationException] out of [LocalSendUploader.send] before any result can be
+ * returned, so a Cancelled outcome would be unreachable. The sheet's cancellation path
+ * tears down the sheet entirely instead of recording outcomes.
  */
 sealed class SendBundleResult {
     data object Success : SendBundleResult()
@@ -52,11 +52,14 @@ sealed class SendBundleResult {
 }
 
 /**
- * Streaming progress for one bundle send. Emitted on every per-file completion and on
- * every chunk write — UI can treat it as a `latest-wins` stream.
+ * Streaming progress for one send (which may span multiple bundles in a single
+ * prepare-upload session — see [LocalSendUploader.send] for why). Emitted on every
+ * per-file completion and on every chunk write — UI can treat it as a `latest-wins`
+ * stream. `currentFileName` carries the wire path (e.g.
+ * `"2026-04-28-s-0004/photos/foo.jpg"`) so the sheet can derive the active bundle from
+ * the path's leading segment.
  */
 data class SendProgress(
-    val bundleId: String,
     val totalFiles: Int,
     val completedFiles: Int,
     val totalBytes: Long,
@@ -64,26 +67,43 @@ data class SendProgress(
     val currentFileName: String?,
 )
 
+/**
+ * One file with its receiver-side wire path attached. Constructed by the controller
+ * from a bundle id + a [BundleFile]; the wire path is what populates the
+ * `FileMetadata.fileName` in prepare-upload, which the LocalSend receiver parses to
+ * create the matching directory structure.
+ */
+data class UploadItem(
+    val source: BundleFile,
+    val wireName: String,
+)
+
 class LocalSendUploader(
     private val baseClient: OkHttpClient,
     private val resolver: ContentResolver,
 ) {
     /**
-     * Send one bundle as a single LocalSend session: prepare-upload to negotiate, then
-     * parallel per-file uploads (cap [PARALLEL_UPLOADS]). Per the v2.1 spec each file is
-     * a raw-bytes POST, not multipart.
+     * Send all [items] to [peer] in a single LocalSend session: one prepare-upload
+     * negotiation, then parallel per-file uploads (cap [PARALLEL_UPLOADS]). Per the
+     * v2.1 spec each file is a raw-bytes POST, not multipart.
+     *
+     * Multiple bundles are bundled into a single session intentionally — LocalSend's
+     * receiver treats the session as active-with-a-receive-prompt-on-screen until the
+     * user dismisses the UI, so back-to-back prepare-upload calls would 409 BLOCKED on
+     * the second. One session, all files, all at once. The wire fileName carries
+     * `{bundleId}/{subfolder}/{leaf}` so the receiver materializes the bundle's
+     * directory layout under its save root.
      *
      * On any irrecoverable HTTP error or coroutine cancellation, sends `POST /cancel`
      * best-effort so the peer doesn't sit on a half-received session.
      */
-    suspend fun sendBundle(
+    suspend fun send(
         peer: Peer,
-        bundleId: String,
         info: Info,
-        files: List<BundleFile>,
+        items: List<UploadItem>,
         onProgress: (SendProgress) -> Unit = {},
     ): SendBundleResult = withContext(Dispatchers.IO) {
-        if (files.isEmpty()) return@withContext SendBundleResult.Success
+        if (items.isEmpty()) return@withContext SendBundleResult.Success
 
         // Per-peer client: a fresh SSLContext whose trust manager pins this specific
         // peer's announced fingerprint. The check runs inside the trust manager during
@@ -91,15 +111,14 @@ class LocalSendUploader(
         // session's peerCertificates populate normally for any downstream consumer).
         val client = buildPeerClient(peer.fingerprint)
 
-        val totalBytes = files.sumOf { it.size }
+        val totalBytes = items.sumOf { it.source.size }
         val sentBytes = AtomicLong(0L)
         val completedFiles = AtomicLong(0L)
 
         fun emitProgress(currentFileName: String?) {
             onProgress(
                 SendProgress(
-                    bundleId = bundleId,
-                    totalFiles = files.size,
+                    totalFiles = items.size,
                     completedFiles = completedFiles.get().toInt(),
                     totalBytes = totalBytes,
                     sentBytes = sentBytes.get(),
@@ -111,7 +130,7 @@ class LocalSendUploader(
         emitProgress(null)
 
         // Phase 1 — prepare-upload.
-        val prepRequest = buildPrepareUploadRequest(files, info)
+        val prepRequest = buildPrepareUploadRequest(items, info)
         val prepResponse = try {
             prepareUpload(client, peer, prepRequest)
         } catch (ce: CancellationException) {
@@ -135,10 +154,10 @@ class LocalSendUploader(
         val semaphore = Semaphore(PARALLEL_UPLOADS)
         try {
             coroutineScope {
-                files.map { f ->
-                    val token = tokens[f.fileName]
+                items.map { item ->
+                    val token = tokens[item.wireName]
                     if (token == null) {
-                        Log.w(TAG, "no upload token for ${f.fileName} — peer may dedup or reject")
+                        Log.w(TAG, "no upload token for ${item.wireName} — peer may dedup or reject")
                         return@map null
                     }
                     async {
@@ -147,16 +166,16 @@ class LocalSendUploader(
                                 client = client,
                                 peer = peer,
                                 sessionId = sessionId,
-                                fileId = f.fileName,
+                                fileId = item.wireName,
                                 token = token,
-                                file = f,
+                                file = item.source,
                                 onChunk = { delta ->
                                     sentBytes.addAndGet(delta)
-                                    emitProgress(f.fileName)
+                                    emitProgress(item.wireName)
                                 },
                             )
                             completedFiles.incrementAndGet()
-                            emitProgress(f.fileName)
+                            emitProgress(item.wireName)
                         }
                     }
                 }.filterNotNull().awaitAll()
@@ -261,23 +280,34 @@ class LocalSendUploader(
 
     companion object {
         /**
-         * Pure helper — testable. Build the prepare-upload payload from a bundle's file
-         * list. File ID = file name (Recon's naming guarantees uniqueness within a
-         * bundle, and human-readable IDs are nicer for receiver-side debugging than
-         * synthetic UUIDs).
+         * Pure helper — testable. Build the prepare-upload payload from a list of
+         * upload items. File ID = wire name (e.g. `"bundleId/photos/foo.jpg"`), which
+         * is what the LocalSend receiver parses with `path.split('/')` to materialize
+         * the matching directory layout under its save root.
          */
-        fun buildPrepareUploadRequest(files: List<BundleFile>, info: Info): PrepareUploadRequest {
-            val map = LinkedHashMap<String, FileMetadata>(files.size)
-            files.forEach { f ->
-                map[f.fileName] = FileMetadata(
-                    id = f.fileName,
-                    fileName = f.fileName,
-                    size = f.size,
-                    fileType = f.mimeType,
+        fun buildPrepareUploadRequest(items: List<UploadItem>, info: Info): PrepareUploadRequest {
+            val map = LinkedHashMap<String, FileMetadata>(items.size)
+            items.forEach { item ->
+                map[item.wireName] = FileMetadata(
+                    id = item.wireName,
+                    fileName = item.wireName,
+                    size = item.source.size,
+                    fileType = item.source.mimeType,
                 )
             }
             return PrepareUploadRequest(info = info, files = map)
         }
+
+        /**
+         * Pure helper — testable. Compose the wire fileName from a bundle id + the
+         * file's bundle-relative subfolder + leaf filename. Empty subfolder yields
+         * `{bundleId}/{leaf}` (legacy flat-layout bundles); non-empty yields
+         * `{bundleId}/{subfolder}/{leaf}`. The receiver's `digestFilePathAndPrepareDirectory`
+         * splits on `/` and creates each directory level (with `..` traversal blocked).
+         */
+        fun wireNameFor(bundleId: String, file: BundleFile): String =
+            if (file.subfolder.isEmpty()) "$bundleId/${file.fileName}"
+            else "$bundleId/${file.subfolder}/${file.fileName}"
     }
 }
 

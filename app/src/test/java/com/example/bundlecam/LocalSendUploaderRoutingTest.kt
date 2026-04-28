@@ -4,6 +4,7 @@ import android.net.Uri
 import com.example.bundlecam.data.storage.BundleFile
 import com.example.bundlecam.network.localsend.Info
 import com.example.bundlecam.network.localsend.LocalSendUploader
+import com.example.bundlecam.network.localsend.UploadItem
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -19,26 +20,83 @@ class LocalSendUploaderRoutingTest {
     // non-null instance the pure-function tests can pass through without dereferencing.
     private val stubUri: Uri = Mockito.mock(Uri::class.java)
 
-    private fun fakeFile(name: String, size: Long, mime: String) = BundleFile(
-        uri = stubUri,
-        fileName = name,
-        size = size,
-        mimeType = mime,
-    )
+    private fun bundleFile(name: String, size: Long, mime: String, subfolder: String) =
+        BundleFile(
+            uri = stubUri,
+            fileName = name,
+            size = size,
+            mimeType = mime,
+            subfolder = subfolder,
+        )
+
+    private fun item(bundleId: String, name: String, size: Long, mime: String, subfolder: String) =
+        UploadItem(
+            source = bundleFile(name, size, mime, subfolder),
+            wireName = LocalSendUploader.wireNameFor(bundleId, bundleFile(name, size, mime, subfolder)),
+        )
 
     private val info = Info(alias = "Sender", fingerprint = "fp")
 
     @Test
-    fun maps_files_by_filename_as_id() {
-        val files = listOf(
-            fakeFile("2026-04-28-s-0001-p-001.jpg", 100L, "image/jpeg"),
-            fakeFile("2026-04-28-s-0001-v-001.mp4", 200L, "video/mp4"),
+    fun wire_name_includes_bundle_id_and_subfolder() {
+        val f = bundleFile("foo.jpg", 1L, "image/jpeg", "photos")
+        assertEquals(
+            "2026-04-28-s-0004/photos/foo.jpg",
+            LocalSendUploader.wireNameFor("2026-04-28-s-0004", f),
         )
-        val req = LocalSendUploader.buildPrepareUploadRequest(files, info)
+    }
+
+    @Test
+    fun wire_name_skips_subfolder_when_empty() {
+        // Legacy flat-layout bundles have files at the bundle root; the wire path
+        // should be `{bundleId}/{leaf}`, not `{bundleId}//{leaf}`.
+        val f = bundleFile("legacy.jpg", 1L, "image/jpeg", "")
+        assertEquals(
+            "legacy-bundle/legacy.jpg",
+            LocalSendUploader.wireNameFor("legacy-bundle", f),
+        )
+    }
+
+    @Test
+    fun stitch_lands_under_stitched_subfolder() {
+        // BundleLibrary sets `subfolder = "stitched"` for the composite, so the receiver
+        // creates `{bundleId}/stitched/{leaf}-stitch.jpg`.
+        val f = bundleFile("2026-04-28-s-0001-stitch.jpg", 1L, "image/jpeg", "stitched")
+        assertEquals(
+            "2026-04-28-s-0001/stitched/2026-04-28-s-0001-stitch.jpg",
+            LocalSendUploader.wireNameFor("2026-04-28-s-0001", f),
+        )
+    }
+
+    @Test
+    fun maps_items_by_wire_name_as_id() {
+        val items = listOf(
+            item("bundle-A", "p.jpg", 100L, "image/jpeg", "photos"),
+            item("bundle-A", "v.mp4", 200L, "video/mp4", "videos"),
+        )
+        val req = LocalSendUploader.buildPrepareUploadRequest(items, info)
         assertEquals(2, req.files.size)
-        assertNotNull(req.files["2026-04-28-s-0001-p-001.jpg"])
-        assertNotNull(req.files["2026-04-28-s-0001-v-001.mp4"])
+        assertNotNull(req.files["bundle-A/photos/p.jpg"])
+        assertNotNull(req.files["bundle-A/videos/v.mp4"])
         assertSame(info, req.info)
+    }
+
+    @Test
+    fun multi_bundle_session_carries_distinct_wire_paths() {
+        // The single-session multi-bundle path is the whole point — verify two bundles'
+        // worth of files coexist in one prepare-upload payload.
+        val items = listOf(
+            item("bundle-A", "p-001.jpg", 100L, "image/jpeg", "photos"),
+            item("bundle-A", "p-002.jpg", 100L, "image/jpeg", "photos"),
+            item("bundle-B", "p-001.jpg", 200L, "image/jpeg", "photos"),
+            item("bundle-B", "v-001.mp4", 300L, "video/mp4", "videos"),
+        )
+        val req = LocalSendUploader.buildPrepareUploadRequest(items, info)
+        assertEquals(4, req.files.size)
+        assertNotNull(req.files["bundle-A/photos/p-001.jpg"])
+        assertNotNull(req.files["bundle-A/photos/p-002.jpg"])
+        assertNotNull(req.files["bundle-B/photos/p-001.jpg"])
+        assertNotNull(req.files["bundle-B/videos/v-001.mp4"])
     }
 
     @Test
@@ -46,24 +104,32 @@ class LocalSendUploaderRoutingTest {
         // LinkedHashMap preservation is a meaningful contract — receivers may surface
         // files in iteration order, and Recon's per-modality enumeration is the order
         // that matches what the user captured.
-        val files = listOf(
-            fakeFile("a.jpg", 1L, "image/jpeg"),
-            fakeFile("b.mp4", 1L, "video/mp4"),
-            fakeFile("c.m4a", 1L, "audio/mp4"),
-            fakeFile("d-stitch.jpg", 1L, "image/jpeg"),
+        val items = listOf(
+            item("b", "a.jpg", 1L, "image/jpeg", "photos"),
+            item("b", "b.mp4", 1L, "video/mp4", "videos"),
+            item("b", "c.m4a", 1L, "audio/mp4", "audio"),
+            item("b", "d-stitch.jpg", 1L, "image/jpeg", "stitched"),
         )
-        val req = LocalSendUploader.buildPrepareUploadRequest(files, info)
+        val req = LocalSendUploader.buildPrepareUploadRequest(items, info)
         val order = req.files.keys.toList()
-        assertEquals(listOf("a.jpg", "b.mp4", "c.m4a", "d-stitch.jpg"), order)
+        assertEquals(
+            listOf(
+                "b/photos/a.jpg",
+                "b/videos/b.mp4",
+                "b/audio/c.m4a",
+                "b/stitched/d-stitch.jpg",
+            ),
+            order,
+        )
     }
 
     @Test
     fun file_metadata_fields_match_input() {
-        val f = fakeFile("v.mp4", 4242L, "video/mp4")
-        val req = LocalSendUploader.buildPrepareUploadRequest(listOf(f), info)
-        val meta = req.files["v.mp4"]!!
-        assertEquals("v.mp4", meta.id)
-        assertEquals("v.mp4", meta.fileName)
+        val items = listOf(item("b", "v.mp4", 4242L, "video/mp4", "videos"))
+        val req = LocalSendUploader.buildPrepareUploadRequest(items, info)
+        val meta = req.files["b/videos/v.mp4"]!!
+        assertEquals("b/videos/v.mp4", meta.id)
+        assertEquals("b/videos/v.mp4", meta.fileName)
         assertEquals(4242L, meta.size)
         assertEquals("video/mp4", meta.fileType)
         assertNull(meta.sha256)
@@ -76,18 +142,5 @@ class LocalSendUploaderRoutingTest {
         val req = LocalSendUploader.buildPrepareUploadRequest(emptyList(), info)
         assertEquals(0, req.files.size)
         assertSame(info, req.info)
-    }
-
-    @Test
-    fun mixed_modalities_preserved() {
-        val files = listOf(
-            fakeFile("p.jpg", 1L, "image/jpeg"),
-            fakeFile("v.mp4", 2L, "video/mp4"),
-            fakeFile("a.m4a", 3L, "audio/mp4"),
-        )
-        val req = LocalSendUploader.buildPrepareUploadRequest(files, info)
-        assertEquals("image/jpeg", req.files["p.jpg"]?.fileType)
-        assertEquals("video/mp4", req.files["v.mp4"]?.fileType)
-        assertEquals("audio/mp4", req.files["a.m4a"]?.fileType)
     }
 }

@@ -56,24 +56,31 @@ class LocalSendController(
     }
 
     /**
-     * Send one bundle to one peer. Sequential per-bundle; per-file uploads parallelize
-     * inside the uploader. Returns the final [SendBundleResult] when the session
-     * completes (success / failure / already-received).
+     * Send all [bundles] to one peer in a single LocalSend session. Bundling everything
+     * into one prepare-upload is mandatory: LocalSend's receiver treats a session as
+     * active until the user dismisses the receive UI, so back-to-back sessions to the
+     * same peer would 409 BLOCKED until the user clicks "Done" on the desktop. The
+     * receiver materializes the per-bundle directory layout from the wire fileNames
+     * (`{bundleId}/{subfolder}/{leaf}`) we set in [UploadItem.wireName].
      */
     suspend fun send(
         peer: Peer,
-        bundle: CompletedBundle,
+        bundles: List<CompletedBundle>,
         onProgress: (SendProgress) -> Unit = {},
     ): SendBundleResult {
-        val files = bundleLibrary.listBundleFiles(bundle)
-        if (files.isEmpty()) return SendBundleResult.Failed("Bundle has no shippable files")
+        val items = bundles.flatMap { bundle ->
+            bundleLibrary.listBundleFiles(bundle).map { file ->
+                UploadItem(source = file, wireName = LocalSendUploader.wireNameFor(bundle.id, file))
+            }
+        }
+        if (items.isEmpty()) return SendBundleResult.Failed("Selection has no shippable files")
         val info = Info(
             alias = settings.getOrCreateDeviceAlias(),
             deviceModel = Build.MODEL,
             deviceType = LOCALSEND_DEVICE_TYPE_MOBILE,
             fingerprint = certManager.fingerprintHex(),
         )
-        return uploader.sendBundle(peer, bundle.id, info, files, onProgress)
+        return uploader.send(peer, info, items, onProgress)
     }
 
     private suspend fun buildOwnAnnounce(): Announce = Announce(

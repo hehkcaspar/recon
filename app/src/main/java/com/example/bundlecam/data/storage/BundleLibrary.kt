@@ -159,6 +159,7 @@ class BundleLibrary(context: Context) {
                                     fileName = name,
                                     size = length,
                                     mimeType = StorageLayout.mimeFor(name),
+                                    subfolder = subdirName,
                                 )
                             }
                     }
@@ -166,7 +167,8 @@ class BundleLibrary(context: Context) {
                 // Legacy flat layout (pre-Phase B photo-only bundles): pick up any
                 // media files directly under the bundle subfolder. Non-media + non-
                 // length-bearing entries are skipped so the per-modality subdirs we
-                // already iterated don't double-list.
+                // already iterated don't double-list. Empty `subfolder` puts these at
+                // the bundle root on the receiver, mirroring the SAF layout.
                 sub.listFiles()
                     .filter { it.isFile }
                     .sortedBy { it.name.orEmpty() }
@@ -180,6 +182,7 @@ class BundleLibrary(context: Context) {
                             fileName = name,
                             size = length,
                             mimeType = StorageLayout.mimeFor(name),
+                            subfolder = "",
                         )
                     }
             }
@@ -195,6 +198,10 @@ class BundleLibrary(context: Context) {
                     fileName = name,
                     size = size,
                     mimeType = StorageLayout.MIME_JPEG,
+                    // The stitch lives in `stitched/` at SAF-root in the source layout
+                    // but for the LocalSend receiver we tuck it inside the bundle's
+                    // own folder so one bundle = one self-contained directory.
+                    subfolder = StorageLayout.STITCHED_DIR,
                 )
             }
         }

@@ -109,7 +109,7 @@ fun LocalSendSheet(
                     peers = peers,
                     timedOut = s.timedOut,
                     onPick = { peer ->
-                        sendJob = scope.launch { runSendQueue(container, peer, bundles) { ui = it } }
+                        sendJob = scope.launch { runSend(container, peer, bundles) { ui = it } }
                     },
                     onRetry = {
                         scope.launch {
@@ -131,84 +131,69 @@ fun LocalSendSheet(
     }
 }
 
-private suspend fun runSendQueue(
+private suspend fun runSend(
     container: AppContainer,
     peer: Peer,
     bundles: List<CompletedBundle>,
     set: (SendUiState) -> Unit,
 ) {
-    val results = mutableListOf<BundleSendOutcome>()
-    bundles.forEachIndexed { index, bundle ->
-        set(
-            SendUiState.Sending(
-                peerAlias = peer.alias,
-                totalBundles = bundles.size,
-                currentIndex = index,
-                currentBundleId = bundle.id,
-                progress = null,
-                results = results.toList(),
-            )
+    set(
+        SendUiState.Sending(
+            peerAlias = peer.alias,
+            bundleCount = bundles.size,
+            progress = null,
         )
-        val result = container.localSendController.send(
-            peer = peer,
-            bundle = bundle,
-            onProgress = { p ->
-                set(
-                    SendUiState.Sending(
-                        peerAlias = peer.alias,
-                        totalBundles = bundles.size,
-                        currentIndex = index,
-                        currentBundleId = bundle.id,
-                        progress = p,
-                        results = results.toList(),
-                    )
+    )
+    val result = container.localSendController.send(
+        peer = peer,
+        bundles = bundles,
+        onProgress = { p ->
+            set(
+                SendUiState.Sending(
+                    peerAlias = peer.alias,
+                    bundleCount = bundles.size,
+                    progress = p,
                 )
-            },
-        )
-        results += BundleSendOutcome(bundle.id, result)
-    }
-    set(SendUiState.Done(results = results.toList()))
+            )
+        },
+    )
+    set(SendUiState.Done(bundleCount = bundles.size, result = result))
 }
 
 private sealed interface SendUiState {
     data class Discovering(val timedOut: Boolean) : SendUiState
     data class Sending(
         val peerAlias: String,
-        val totalBundles: Int,
-        val currentIndex: Int,
-        val currentBundleId: String,
+        val bundleCount: Int,
         val progress: SendProgress?,
-        val results: List<BundleSendOutcome>,
     ) : SendUiState
-    data class Done(val results: List<BundleSendOutcome>) : SendUiState
+    data class Done(
+        val bundleCount: Int,
+        val result: SendBundleResult,
+    ) : SendUiState
 }
-
-private data class BundleSendOutcome(val bundleId: String, val result: SendBundleResult)
 
 @Composable
 private fun Header(bundles: List<CompletedBundle>, ui: SendUiState) {
+    val bundleNoun = if (bundles.size == 1) "bundle" else "bundles"
     val title = when (ui) {
-        is SendUiState.Discovering -> when (bundles.size) {
-            1 -> "Send 1 bundle"
-            else -> "Send ${bundles.size} bundles"
-        }
-        is SendUiState.Sending -> "Sending to ${ui.peerAlias}"
-        is SendUiState.Done -> {
-            // AlreadyReceived counts as success for the user — the bundle ended up on
-            // the peer regardless of whether bytes flowed in this session.
-            val ok = ui.results.count {
-                it.result is SendBundleResult.Success || it.result is SendBundleResult.AlreadyReceived
-            }
-            val total = ui.results.size
-            if (ok == total) "Done · $total / $total" else "Done · $ok / $total"
+        is SendUiState.Discovering -> "Send ${bundles.size} $bundleNoun"
+        is SendUiState.Sending -> "Sending ${ui.bundleCount} $bundleNoun to ${ui.peerAlias}"
+        is SendUiState.Done -> when (ui.result) {
+            SendBundleResult.Success -> "Sent ${ui.bundleCount} $bundleNoun ✓"
+            SendBundleResult.AlreadyReceived -> "Peer already had this content"
+            is SendBundleResult.Failed -> "Send failed"
         }
     }
     Text(text = title, style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(2.dp))
     val subtitle = when (ui) {
         is SendUiState.Discovering -> "Pick a peer on the same Wi-Fi network."
-        is SendUiState.Sending ->
-            "Bundle ${ui.currentIndex + 1} of ${ui.totalBundles} · ${ui.currentBundleId}"
+        is SendUiState.Sending -> {
+            val p = ui.progress
+            if (p == null) "Negotiating with peer…"
+            else "${p.completedFiles} of ${p.totalFiles} files"
+        }
         is SendUiState.Done -> "Tap close to return to the bundles list."
     }
     Text(
@@ -287,35 +272,23 @@ private fun PeerListBlock(
 @Composable
 private fun SendingBlock(s: SendUiState.Sending) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        // Outer bar = bundle-completion fraction blended with current bundle's byte
-        // fraction so it advances smoothly within each bundle instead of stepping in
-        // chunks of 1/N. Smooth motion is meaningful feedback that the transfer is
-        // alive — a stalled outer bar would worry the user even when files are
-        // streaming inside the current bundle.
-        val perBundleFrac = s.progress?.let { p ->
-            if (p.totalBytes > 0L) (p.sentBytes.toFloat() / p.totalBytes.toFloat()).coerceIn(0f, 1f)
-            else 0f
-        } ?: 0f
-        val outerFrac = ((s.currentIndex.toFloat() + perBundleFrac) / s.totalBundles.toFloat())
-            .coerceIn(0f, 1f)
-        LinearProgressIndicator(
-            progress = { outerFrac },
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(Modifier.height(8.dp))
         val p = s.progress
         if (p == null || p.totalBytes == 0L) {
             CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
         } else {
+            val frac = (p.sentBytes.toFloat() / p.totalBytes.toFloat()).coerceIn(0f, 1f)
             LinearProgressIndicator(
-                progress = { perBundleFrac },
+                progress = { frac },
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(4.dp))
+            // currentFileName is the wire path (e.g. "2026-04-28-s-0004/photos/foo.jpg").
+            // Showing it lets users see which bundle's files are flowing right now.
             Text(
-                text = "File ${p.completedFiles}/${p.totalFiles} · ${p.currentFileName ?: "…"}",
+                text = p.currentFileName ?: "…",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontFamily = FontFamily.Monospace,
             )
         }
     }
@@ -324,27 +297,21 @@ private fun SendingBlock(s: SendUiState.Sending) {
 @Composable
 private fun DoneBlock(state: SendUiState.Done, onDone: () -> Unit) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        // Per-bundle outcomes — useful when one bundle fails inside a multi-bundle
-        // send so the user can see which one(s).
-        state.results.forEach { outcome ->
-            val (label, color) = outcomeLabel(outcome.result)
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = outcome.bundleId,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontFamily = FontFamily.Monospace,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = color,
-                )
-            }
+        val (message, color) = when (val result = state.result) {
+            SendBundleResult.Success ->
+                "All files transferred — find them in the receiver's downloads folder." to
+                    MaterialTheme.colorScheme.onSurface
+            SendBundleResult.AlreadyReceived ->
+                "Receiver reported the files were already there. Nothing to do." to
+                    MaterialTheme.colorScheme.onSurfaceVariant
+            is SendBundleResult.Failed ->
+                result.message to MaterialTheme.colorScheme.error
         }
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = color,
+        )
         Spacer(Modifier.height(8.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -354,11 +321,3 @@ private fun DoneBlock(state: SendUiState.Done, onDone: () -> Unit) {
         }
     }
 }
-
-@Composable
-private fun outcomeLabel(result: SendBundleResult): Pair<String, androidx.compose.ui.graphics.Color> =
-    when (result) {
-        SendBundleResult.Success -> "sent" to MaterialTheme.colorScheme.primary
-        SendBundleResult.AlreadyReceived -> "already received" to MaterialTheme.colorScheme.onSurfaceVariant
-        is SendBundleResult.Failed -> "failed: ${result.message}" to MaterialTheme.colorScheme.error
-    }
