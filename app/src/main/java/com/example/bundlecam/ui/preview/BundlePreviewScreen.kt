@@ -41,7 +41,6 @@ import com.example.bundlecam.data.settings.SettingsState
 import com.example.bundlecam.data.storage.CompletedBundle
 import com.example.bundlecam.ui.common.ActionBanner
 import com.example.bundlecam.ui.common.openFolderInSystemBrowser
-import com.example.bundlecam.ui.settings.LocalSendDebugSheet
 
 private const val PROCESSING_ROW_KEY_PREFIX = "processing:"
 
@@ -62,12 +61,12 @@ fun BundlePreviewScreen(
     LaunchedEffect(settings.rootUri) { vm.refresh() }
 
     var confirmDeleteId by remember { mutableStateOf<String?>(null) }
-    var sendBundle by remember { mutableStateOf<CompletedBundle?>(null) }
+    var sendBundles by remember { mutableStateOf<List<CompletedBundle>>(emptyList()) }
 
     // Back press in selection mode is "exit selection mode", not "leave the screen" —
     // standard M3 multi-select behavior. Outside selection mode, the existing screen-
     // level BackHandler in MainActivity takes over.
-    BackHandler(enabled = state.selectionMode && sendBundle == null) { vm.clearSelection() }
+    BackHandler(enabled = state.selectionMode && sendBundles.isEmpty()) { vm.clearSelection() }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -77,12 +76,7 @@ fun BundlePreviewScreen(
                     selectedCount = state.selectedBundleIds.size,
                     canSend = vm.selectedBundlesSnapshot().isNotEmpty(),
                     onClose = { vm.clearSelection() },
-                    onSend = {
-                        // Phase 3 single-bundle send — picks the first selected bundle and
-                        // opens the same sheet the Settings debug entry uses. Phase 4 will
-                        // replace this with a multi-bundle production sheet.
-                        sendBundle = vm.selectedBundlesSnapshot().firstOrNull()
-                    },
+                    onSend = { sendBundles = vm.selectedBundlesSnapshot() },
                 )
             } else {
                 TopAppBar(
@@ -193,13 +187,13 @@ fun BundlePreviewScreen(
         )
     }
 
-    sendBundle?.let { bundle ->
+    if (sendBundles.isNotEmpty()) {
         val app = context.applicationContext as ReconApp
-        LocalSendDebugSheet(
+        LocalSendSheet(
             container = app.container,
-            bundle = bundle,
+            bundles = sendBundles,
             onDismiss = {
-                sendBundle = null
+                sendBundles = emptyList()
                 vm.clearSelection()
             },
         )

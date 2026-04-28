@@ -287,38 +287,6 @@ fun SettingsScreen(
                 }
             }
 
-            // LocalSend debug — Phase 2 of BACKLOG item 2. Reveals a peer-discovery
-            // bottom sheet that ships the most-recent completed bundle to the picked
-            // peer. Debug-only: gets removed when Phase 4 wires the multi-bundle send
-            // sheet into the bundles browser's selection mode.
-            if (BuildConfig.DEBUG) {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
-                var showLocalSendSheet by remember { mutableStateOf(false) }
-                var firstBundle by remember {
-                    mutableStateOf<com.example.bundlecam.data.storage.CompletedBundle?>(null)
-                }
-                SettingsRow(label = "LocalSend (debug)") {
-                    TextButton(onClick = {
-                        scope.launch {
-                            val rootUri = state.rootUri
-                            firstBundle = if (rootUri != null) {
-                                container.bundleLibrary.listBundles(rootUri).firstOrNull()
-                            } else null
-                            showLocalSendSheet = true
-                        }
-                    }) {
-                        Text("Send first bundle")
-                    }
-                }
-                if (showLocalSendSheet) {
-                    LocalSendDebugSheet(
-                        container = container,
-                        bundle = firstBundle,
-                        onDismiss = { showLocalSendSheet = false },
-                    )
-                }
-            }
-
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
             SettingBlock(label = "App version") {
