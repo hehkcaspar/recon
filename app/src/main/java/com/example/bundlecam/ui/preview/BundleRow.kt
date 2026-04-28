@@ -107,6 +107,7 @@ fun BundleRow(
     thumbnails: Map<Uri, ImageBitmap>,
     pendingDelete: PendingDelete?,
     selected: Boolean,
+    processing: Boolean,
     onRequestThumbnail: (Uri) -> Unit,
     onRequestDelete: () -> Unit,
     onUndo: () -> Unit,
@@ -134,6 +135,7 @@ fun BundleRow(
         bundle = bundle,
         thumbnails = thumbnails,
         selected = selected,
+        processing = processing,
         onRequestDelete = onRequestDelete,
         onToggleSelection = onToggleSelection,
         modifier = modifier,
@@ -145,6 +147,7 @@ private fun SwipeableBundleRow(
     bundle: CompletedBundle,
     thumbnails: Map<Uri, ImageBitmap>,
     selected: Boolean,
+    processing: Boolean,
     onRequestDelete: () -> Unit,
     onToggleSelection: () -> Unit,
     modifier: Modifier = Modifier,
@@ -223,98 +226,104 @@ private fun SwipeableBundleRow(
             )
         }
 
+        // Skip the swipe gesture entirely while the bundle's worker is still in flight —
+        // the VM would reject toggleSelection / onConfirmDelete on a processing bundle
+        // (isSelectable returns false; deleting a half-written bundle races the worker),
+        // but without this gate, a drag-end that already animated the row into a snap
+        // position leaves the row stuck visually because `selected` never flips.
+        val gestureModifier = if (processing) Modifier else Modifier.pointerInput(bundle.id) {
+            rowWidthPx = size.width.toFloat()
+            val deleteTriggerPx = -size.width * SWIPE_DELETE_FRACTION
+            val selectMidpointPx = revealWidthPx * SWIPE_SELECT_FRACTION
+            // Per-gesture suppression flag — set on drag-start when the row is mid-
+            // animation from an external selection change. Stays set for the remainder
+            // of the gesture so a follow-through finger motion right after the user
+            // tapped X doesn't drive offsetX or commit a toggle.
+            var dragSuppressed = false
+
+            detectHorizontalDragGestures(
+                onDragStart = {
+                    dragSuppressed = animatingExternally
+                    if (!dragSuppressed) {
+                        triggeredAbove = false
+                        velocityTracker.resetTracking()
+                    }
+                },
+                onDragEnd = {
+                    if (dragSuppressed) return@detectHorizontalDragGestures
+                    val release = BundleRowSwipe.computeRelease(
+                        offsetX = offsetX,
+                        velocity = velocityTracker.calculateVelocity().x,
+                        selected = currentSelected,
+                        revealWidthPx = revealWidthPx,
+                        deleteTriggerPx = deleteTriggerPx,
+                        selectMidpointPx = selectMidpointPx,
+                    )
+                    coroutineScope.launch {
+                        animatable.snapTo(offsetX)
+                        animatable.animateTo(release.targetOffset) { offsetX = value }
+                        when (release.action) {
+                            BundleRowSwipe.SwipeAction.None -> Unit
+                            BundleRowSwipe.SwipeAction.ToggleSelection ->
+                                currentOnToggleSelection()
+                            BundleRowSwipe.SwipeAction.RequestDelete -> {
+                                currentOnRequestDelete()
+                                // pendingDeleteRow takes over on the next recomposition;
+                                // snap back to 0 in case the bundle reappears (e.g. user
+                                // undoes the delete) so the row shows at rest.
+                                animatable.snapTo(0f)
+                                offsetX = 0f
+                            }
+                        }
+                    }
+                },
+                onDragCancel = {
+                    if (dragSuppressed) return@detectHorizontalDragGestures
+                    coroutineScope.launch {
+                        val rest = if (currentSelected) revealWidthPx else 0f
+                        animatable.snapTo(offsetX)
+                        animatable.animateTo(rest) { offsetX = value }
+                    }
+                },
+                onHorizontalDrag = { change, delta ->
+                    if (dragSuppressed) {
+                        // Claim the gesture so it doesn't propagate, but ignore the
+                        // delta — the LaunchedEffect's animation owns offsetX while the
+                        // row is animating to rest.
+                        change.consume()
+                        return@detectHorizontalDragGestures
+                    }
+                    velocityTracker.addPosition(change.uptimeMillis, change.position)
+                    val prev = offsetX
+                    val next = BundleRowSwipe.clampOffset(
+                        rawOffset = prev + delta,
+                        selected = currentSelected,
+                        revealWidthPx = revealWidthPx,
+                    )
+                    offsetX = next
+                    // Haptic on each crossing of "would-fire-on-release" so the user
+                    // gets confirmation that their pull is committable.
+                    val wouldFire = BundleRowSwipe.wouldFireOnRelease(
+                        offsetX = next,
+                        selected = currentSelected,
+                        deleteTriggerPx = deleteTriggerPx,
+                        selectMidpointPx = selectMidpointPx,
+                    )
+                    if (wouldFire != triggeredAbove) {
+                        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                        triggeredAbove = wouldFire
+                    }
+                    if (next != prev) change.consume()
+                },
+            )
+        }
+
         Surface(
             color = MaterialTheme.colorScheme.surface,
             modifier = Modifier
                 .fillMaxWidth()
                 .graphicsLayer { translationX = offsetX }
-                .pointerInput(bundle.id) {
-                    rowWidthPx = size.width.toFloat()
-                    val deleteTriggerPx = -size.width * SWIPE_DELETE_FRACTION
-                    val selectMidpointPx = revealWidthPx * SWIPE_SELECT_FRACTION
-                    // Per-gesture suppression flag — set on drag-start when the row is
-                    // mid-animation from an external selection change. Stays set for the
-                    // remainder of the gesture so a follow-through finger motion right
-                    // after the user tapped X doesn't drive offsetX or commit a toggle.
-                    var dragSuppressed = false
-
-                    detectHorizontalDragGestures(
-                        onDragStart = {
-                            dragSuppressed = animatingExternally
-                            if (!dragSuppressed) {
-                                triggeredAbove = false
-                                velocityTracker.resetTracking()
-                            }
-                        },
-                        onDragEnd = {
-                            if (dragSuppressed) return@detectHorizontalDragGestures
-                            val release = BundleRowSwipe.computeRelease(
-                                offsetX = offsetX,
-                                velocity = velocityTracker.calculateVelocity().x,
-                                selected = currentSelected,
-                                revealWidthPx = revealWidthPx,
-                                deleteTriggerPx = deleteTriggerPx,
-                                selectMidpointPx = selectMidpointPx,
-                            )
-                            coroutineScope.launch {
-                                animatable.snapTo(offsetX)
-                                animatable.animateTo(release.targetOffset) { offsetX = value }
-                                when (release.action) {
-                                    BundleRowSwipe.SwipeAction.None -> Unit
-                                    BundleRowSwipe.SwipeAction.ToggleSelection ->
-                                        currentOnToggleSelection()
-                                    BundleRowSwipe.SwipeAction.RequestDelete -> {
-                                        currentOnRequestDelete()
-                                        // pendingDeleteRow takes over on the next
-                                        // recomposition; snap back to 0 in case the
-                                        // bundle reappears (e.g. user undoes the delete)
-                                        // so the row shows at rest.
-                                        animatable.snapTo(0f)
-                                        offsetX = 0f
-                                    }
-                                }
-                            }
-                        },
-                        onDragCancel = {
-                            if (dragSuppressed) return@detectHorizontalDragGestures
-                            coroutineScope.launch {
-                                val rest = if (currentSelected) revealWidthPx else 0f
-                                animatable.snapTo(offsetX)
-                                animatable.animateTo(rest) { offsetX = value }
-                            }
-                        },
-                        onHorizontalDrag = { change, delta ->
-                            if (dragSuppressed) {
-                                // Claim the gesture so it doesn't propagate, but ignore
-                                // the delta — the LaunchedEffect's animation owns
-                                // offsetX while the row is animating to rest.
-                                change.consume()
-                                return@detectHorizontalDragGestures
-                            }
-                            velocityTracker.addPosition(change.uptimeMillis, change.position)
-                            val prev = offsetX
-                            val next = BundleRowSwipe.clampOffset(
-                                rawOffset = prev + delta,
-                                selected = currentSelected,
-                                revealWidthPx = revealWidthPx,
-                            )
-                            offsetX = next
-                            // Haptic on each crossing of "would-fire-on-release" so the
-                            // user gets confirmation that their pull is committable.
-                            val wouldFire = BundleRowSwipe.wouldFireOnRelease(
-                                offsetX = next,
-                                selected = currentSelected,
-                                deleteTriggerPx = deleteTriggerPx,
-                                selectMidpointPx = selectMidpointPx,
-                            )
-                            if (wouldFire != triggeredAbove) {
-                                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                                triggeredAbove = wouldFire
-                            }
-                            if (next != prev) change.consume()
-                        },
-                    )
-                },
+                .then(gestureModifier),
         ) {
             BundleRowContent(bundle = bundle, thumbnails = thumbnails)
         }

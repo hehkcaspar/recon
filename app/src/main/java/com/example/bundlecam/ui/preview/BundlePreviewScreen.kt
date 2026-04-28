@@ -111,11 +111,15 @@ fun BundlePreviewScreen(
                 .padding(padding)
                 .fillMaxSize(),
         ) {
-            // A row is "processing" if its worker is in-flight AND no SAF files exist for
-            // it yet — once the subfolder or stitch lands, the completed row takes over.
+            // A bundle is "processing" if its worker is in-flight. Most of the time the
+            // bundle is ONLY in processingBundleIds (no SAF files yet) and renders as a
+            // ProcessingBundleRow. There's a brief overlap window where a just-finished
+            // worker's bundle appears in BOTH processingBundleIds AND state.bundles —
+            // BundleList consumes the full processing set so it can render the right
+            // row type AND gate gestures on the overlap-window BundleRow.
             val completedIds = state.bundles.mapTo(mutableSetOf()) { it.id }
-            val processingOnly = state.processingBundleIds.filterNot { it in completedIds }
-            val hasContent = state.bundles.isNotEmpty() || processingOnly.isNotEmpty()
+            val hasContent = state.bundles.isNotEmpty() ||
+                state.processingBundleIds.any { it !in completedIds }
 
             when {
                 state.loadState == LoadState.Loading && !hasContent -> {
@@ -135,7 +139,7 @@ fun BundlePreviewScreen(
                 }
                 else -> {
                     BundleList(
-                        processingIds = processingOnly,
+                        processingIds = state.processingBundleIds.toSet(),
                         bundles = state.bundles,
                         pendingDeletes = state.pendingDeletes,
                         selectedIds = state.selectedBundleIds,
@@ -230,7 +234,7 @@ private fun SelectionTopBar(
 
 @Composable
 private fun BundleList(
-    processingIds: List<String>,
+    processingIds: Set<String>,
     bundles: List<CompletedBundle>,
     pendingDeletes: Map<String, PendingDelete>,
     selectedIds: Set<String>,
@@ -240,11 +244,18 @@ private fun BundleList(
     onUndo: (String) -> Unit,
     onToggleSelection: (String) -> Unit,
 ) {
+    // Bundles with a SAF file already on disk render as a regular BundleRow even if
+    // their worker is still finishing other artifacts; bundles with no SAF presence
+    // yet render as a non-interactive ProcessingBundleRow. The two paths are exclusive
+    // in the rendered list — but both can stem from a row whose worker is still active.
+    val completedIds = bundles.mapTo(mutableSetOf()) { it.id }
+    val processingOnly = processingIds.filterNot { it in completedIds }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
     ) {
         items(
-            items = processingIds,
+            items = processingOnly,
             // Prefix the key so a processing ID can't collide with a completed bundle
             // that shares the same id during the brief SAF-write → refresh transition.
             key = { id -> "$PROCESSING_ROW_KEY_PREFIX$id" },
@@ -261,6 +272,7 @@ private fun BundleList(
                 thumbnails = thumbnails,
                 pendingDelete = pendingDeletes[bundle.id],
                 selected = bundle.id in selectedIds,
+                processing = bundle.id in processingIds,
                 onRequestThumbnail = onRequestThumbnail,
                 onRequestDelete = { onRequestDelete(bundle.id) },
                 onUndo = { onUndo(bundle.id) },
