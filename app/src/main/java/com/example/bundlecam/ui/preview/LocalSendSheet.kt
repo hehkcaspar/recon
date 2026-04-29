@@ -11,8 +11,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -30,7 +36,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.bundlecam.data.storage.CompletedBundle
 import com.example.bundlecam.di.AppContainer
@@ -40,6 +49,7 @@ import com.example.bundlecam.network.localsend.SendProgress
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 private const val DISCOVERY_TIMEOUT_MS = 12_000L
 
@@ -144,10 +154,12 @@ private suspend fun runSend(
             progress = null,
         )
     )
+    var lastProgress: SendProgress? = null
     val result = container.localSendController.send(
         peer = peer,
         bundles = bundles,
         onProgress = { p ->
+            lastProgress = p
             set(
                 SendUiState.Sending(
                     peerAlias = peer.alias,
@@ -157,7 +169,15 @@ private suspend fun runSend(
             )
         },
     )
-    set(SendUiState.Done(bundleCount = bundles.size, result = result))
+    set(
+        SendUiState.Done(
+            bundleCount = bundles.size,
+            totalFiles = lastProgress?.totalFiles ?: 0,
+            totalBytes = lastProgress?.totalBytes ?: 0L,
+            peer = peer,
+            result = result,
+        )
+    )
 }
 
 private sealed interface SendUiState {
@@ -169,21 +189,21 @@ private sealed interface SendUiState {
     ) : SendUiState
     data class Done(
         val bundleCount: Int,
+        val totalFiles: Int,
+        val totalBytes: Long,
+        val peer: Peer,
         val result: SendBundleResult,
     ) : SendUiState
 }
 
 @Composable
 private fun Header(bundles: List<CompletedBundle>, ui: SendUiState) {
+    if (ui is SendUiState.Done) return
     val bundleNoun = if (bundles.size == 1) "bundle" else "bundles"
     val title = when (ui) {
         is SendUiState.Discovering -> "Send ${bundles.size} $bundleNoun"
         is SendUiState.Sending -> "Sending ${ui.bundleCount} $bundleNoun to ${ui.peerAlias}"
-        is SendUiState.Done -> when (ui.result) {
-            SendBundleResult.Success -> "Sent ${ui.bundleCount} $bundleNoun ✓"
-            SendBundleResult.AlreadyReceived -> "Peer already had this content"
-            is SendBundleResult.Failed -> "Send failed"
-        }
+        is SendUiState.Done -> ""
     }
     Text(text = title, style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(2.dp))
@@ -194,7 +214,7 @@ private fun Header(bundles: List<CompletedBundle>, ui: SendUiState) {
             if (p == null) "Negotiating with peer…"
             else "${p.completedFiles} of ${p.totalFiles} files"
         }
-        is SendUiState.Done -> "Tap close to return to the bundles list."
+        is SendUiState.Done -> ""
     }
     Text(
         text = subtitle,
@@ -296,28 +316,99 @@ private fun SendingBlock(s: SendUiState.Sending) {
 
 @Composable
 private fun DoneBlock(state: SendUiState.Done, onDone: () -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        val (message, color) = when (val result = state.result) {
-            SendBundleResult.Success ->
-                "All files transferred — find them in the receiver's downloads folder." to
-                    MaterialTheme.colorScheme.onSurface
-            SendBundleResult.AlreadyReceived ->
-                "Receiver reported the files were already there. Nothing to do." to
-                    MaterialTheme.colorScheme.onSurfaceVariant
-            is SendBundleResult.Failed ->
-                result.message to MaterialTheme.colorScheme.error
-        }
-        Text(
-            text = message,
-            style = MaterialTheme.typography.bodyMedium,
-            color = color,
-        )
+    val display = doneDisplay(state)
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
         Spacer(Modifier.height(8.dp))
-        Row(
+        Icon(
+            imageVector = display.icon,
+            contentDescription = null,
+            tint = display.iconTint,
+            modifier = Modifier.size(72.dp),
+        )
+        Spacer(Modifier.height(20.dp))
+        Text(
+            text = display.title,
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = display.subtitle,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = peerIdentity(state.peer),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(24.dp))
+        FilledTonalButton(
+            onClick = onDone,
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
         ) {
-            TextButton(onClick = onDone) { Text("Close") }
+            Text("Done")
         }
+    }
+}
+
+private fun peerIdentity(peer: Peer): String = buildString {
+    peer.deviceModel?.let { append(it) }
+    if (peer.deviceModel != null) append(" · ")
+    append(peer.fingerprint.take(8))
+}
+
+private fun successTitle(bundleCount: Int, totalFiles: Int, totalBytes: Long): String {
+    val bundleNoun = if (bundleCount == 1) "bundle" else "bundles"
+    if (totalFiles <= 0) return "$bundleCount $bundleNoun"
+    val fileNoun = if (totalFiles == 1) "file" else "files"
+    return "$bundleCount $bundleNoun ($totalFiles $fileNoun, ${formatBytes(totalBytes)})"
+}
+
+private fun formatBytes(bytes: Long): String {
+    if (bytes < 1_000) return "$bytes B"
+    val kb = bytes / 1_000.0
+    if (kb < 1_000) return String.format(Locale.US, "%.1f KB", kb)
+    val mb = kb / 1_000.0
+    if (mb < 1_000) return String.format(Locale.US, "%.1f MB", mb)
+    return String.format(Locale.US, "%.1f GB", mb / 1_000.0)
+}
+
+private data class DoneDisplay(
+    val icon: ImageVector,
+    val iconTint: Color,
+    val title: String,
+    val subtitle: String,
+)
+
+@Composable
+private fun doneDisplay(state: SendUiState.Done): DoneDisplay {
+    val noun = if (state.bundleCount == 1) "bundle" else "bundles"
+    return when (val result = state.result) {
+        SendBundleResult.Success -> DoneDisplay(
+            icon = Icons.Filled.CheckCircle,
+            iconTint = MaterialTheme.colorScheme.primary,
+            title = successTitle(state.bundleCount, state.totalFiles, state.totalBytes),
+            subtitle = "Sent to ${state.peer.alias}",
+        )
+        SendBundleResult.AlreadyReceived -> DoneDisplay(
+            icon = Icons.Filled.Info,
+            iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
+            title = "Already received",
+            subtitle = "${state.peer.alias} already has these $noun.",
+        )
+        is SendBundleResult.Failed -> DoneDisplay(
+            icon = Icons.Filled.Error,
+            iconTint = MaterialTheme.colorScheme.error,
+            title = "Send failed",
+            subtitle = result.message,
+        )
     }
 }

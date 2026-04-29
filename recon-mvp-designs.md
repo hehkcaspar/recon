@@ -630,6 +630,10 @@ The wire path for each file is `{bundleId}/{subfolder}/{leaf}` (or `{bundleId}/{
 
 mirroring Recon's own SAF layout, one self-contained directory per bundle.
 
+### Send completion
+
+Once the receiver acknowledges the last file, the sheet swaps from the progress view to a success state. The user already chose the recipient on the previous screen — the question they're verifying here is "did everything go?", not "where did it go?" — so the headline is the *outcome* (`{N} bundle(s) ({F} files, {Y.Y MB})`), with the recipient and the device identity (`{deviceModel} · {fingerprint[0..8]}`, mirroring the format used in the discovery row) as supporting subtitle lines underneath. Total file count and total byte size are pulled from the last `SendProgress` event the sheet observed — no extra walk of `BundleLibrary.listBundleFiles`. Byte sizes use base-1000 (KB / MB / GB) with one decimal of precision, formatted via `Locale.US` so the decimal separator is always `.`. The single primary action is a full-width Filled-tonal "Done" — Material's medium-emphasis button, the right weight for "the only CTA on a confirmation sheet" without screaming. `AlreadyReceived` and `Failed` states use the same icon-led layout but without the count headline; their headlines are "Already received" and "Send failed" respectively, with the recipient identity still shown so the user knows which peer responded.
+
 ### Trust model
 
 Peers identify themselves by SHA-256 fingerprint of their leaf TLS cert, advertised in the discovery announce. Recon generates one self-signed RSA cert per install (cached on disk, lazily on first use), and the same hex hash goes into our own announces.
