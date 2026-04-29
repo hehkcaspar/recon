@@ -14,7 +14,10 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.example.bundlecam.data.camera.CameraMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
@@ -60,10 +63,14 @@ private object Keys {
     val SEEN_GESTURE_TUTORIAL = booleanPreferencesKey("seen_gesture_tutorial")
     val SEEN_TUTORIAL_STEPS = stringSetPreferencesKey("seen_tutorial_steps")
     val CAMERA_MODE = stringPreferencesKey("camera_mode")
+    val DEVICE_ALIAS = stringPreferencesKey("device_alias")
 }
 
 class SettingsRepository(context: Context) {
     private val store = context.applicationContext.settingsDataStore
+    // Serializes read-then-write critical sections (e.g. lazy alias generation) so two
+    // concurrent first-readers can't both see null and race to write distinct values.
+    private val lazyInitMutex = Mutex()
 
     val settings: Flow<SettingsState> = store.data
         .map { prefs ->
@@ -152,6 +159,29 @@ class SettingsRepository(context: Context) {
 
     suspend fun setCameraMode(mode: CameraMode) {
         store.edit { it[Keys.CAMERA_MODE] = mode.name }
+    }
+
+    /**
+     * Returns the per-install device alias used as the LocalSend `alias` field, generating
+     * one on first call. Format: `"Recon NNNN"` with NNNN a 4-digit random suffix that
+     * lets a household with multiple Recon devices distinguish them at a glance. The
+     * value persists across app launches; clearing app data resets it.
+     *
+     * Mutex-guarded so a tight succession of first-readers (e.g. the controller building
+     * its announce + its info objects in quick succession) can't race to generate two
+     * distinct aliases — the loser would silently see a different value than what's now
+     * persisted.
+     */
+    suspend fun getOrCreateDeviceAlias(): String = lazyInitMutex.withLock {
+        val existing = store.data.first()[Keys.DEVICE_ALIAS]
+        if (existing != null) return@withLock existing
+        val generated = "Recon ${(1000..9999).random()}"
+        store.edit { it[Keys.DEVICE_ALIAS] = generated }
+        generated
+    }
+
+    suspend fun setDeviceAlias(alias: String) {
+        store.edit { it[Keys.DEVICE_ALIAS] = alias }
     }
 
     // Peer read + self write live in one edit{} so DataStore serializes concurrent toggles

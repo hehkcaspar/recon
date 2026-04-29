@@ -13,6 +13,8 @@ import com.example.bundlecam.data.storage.BundleCounterStore
 import com.example.bundlecam.data.storage.BundleLibrary
 import com.example.bundlecam.data.storage.SafStorage
 import com.example.bundlecam.data.storage.StagingStore
+import com.example.bundlecam.network.localsend.LocalSendCertManager
+import com.example.bundlecam.network.localsend.LocalSendController
 import com.example.bundlecam.pipeline.BundleWorker
 import com.example.bundlecam.pipeline.ManifestStore
 import com.example.bundlecam.pipeline.OrphanRecovery
@@ -38,6 +40,9 @@ class AppContainer(context: Context) {
     val exifWriter: ExifWriter = ExifWriter()
     val locationProvider: LocationProvider = LocationProvider(appContext)
     val voiceController: VoiceController = VoiceController(appContext)
+    val localSendCertManager: LocalSendCertManager = LocalSendCertManager(appContext)
+    val localSendController: LocalSendController =
+        LocalSendController(appContext, settingsRepository, bundleLibrary, localSendCertManager)
 
     // App-scoped so folder-setup work isn't cancelled by UI navigation (e.g., user backing
     // out of Settings immediately after picking a folder). Composition-scoped coroutines

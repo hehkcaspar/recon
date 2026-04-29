@@ -1,5 +1,6 @@
 package com.example.bundlecam.ui.preview
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,6 +10,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -33,6 +36,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.bundlecam.ReconApp
 import com.example.bundlecam.data.settings.SettingsState
 import com.example.bundlecam.data.storage.CompletedBundle
 import com.example.bundlecam.ui.common.ActionBanner
@@ -57,34 +61,49 @@ fun BundlePreviewScreen(
     LaunchedEffect(settings.rootUri) { vm.refresh() }
 
     var confirmDeleteId by remember { mutableStateOf<String?>(null) }
+    var sendBundles by remember { mutableStateOf<List<CompletedBundle>>(emptyList()) }
+
+    // Back press in selection mode is "exit selection mode", not "leave the screen" —
+    // standard M3 multi-select behavior. Outside selection mode, the existing screen-
+    // level BackHandler in MainActivity takes over.
+    BackHandler(enabled = state.selectionMode && sendBundles.isEmpty()) { vm.clearSelection() }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
-            TopAppBar(
-                title = { Text("Bundles") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(
-                        onClick = {
-                            settings.rootUri?.let { openFolderInSystemBrowser(context, it) }
-                        },
-                        enabled = settings.rootUri != null,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.FolderOpen,
-                            contentDescription = "Open in system file browser",
-                        )
-                    }
-                },
-            )
+            if (state.selectionMode) {
+                SelectionTopBar(
+                    selectedCount = state.selectedBundleIds.size,
+                    canSend = vm.selectedBundlesSnapshot().isNotEmpty(),
+                    onClose = { vm.clearSelection() },
+                    onSend = { sendBundles = vm.selectedBundlesSnapshot() },
+                )
+            } else {
+                TopAppBar(
+                    title = { Text("Bundles") },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                            )
+                        }
+                    },
+                    actions = {
+                        IconButton(
+                            onClick = {
+                                settings.rootUri?.let { openFolderInSystemBrowser(context, it) }
+                            },
+                            enabled = settings.rootUri != null,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.FolderOpen,
+                                contentDescription = "Open in system file browser",
+                            )
+                        }
+                    },
+                )
+            }
         },
     ) { padding ->
         Box(
@@ -92,11 +111,15 @@ fun BundlePreviewScreen(
                 .padding(padding)
                 .fillMaxSize(),
         ) {
-            // A row is "processing" if its worker is in-flight AND no SAF files exist for
-            // it yet — once the subfolder or stitch lands, the completed row takes over.
+            // A bundle is "processing" if its worker is in-flight. Most of the time the
+            // bundle is ONLY in processingBundleIds (no SAF files yet) and renders as a
+            // ProcessingBundleRow. There's a brief overlap window where a just-finished
+            // worker's bundle appears in BOTH processingBundleIds AND state.bundles —
+            // BundleList consumes the full processing set so it can render the right
+            // row type AND gate gestures on the overlap-window BundleRow.
             val completedIds = state.bundles.mapTo(mutableSetOf()) { it.id }
-            val processingOnly = state.processingBundleIds.filterNot { it in completedIds }
-            val hasContent = state.bundles.isNotEmpty() || processingOnly.isNotEmpty()
+            val hasContent = state.bundles.isNotEmpty() ||
+                state.processingBundleIds.any { it !in completedIds }
 
             when {
                 state.loadState == LoadState.Loading && !hasContent -> {
@@ -116,9 +139,10 @@ fun BundlePreviewScreen(
                 }
                 else -> {
                     BundleList(
-                        processingIds = processingOnly,
+                        processingIds = state.processingBundleIds.toSet(),
                         bundles = state.bundles,
                         pendingDeletes = state.pendingDeletes,
+                        selectedIds = state.selectedBundleIds,
                         thumbnails = state.thumbnails,
                         onRequestThumbnail = vm::loadThumbnail,
                         onRequestDelete = { id ->
@@ -129,6 +153,7 @@ fun BundlePreviewScreen(
                             }
                         },
                         onUndo = vm::onUndo,
+                        onToggleSelection = vm::toggleSelection,
                     )
                 }
             }
@@ -164,23 +189,73 @@ fun BundlePreviewScreen(
             onDismiss = { confirmDeleteId = null },
         )
     }
+
+    if (sendBundles.isNotEmpty()) {
+        val app = context.applicationContext as ReconApp
+        LocalSendSheet(
+            container = app.container,
+            bundles = sendBundles,
+            onDismiss = {
+                sendBundles = emptyList()
+                vm.clearSelection()
+            },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SelectionTopBar(
+    selectedCount: Int,
+    canSend: Boolean,
+    onClose: () -> Unit,
+    onSend: () -> Unit,
+) {
+    TopAppBar(
+        title = { Text("$selectedCount selected") },
+        navigationIcon = {
+            IconButton(onClick = onClose) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = "Exit selection",
+                )
+            }
+        },
+        actions = {
+            IconButton(onClick = onSend, enabled = canSend) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.Send,
+                    contentDescription = "Send via LocalSend",
+                )
+            }
+        },
+    )
 }
 
 @Composable
 private fun BundleList(
-    processingIds: List<String>,
+    processingIds: Set<String>,
     bundles: List<CompletedBundle>,
     pendingDeletes: Map<String, PendingDelete>,
+    selectedIds: Set<String>,
     thumbnails: Map<android.net.Uri, androidx.compose.ui.graphics.ImageBitmap>,
     onRequestThumbnail: (android.net.Uri) -> Unit,
     onRequestDelete: (String) -> Unit,
     onUndo: (String) -> Unit,
+    onToggleSelection: (String) -> Unit,
 ) {
+    // Bundles with a SAF file already on disk render as a regular BundleRow even if
+    // their worker is still finishing other artifacts; bundles with no SAF presence
+    // yet render as a non-interactive ProcessingBundleRow. The two paths are exclusive
+    // in the rendered list — but both can stem from a row whose worker is still active.
+    val completedIds = bundles.mapTo(mutableSetOf()) { it.id }
+    val processingOnly = processingIds.filterNot { it in completedIds }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
     ) {
         items(
-            items = processingIds,
+            items = processingOnly,
             // Prefix the key so a processing ID can't collide with a completed bundle
             // that shares the same id during the brief SAF-write → refresh transition.
             key = { id -> "$PROCESSING_ROW_KEY_PREFIX$id" },
@@ -196,9 +271,12 @@ private fun BundleList(
                 bundle = bundle,
                 thumbnails = thumbnails,
                 pendingDelete = pendingDeletes[bundle.id],
+                selected = bundle.id in selectedIds,
+                processing = bundle.id in processingIds,
                 onRequestThumbnail = onRequestThumbnail,
                 onRequestDelete = { onRequestDelete(bundle.id) },
                 onUndo = { onUndo(bundle.id) },
+                onToggleSelection = { onToggleSelection(bundle.id) },
             )
             HorizontalDivider(
                 color = MaterialTheme.colorScheme.outlineVariant,
