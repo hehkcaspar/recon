@@ -470,16 +470,16 @@ Layout math (pure function, testable without bitmap allocation):
 
 ### Resilience
 
-- **Photos survive process kill**: they're on internal storage the moment the shutter fires. On next launch, `OrphanRecovery` scans the staging dir, prunes any sessions marked discarded, re-enqueues manifests whose workers never ran, and restores the most recent live orphan session (the queue the user was building) back into the capture VM. Older live orphans are deleted to prevent unbounded disk growth.
-- **Videos survive mid-record process kill by default**, thanks to CameraX 1.6.0's Media3 Muxer: the MP4 is kept playable (moov atom written incrementally) through termination. `OrphanRecovery` probes `.mp4` files via `MediaMetadataRetriever.extractMetadata(DURATION)` — non-null → restore into queue with computed duration + extracted poster frame; null → torn file, delete and skip. The narrow window between start-of-recording and the first muxer flush still produces a torn file; the probe catches it.
-- **Voice files torn by process kill are detected and cleaned**. `MediaRecorder` does not have video's partial-file resilience — a killed `.m4a` is unplayable. Same `MediaMetadataRetriever` probe distinguishes: null duration → delete, valid → restore as `RestoredItem.Voice`. No sidecar marker files — the probe is authoritative.
-- **Mixed-media queue order is preserved via the `.order` log**. Start-time entries are appended on every item add (including video/voice at start-of-recording), so a `[Video, Photo, Voice]` capture restores as `[Video, Photo, Voice]` — not the `[Photo, Voice, Video]` that `lastModified` ordering would produce. Falls back to `lastModified` for legacy sessions without a log.
-- **Bundle-ID counter is atomic**: allocated from persistent storage before any output I/O. Worker failure doesn't rewind it. Retries reuse the same ID.
-- **Worker failures are observable without noise**: the failure flow filters pre-existing historical failures on first subscription (the "acknowledged set"). Without this, every app launch would re-surface yesterday's transient failure.
-- **Discard marker is synchronous**: when the user swipes-discard, a `.discarded` marker file is written to the staging session directory **synchronously** on the UI thread (one `File.createNewFile()`, ~1ms, Main-thread-safe) **before** the 3-second undo timer starts. If the process dies inside the undo window, the coroutine that would've cleaned up gets cancelled — but the marker is already on disk. `OrphanRecovery` sees the marker on next launch and deletes the session (instead of restoring it as a zombie queue). Undo removes the marker.
-- **Backpressure is natural**: the worker queue drains at its own pace. If the user commits faster than stitching, bundles pile up and catch up during a pause. Capture latency never depends on worker depth.
+- **Photos** are on internal storage from the moment the shutter fires; `OrphanRecovery` restores the most-recent live staging session as an uncommitted queue on next launch. Older live orphans are deleted to bound disk growth.
+- **Videos** survive mid-record kill thanks to incremental moov-atom flushes (CameraX 1.6 Media3 Muxer / iOS `movieFragmentInterval`); `OrphanRecovery` probes `.mp4` via `MediaMetadataRetriever.extractMetadata(DURATION)` (Android) / `AVAsset.duration` (iOS) — non-null restores with poster + duration, null is torn → delete.
+- **Voice** files have no equivalent partial-file resilience — `MediaRecorder` / `AVAudioRecorder` torn output is unplayable. Same duration probe distinguishes torn vs. playable.
+- **Mixed-media order** is preserved via the staging session's `.order` append-log (start-time entries, written before the file even materializes for video/voice). Without it, `lastModified` would reorder a `[Video, Photo, Voice]` capture as `[Photo, Voice, Video]` since recording mtimes are stop-time.
+- **Bundle-ID counter** is allocated atomically before any output I/O; worker failure doesn't rewind. Retries reuse the same ID.
+- **Worker failure flow** filters pre-existing historical failures on first subscription (the "acknowledged" set), so a transient failure from yesterday doesn't re-surface on every launch.
+- **Discard marker is synchronous**: a `.discarded` file is written to the staging directory on the UI thread (one `File.createNewFile()`, ~1 ms) **before** the 3-second undo timer starts. If the process dies inside the window, `OrphanRecovery` sees the marker and deletes the session instead of restoring it. Undo removes the marker.
+- **Backpressure is natural**: the worker queue drains at its own pace; capture latency doesn't depend on worker depth.
 - **Memory stays flat**: media is on disk, not in RAM. The worker holds at most one bundle's decoded pixels at a time.
-- **Lifecycle pause stops active recordings**: `ON_PAUSE` triggers `stopActiveRecordingSync()` (video) and `voiceController.stopRecording()` (voice) through the normal async stop paths, so the VM's `BusyState` resolves correctly to `Idle` when the Activity returns. No foreground service required — recording only runs while the Activity is foregrounded.
+- **Lifecycle pause stops active recordings** through the normal async stop paths so `BusyState` resolves to `Idle` on resume. No foreground service — recording only runs while the Activity / scene is foregrounded.
 
 ---
 
@@ -592,82 +592,59 @@ When a user swipes-commits and immediately opens Bundle Preview, the worker is s
 
 ## LocalSend bundle transfer
 
-Committed bundles can be transferred peer-to-peer over the LAN to any device running the [LocalSend](https://github.com/localsend/protocol) protocol (v2.1) — a desktop, another phone, or a dedicated companion script. Recon implements the **sender** side of the protocol; receiving is out of scope. The user-visible affordance lives in the Bundle Preview screen.
+Committed bundles can be transferred peer-to-peer over the LAN to any device running the [LocalSend](https://github.com/localsend/protocol) protocol (v2.1). Recon ships the **sender** side only — receiving is out of scope. The affordance lives in Bundle Preview.
 
 ### Selection model
 
-A row is the atomic unit. There is no file-level selection; you pick whole bundles. Selection is gesture-driven:
+A row is the atomic unit; no file-level selection. Swipe right past ~40% of an 80dp reveal width (or fast right flick) snap-translates the row to that offset; the exposed strip is solid green with a check-circle. The resting offset *is* the selected state — no separate tint. Swipe back to 0, or tap the check, to deselect. Swipe left from 0 → standard swipe-to-delete; swipe left from selected → clamped to 0 (deselect-only). Processing rows skip the gesture handler entirely so selection can't race the worker's writes.
 
-- **Swipe right** on a normal row past ~40% of the 80dp reveal width (or with a fast right flick) → row snap-translates to the right by 80dp and stays there. The exposed leading strip is solid green with a check-circle icon. The row's resting offset *is* its selected state — there is no separate tint.
-- **Swipe back** (drag the selected row left toward 0) **or tap the green check** → row animates back to 0, deselected.
-- **Swipe left** on an unselected row → standard swipe-to-delete (unchanged).
-- A selected row's gesture cone is clamped to `[0, revealWidth]`: a selected row can't be deleted directly. Deselect first, then swipe left.
-- A processing row (worker still in flight) skips the gesture handler entirely. The bundle's worker is writing files; selection or delete during that window would race the writes.
-
-The contextual top app bar swaps in when ≥1 bundle is selected: close-X on the left, "N selected" as the title, paper-plane Send action on the right. Tapping close (or system back) clears the selection and animates every selected row back to 0 simultaneously. A dedicated suppression flag prevents a follow-through finger motion right after the X tap from re-selecting a row mid-animation.
+When ≥1 bundle is selected, the contextual app bar swaps in: close-X left, "N selected" title, paper-plane Send action right. Tapping close clears selection and animates every selected row back to 0; a suppression flag prevents follow-through finger motion from re-selecting mid-animation.
 
 ### Discovery
 
-Tapping Send opens a modal bottom sheet. On open, the sheet starts UDP multicast discovery on `224.0.0.167:53317`: it acquires `WifiManager.MulticastLock` (without it, Android filters inbound multicast packets to silence on most devices), joins the group on every non-loopback IPv4 NIC, and emits one announce. Peers respond either via multicast UDP (`announce: false`) or via HTTP `POST /api/localsend/v2/register` to the announcer's IP. Recon does **not** run an inbound HTTP server — the protocol allows that, and most peers will fall back to multicast UDP responses.
+Tap Send → modal bottom sheet → UDP multicast discovery on `224.0.0.167:53317`. The sheet emits one announce on every non-loopback IPv4 NIC, then surfaces inbound announces (peer-initiated or `announce:false` replies) as `Peer` rows showing alias, deviceModel, and the first 8 hex chars of fingerprint (a trust-on-first-use cue). Spinner while empty; after 12 s with no peers, swap to "No peers found" + `Try again` / `Close`.
 
-The sheet shows a spinner while the peer list is empty. After 12 seconds of nothing, the sheet swaps to a "No peers found" message with `Try again` (drains the discovery session, clears the peer list, starts fresh) and `Close` buttons. Discovered peers appear as rows showing the peer's alias, deviceModel, and the first 8 hex chars of their fingerprint (a trust-on-first-use cue).
+Recon does **not** run an inbound HTTP server. Most peers reply via multicast UDP and surface fine; a peer that *only* responds via HTTP `POST /api/localsend/v2/register` won't appear (rare in practice).
 
 ### Single session for all selected bundles
 
-Tapping a peer kicks off the transfer. **All selected bundles ship in one prepare-upload session.** This is non-negotiable, not a convenience: LocalSend's receiver state machine treats a session as active until the user dismisses the receive panel on their desktop, *not* until the last file lands. Two sequential `prepare-upload` calls to the same peer would 409 BLOCKED on the second until the user manually dismisses the first transfer's panel. Bundling collapses that into one user-visible transfer.
+LocalSend's receiver treats a session as active until the user dismisses the receive panel on their desktop, *not* until the last file lands. Sequential `prepare-upload` calls to the same peer thus 409 BLOCKED on the second. So **all selected bundles ship in one prepare-upload** — this is non-negotiable.
 
-The wire path for each file is `{bundleId}/{subfolder}/{leaf}` (or `{bundleId}/{leaf}` for legacy flat-layout bundles). The `subfolder` is `"photos"` / `"videos"` / `"audio"` for raw modality files, `"stitched"` for the composite. LocalSend's receiver parses `/` separators verbatim and creates the matching directory structure under its save root, with `..` traversal blocked. So a 2-bundle send produces:
-
-```
-{receiver-save-root}/
-  {bundle-A-id}/
-    photos/   {bundle-A-id}-p-001.jpg ...
-    videos/   {bundle-A-id}-v-001.mp4 ...
-    audio/    {bundle-A-id}-a-001.m4a ...
-    stitched/ {bundle-A-id}-stitch.jpg
-  {bundle-B-id}/
-    ...
-```
-
-mirroring Recon's own SAF layout, one self-contained directory per bundle.
-
-### Send completion
-
-Once the receiver acknowledges the last file, the sheet swaps from the progress view to a success state. The user already chose the recipient on the previous screen — the question they're verifying here is "did everything go?", not "where did it go?" — so the headline is the *outcome* (`{N} bundle(s) ({F} files, {Y.Y MB})`), with the recipient and the device identity (`{deviceModel} · {fingerprint[0..8]}`, mirroring the format used in the discovery row) as supporting subtitle lines underneath. Total file count and total byte size are pulled from the last `SendProgress` event the sheet observed — no extra walk of `BundleLibrary.listBundleFiles`. Byte sizes use base-1000 (KB / MB / GB) with one decimal of precision, formatted via `Locale.US` so the decimal separator is always `.`. The single primary action is a full-width Filled-tonal "Done" — Material's medium-emphasis button, the right weight for "the only CTA on a confirmation sheet" without screaming. `AlreadyReceived` and `Failed` states use the same icon-led layout but without the count headline; their headlines are "Already received" and "Send failed" respectively, with the recipient identity still shown so the user knows which peer responded.
+Wire path per file is `{bundleId}/{subfolder}/{leaf}` (or `{bundleId}/{leaf}` for legacy flat layouts). `subfolder` ∈ `{"photos", "videos", "audio", "stitched"}`. The receiver parses `/` verbatim (with `..` traversal blocked) and materializes Recon's own per-bundle directory layout under its save root.
 
 ### Trust model
 
-Peers identify themselves by SHA-256 fingerprint of their leaf TLS cert, advertised in the discovery announce. Recon generates one self-signed RSA cert per install (cached on disk, lazily on first use), and the same hex hash goes into our own announces.
+Each install generates one self-signed RSA cert (cached on disk, lazy on first use). Peers identify by SHA-256 fingerprint of the leaf cert, advertised in the announce. There is no CA validation.
 
-There is no CA validation. The trust manager is fingerprint-pinned — during the TLS handshake, `checkServerTrusted` computes the leaf cert's SHA-256 and compares to the announced fingerprint. Match → return → session authenticates. Mismatch → throw `CertificateException` → handshake fails fast. Doing this *during* the handshake (rather than post-handshake from an interceptor reading `peerCertificates`) is required: an Android Conscrypt session whose trust manager is a no-op is left unverified, which makes `SSLSession.getPeerCertificates()` throw and OkHttp's `Handshake.get` swallow it into an empty list.
+Pinning runs **during** the TLS handshake (Android: inside `X509ExtendedTrustManager.checkServerTrusted`; iOS: inside the `URLSession` delegate's `didReceive challenge`). Match → session authenticates; mismatch → handshake fails fast. Post-handshake checks via an interceptor reading `peerCertificates` are unsafe: Android Conscrypt marks the session unverified when the trust manager is a no-op, which makes `SSLSession.getPeerCertificates()` throw and OkHttp's `Handshake.get` swallow it into an empty list — leaving nothing to verify. The Android trust manager extends `X509ExtendedTrustManager` directly (not just `X509TrustManager`) to dodge `AbstractTrustManagerWrapper`'s hostname check, which would otherwise fail on our per-install cert's CN.
 
-Each peer-specific OkHttpClient is built per `send` call via `baseClient.newBuilder().sslSocketFactory(...)` so the connection pool / dispatcher / timeouts stay shared while the trust manager carries the right peer's expected fingerprint.
+A peer-specific HTTP client is built per `send` call via `client.newBuilder().sslSocketFactory(...)` (Android) / `URLSession(configuration: copy)` (iOS) so the connection pool / dispatcher / timeouts stay shared while each peer's TLS identity is pinned independently.
 
 ### Transfer semantics
 
-The sender-side flow is:
+1. `POST /api/localsend/v2/prepare-upload` with `{info, files: { wireName: { id, fileName, size, fileType } }}`. Receiver shows a confirmation prompt; on accept, replies with `{sessionId, files: { wireName: token }}`.
+2. If any requested file is missing from the response tokens, send `/cancel` and fail the whole send. Silently shipping the rest is partial-data masquerading as success.
+3. Per file, `POST /api/localsend/v2/upload?sessionId&fileId&token` with bytes streamed in 64 KB chunks. Up to 3 in flight concurrently. Stream from the source URI directly — never `readBytes()` a 20 MB stitched JPEG. Poll `Job.isActive` / `Task.isCancelled` between chunks so cancellation aborts at the next chunk boundary.
+4. On any error / cancellation, post `/cancel` best-effort.
 
-1. `POST /api/localsend/v2/prepare-upload` with `{info, files: { wireName: { id, fileName, size, fileType } }}`. The receiver shows a confirmation prompt; on accept, replies with `{sessionId, files: { wireName: token }}`.
-2. If any requested file is missing from the response's tokens, sender posts `/cancel` and fails the whole send with a clear error — silently shipping the rest would be partial-data masquerading as success.
-3. Per file, `POST /api/localsend/v2/upload?sessionId&fileId&token` with the raw bytes streamed in 64 KB chunks. Up to 3 files in flight concurrently. The body reads via `contentResolver.openInputStream(uri)` (never `readBytes()` on a 20 MB stitched JPEG) and polls the calling Job's `isActive` between chunks so cancellation aborts at the next chunk boundary.
-4. On any error or coroutine cancellation, sender posts `/cancel` best-effort.
+Progress is reported as session-level totals (files completed / total, bytes sent / total) plus the wire path of the most recent file. Chunk callbacks fire ~120 events/s peak; throttle UI emissions to 20 Hz, force-emit lifecycle moments (start, per-file completion, terminal state) so counts don't lag the visual.
 
-Progress is reported as session-level totals (files completed / total, bytes sent / total) plus the wire path of the most recently active file. Chunk callbacks fire ~120 events/s peak across the parallel uploads, so progress emissions are throttled to 20 Hz; lifecycle moments (start, file completion, terminal state) force-emit so the count never lags the visual.
+### Send completion
+
+The sheet swaps to a success state when the receiver acknowledges the last file. The user already picked the recipient on the previous screen, so the question this page answers is "did everything go?", not "where to?" — headline is the **outcome**:
+
+- **Success**: `{N} bundle(s) ({F} files, {Y.Y MB})` as a centered icon-led `titleLarge`. Bytes use base-1000 (KB / MB / GB), one decimal, `Locale.US` so the separator is always `.`. Subtitle lines below: `Sent to {alias}` and `{deviceModel} · {fingerprint[0..8]}` (mirroring the peer-list row format).
+- **Already received** / **Send failed**: same icon-led layout, no count headline, recipient identity still shown.
+
+Counts come from the last observed `SendProgress` — no extra walk of `BundleLibrary.listBundleFiles`. Single primary action is a full-width Filled-tonal "Done" (the right weight for the only CTA on a confirmation sheet — a TextButton in the gutter would read as a dismissive Cancel).
 
 ### Failure modes
 
-- **No peers found** after 12s: Wi-Fi network blocking multicast (hotel / carrier / AP isolation) or the receiver isn't listening. Surface "No peers found" + Try again.
-- **409 BLOCKED on prepare-upload**: receiver still has the previous transfer's panel open. Surface "Receiver still has the previous transfer open. Tap Done on the receiving device, then retry." — the only actionable cause in the single-session model.
-- **403 rejected**: receiver explicitly declined.
-- **204 already received**: receiver had every file already (sha256 dedup, if both ends opt in). UI says "Peer already had this content."
-- **Mid-transfer drop**: sender posts `/cancel` and fails with "Upload failed: …".
-
-### Sender-only by design
-
-We don't run an inbound HTTP server. Two consequences worth flagging:
-
-- A peer that *only* responds to multicast announces via HTTP `/register` (rather than UDP multicast reply) won't appear in our peer list. Most LocalSend implementations send both, so in practice this is rare.
-- Future flows like the BACKLOG OCR-companion's "send the .md back" can't be pure-LocalSend without inbound. They'd require either embedding a small HTTP server or an out-of-band channel (Syncthing, an mDNS service, etc.).
+- **No peers found** after 12 s: Wi-Fi blocks multicast (hotel / carrier / AP isolation) or the receiver isn't listening.
+- **409 BLOCKED**: receiver still has the previous transfer's panel open. Surface "Tap Done on the receiving device, then retry."
+- **403**: receiver declined.
+- **204**: receiver had every file already (sha256 dedup if both ends opt in).
+- **Mid-transfer drop**: `/cancel` sent best-effort, fail with the underlying error.
 
 ---
 
@@ -731,167 +708,94 @@ Decisions with non-obvious rationale, captured so future ports can make equivale
 
 28. **Fingerprint-pinning during the TLS handshake, not in a post-handshake interceptor.** A no-op trust manager + an OkHttp interceptor reading `response.handshake.peerCertificates` was the obvious design — but Conscrypt on Android marks the SSLSession as unverified when the trust manager doesn't actually validate, which makes `SSLSession.getPeerCertificates()` throw and OkHttp's `Handshake.get` swallow it into an empty cert list. The interceptor then has nothing to verify. Moving the SHA-256 check inside `X509ExtendedTrustManager.checkServerTrusted` solves it: match → return → session is authenticated → everything downstream works. The trust manager extends `X509ExtendedTrustManager` directly (not just `X509TrustManager`) so the JDK doesn't wrap us in `AbstractTrustManagerWrapper` which adds its own hostname-check incompatible with our per-install cert's CN.
 
-29. **Snap-position selection on bundle rows, not tap-to-toggle.** A swipe-right on a row snap-translates to a fixed 80dp reveal width and stays there. The row's resting offset *is* its selected state — there is no separate tint. Tap on the green check zone deselects; swipe-back to 0 deselects. No long-press, no tap-anywhere-to-toggle. The reasoning: an explicit, reversible gesture per state change reads better than an ephemeral tap, and a snap-position model gives an obvious target for the "tap the check to undo" affordance. Swipe-left to delete coexists in the same `pointerInput` block, signed-offset clamped per state (selected rows clamp at `[0, revealWidth]` so they can only be deselected, not deleted).
-
----
-
-## Implementation principles for any platform
-
-Everything above is interaction. These are the platform-neutral **engineering principles** that any port (iOS next) should adopt. They are the lessons the Android implementation extracted the hard way.
-
-1. **Stage on internal storage, not in memory, not in the user folder.** Memory footprint stays bounded at ~50KB/thumbnail regardless of queue depth. User folder stays clean of in-flight sessions. I/O at capture time stays within the app's sandbox (fastest possible).
-
-2. **Three phases, hard boundaries.**
-    - Phase 1 (Shutter, ≤100ms): staging write + capture-time EXIF + thumbnail.
-    - Phase 2 (Commit, single frame): UI pivots synchronously; manifest write + worker enqueue runs in a background coroutine **after** the UI is already ready for the next shot.
-    - Phase 3 (Worker, serial): manifest-driven; location refresh + GPS backfill + final EXIF + output-folder I/O + stitch + cleanup. **Serialised** process-wide by a mutex to bound heap for stitching.
-
-3. **Manifest file, not in-worker input.** JSON-serialize the per-bundle spec to internal storage; pass only the bundle ID through the scheduler. Orphan recovery replays manifests on next launch.
-
-4. **Bundle-ID counter is atomic.** Allocate from persistent storage **before** any output I/O. Worker failure must never rewind the counter.
-
-5. **Orphan recovery at startup.** Prune terminal worker records; re-enqueue manifests without in-flight work; delete staging sessions marked discarded; restore the most-recent live orphan as an uncommitted queue; delete older orphan sessions to prevent unbounded disk growth.
-
-6. **Worker failure flow filters pre-existing failures** on first subscription. Without this, every launch re-surfaces yesterday's transient failure.
-
-7. **Discard marker is synchronous**, on the UI thread, before the 3-second undo timer. Nothing else in the app does UI-thread I/O; here, the cost of a single `File.createNewFile()` is worth the crash-consistency guarantee.
-
-8. **Gesture zones are disjoint siblings, not nested.** The queue strip is three sibling children of a container (left handle · tray · right handle). Each owns its own gesture handler. Hit-testing routes pointers unambiguously — no arbitration, no slop tuning, no "which gesture wins" code.
-
-9. **Portrait-lock + counter-rotating icons.** Fixed axis for the gesture model; accelerometer-driven icon rotation with shortest-arc animation.
-
-10. **Accelerometer → capture-pipeline rotation.** Platform display-rotation APIs don't catch orientation changes while the UI is locked. Use an accelerometer listener to snap to cardinal angles and write the matching rotation into the capture API's rotation hint, so EXIF orientation is correct regardless of UI pose.
-
-11. **At-least-one output invariant**, enforced both at UI lock-in and at settings-read time (belt and suspenders).
-
-12. **Flags frozen at commit time.** The manifest captures a snapshot of user preferences; the worker doesn't re-read settings mid-flight.
-
-13. **Single open/save pass for final EXIF.** Combine GPS backfill and `UserComment` stamping into one `ExifInterface` open per file. Two passes doubles the I/O cost.
-
-14. **Multi-slot delete timers for bulk cleanup.** Bundle-list delete is batchy by nature; use a map of per-bundle jobs rather than a single-slot timer.
-
-15. **Sealed polymorphic manifest types with explicit `version` field.** The manifest is `sealed class PendingItem` (Photo / Video / Voice) with a kotlinx.serialization `classDiscriminator = "type"` + `version: Int = 2` on the outer `PendingBundle`. **`encodeDefaults = true` is critical** so the version field actually persists. The loader branches on `version`; unknown versions return null (fail loudly). This is the backwards-compatible pattern that earlier drafts tried to achieve via discriminator defaults — the explicit version field is simpler and fails correctly on malformed or downgrade-era manifests.
-
-16. **Capture-order log for mixed-media restoration.** An append-log in each staging session with `{ms}\t{filename}\n` rows, written synchronously at item-add time (for video/voice, at start-of-recording). `OrphanRecovery` prefers the log when present and falls back to `lastModified` for legacy sessions. Without this, mixed captures orphan-restore in the wrong order because `lastModified` reflects stop-time for recordings.
-
-17. **Torn-file probe via media duration, not sidecar markers.** Earlier drafts considered a `.recording` / `.done` sidecar pair per recording. `MediaMetadataRetriever.extractMetadata(DURATION)` distinguishes playable from torn files, so the sidecar adds no information — skipping the sidecar pattern saves ~40 lines and one class of state-machine bugs.
-
-18. **Global capture-order index, not per-modality indices.** File names use a single 3-digit counter (`-p-001, -v-002, -a-003, -p-004`) derived from the item's position in `manifest.orderedItems`. Per-modality counters (`-p-001, -v-001, -a-001, -p-002`) would have drifted index meaning on delete/reorder and broken the visual-sort-by-filename property inside a mixed listing.
+29. **Snap-position selection on bundle rows, not tap-to-toggle.** A swipe-right on a row snap-translates to a fixed 80dp reveal width and stays there. The row's resting offset *is* its selected state — there is no separate tint. Tap on the green check zone deselects; swipe-back to 0 deselects. No long-press, no tap-anywhere-to-toggle. An explicit, reversible gesture per state change reads better than an ephemeral tap, and a snap-position model gives an obvious target for the "tap the check to undo" affordance. Swipe-left to delete coexists in the same `pointerInput` block, signed-offset clamped per state (selected rows clamp at `[0, revealWidth]` so they can only be deselected, not deleted).
 
 ---
 
 ## iOS build notes
 
-This section is the SOTA target for an iOS port, informed by the Android reference implementation. Assume minimum iOS 16; use Swift + SwiftUI + modern Swift Concurrency.
+iOS API mapping for the design above. Assumes iOS 16 minimum, Swift + SwiftUI + Swift Concurrency. Behavior, gestures, and product surface are described in the platform-neutral sections above — do not re-spec them here.
 
 ### Camera (photo + video)
 
-- `AVFoundation` with a custom `AVCaptureSession` running on a dedicated serial queue.
-- Preview via `AVCaptureVideoPreviewLayer` (wrapped in a `UIViewRepresentable` for SwiftUI embedding). Aspect ratio 3:4 by constraining the layer bounds; use `videoGravity = .resizeAspect`.
-- **Photo capture** via `AVCapturePhotoOutput`. Equivalent of Android's two "camera modes":
-    - **ZSL**: `AVCapturePhotoOutput.isResponsiveCaptureEnabled = true` + `isZeroShutterLagEnabled = true` (iOS 17+).
-    - **Quality**: `AVCapturePhotoSettings.photoQualityPrioritization = .quality`. No direct "HDR/auto" equivalent to CameraX Extensions; rely on `AVCapturePhotoSettings.isAutoRedEyeReductionEnabled` / `isAutoStillImageStabilizationEnabled` per device capability.
-- **Video capture** via `AVCaptureMovieFileOutput` (the high-level path; `AVCaptureVideoDataOutput` is a level deeper and only needed for custom frame processing which Recon does not do). Both outputs can be attached to the same session; AVFoundation handles the multiplexing. Mirror Android's audio-on-by-default behaviour: attach an `AVCaptureDeviceInput` for the built-in mic when starting a clip, **but** drive it from the same user-facing toggle that Android exposes (mic button left of the video shutter). When the toggle is off (or `AVAudioSession`/permission denial blocks the input), drop the audio input from the session before `startRecording(to:recordingDelegate:)` so the clip records silent. The modality switcher disables during recording (matching Android), so VIDEO and VOICE never compete for `AVAudioSession`. Set `movieFragmentInterval` to a small value (e.g. `CMTime(seconds: 1, preferredTimescale: 600)`) so the `.mov`/`.mp4` is incrementally flushed — this is iOS's analogue of Android's Media3-Muxer resilience, giving a playable file even if the app is backgrounded or killed mid-record.
-- **Video output format**: output `.mov` then wrap / re-mux to `.mp4` container (Recon's on-disk format is `.mp4`). Alternatively, target `.mp4` directly via `AVAssetWriter` — more code but avoids a re-encode / re-mux step. Use a `QualitySelector`-equivalent preset from the settings-driven `AVCaptureSession.Preset.{hd1280x720, hd1920x1080, hd4k3840x2160}` mapped from the `Low/Standard/High` setting.
-- **Max video length**: enforce in a dispatched `DispatchWorkItem` scheduled for `Date() + maxLengthSec` at start-of-recording; `stopRecording()` on fire. Cancel the work item on manual stop.
-- Lens flip: set `AVCaptureDevice(discovering: ...)` for back/front via `AVCaptureDevice.DiscoverySession`; reconfigure the session on a background queue, holding a session-lock equivalent of Android's `bindMutex`. Disabled mid-video-recording.
-- Flash: `AVCapturePhotoSettings.flashMode = .off / .auto / .on`, applied per-capture. To mirror Android's "flash mode survives rebinds": store `currentFlashMode` as instance state and apply it at every `AVCapturePhotoSettings` instantiation. **Not offered in VIDEO** modality (iOS torch-mode toggles mid-video are a reliability hazard, mirroring the Android decision).
-- Zoom: `AVCaptureDevice.videoZoomFactor` with `ramp(toVideoZoomFactor:withRate:)` for smooth chip-to-chip transitions; pinch gesture multiplies `videoZoomFactor`. Hardware-filter chip presets against `device.activeFormat.videoMinZoomFactorForDepthDataDelivery` / `device.maxAvailableVideoZoomFactor`. Available in PHOTO + VIDEO; hidden (with layout preserved) in VOICE.
-- Tap-to-focus: on preview tap, translate the tap into device coordinates via `previewLayer.captureDevicePointConverted(fromLayerPoint:)`; set `focusPointOfInterest` + `exposurePointOfInterest` + `focusMode = .autoFocus` + `exposureMode = .autoExpose`. Animate a 500ms ring at the tap point in SwiftUI. Available in PHOTO + VIDEO; disabled in VOICE (the preview is hidden anyway).
-- **Video-recording pill overlay**: during a live video recording, render a red capsule at BottomCenter *inside* the preview ZStack (not stacked below it) — pulsing white dot + `M:SS` elapsed-time caption, ticked every 500ms by a `Timer.publish(every: 0.5, ...)` feeding a `@State nowMs`. Inside-the-preview placement is load-bearing: it overlays the viewfinder without reflowing the zoom chips / shutter / queue below. SwiftUI pattern: `ZStack(alignment: .bottom) { CameraPreview(); RecordingPill(startedAt:) }` with `.padding(.bottom, 12)`. Mirror with a pulsing dot alpha via `.animation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true))`. When the audio track is on, append a small white 4-bar mini-equalizer on the right edge of the pill — matching Android's `VideoAudioWave`. Drive the bar heights from an `AVAudioRecorder`-style amplitude on the audio input: tap the `AVCaptureAudioDataOutput` (or use `AVCaptureAudioFileOutput.audioMeters` if attached) to read averagePower per channel, normalise via `pow(10, db/20)`, smooth over ~140ms with a `withAnimation(.linear)` block, and render with `Canvas` (4 bars + irregular phase offsets `[0, 0.18, 0.55, 0.78]` driving a sine envelope on a continuous 520ms phase ramp). The pill stays horizontally centered because the SwiftUI `HStack { dot; time; if audioOn { wave } }` natural sizing widens the capsule symmetrically around its center anchor.
+- `AVCaptureSession` on a dedicated serial queue. Preview via `AVCaptureVideoPreviewLayer` in a `UIViewRepresentable`; 3:4 aspect ratio.
+- **Photo**: `AVCapturePhotoOutput`. ZSL = `isResponsiveCaptureEnabled = true` + `isZeroShutterLagEnabled = true` (iOS 17+); Quality = `photoQualityPrioritization = .quality`.
+- **Video**: `AVCaptureMovieFileOutput` attached to the same session as photo. Mic via an `AVCaptureDeviceInput` added/removed per the user's mic toggle (and per `AVAudioSession`/permission); when off, drop the audio input *before* `startRecording(to:recordingDelegate:)` so the clip records silent. Set `movieFragmentInterval = CMTime(seconds: 1, preferredTimescale: 600)` for incremental moov flushes — the iOS analogue of Media3 Muxer resilience.
+- **Video format/quality**: target `.mp4` directly via `AVAssetWriter`, or write `.mov` and re-mux. Map `Low/Standard/High` settings to `AVCaptureSession.Preset.{hd1280x720, hd1920x1080, hd4k3840x2160}`.
+- **Max video length**: `DispatchWorkItem` scheduled at start; cancel on manual stop.
+- **Lens flip**: `AVCaptureDevice.DiscoverySession`; reconfigure under a session lock. Disabled mid-record.
+- **Flash**: `AVCapturePhotoSettings.flashMode`, applied per-capture. Persist `currentFlashMode` as instance state and re-apply on every settings instantiation.
+- **Zoom**: `videoZoomFactor` + `ramp(toVideoZoomFactor:withRate:)`. Pinch multiplies it. Filter preset chips against the active format's zoom range.
+- **Tap-to-focus**: `previewLayer.captureDevicePointConverted(fromLayerPoint:)` → `focusPointOfInterest` + `exposurePointOfInterest`; 500ms ring animation in SwiftUI.
+- **Recording pill** (overlays the preview; do not reflow below): `ZStack(alignment: .bottom) { CameraPreview(); RecordingPill(...) }` with `.padding(.bottom, 12)`. Pulsing dot via `.animation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true))`. With audio on, append a 4-bar mini-equalizer (`Canvas`, phase offsets `[0, 0.18, 0.55, 0.78]`, 520ms phase ramp, ~140ms linear smoothing) driven by amplitude tapped from `AVCaptureAudioDataOutput` (`pow(10, db/20)` normalize). `HStack { dot; time; if audioOn { wave } }` keeps the capsule centered as the wave widens it.
 
 ### Voice capture
 
-- `AVAudioRecorder` is the idiomatic iOS analogue of Android's `MediaRecorder`. Configure with:
-    - `AVFormatIDKey = kAudioFormatMPEG4AAC`
-    - `AVSampleRateKey = 48_000`
-    - `AVNumberOfChannelsKey = 1`
-    - `AVEncoderAudioQualityKey = .high` (or set `AVEncoderBitRateKey = 96_000`)
-- **Audio session**: configure `AVAudioSession.sharedInstance()` with `.playAndRecord` + `.defaultToSpeaker` + `.allowBluetooth`; activate on first voice-record. Deactivate on stop.
-- **Amplitude polling** for the waveform: call `recorder.updateMeters()` + `recorder.averagePower(forChannel: 0)` every ~33ms from a `Timer` or `DisplayLink`. Convert the dB value to a 0-1 normalised amplitude via `pow(10, db/20)` and feed the waveform view via a `@Published var amplitude: Float` on an `ObservableObject`.
-- **Waveform view**: 128-sample ring buffer, scrolling-bars rendering via `Canvas { context, size in … }` (SwiftUI) — oldest on the left, newest on the right. Flat centerline when idle, tinted red when recording. **Critical observation pattern**: bind the view to the amplitude publisher via `@ObservedObject` (or `.onReceive(publisher)`), *not* by reading `publisher.value` inside a `View.body` — SwiftUI view invalidation doesn't track plain property reads, so direct `.value` access would snapshot once and never update (same gotcha the Android port hit with `snapshotFlow { stateFlow.value }` vs `stateFlow.collect { }`).
-- **Elapsed-time caption**: below the waveform, render a large `M:SS` `Text` driven by a `TimelineView(.periodic(from: startedAt, by: 0.5))` or a `Timer`-backed `@State nowMs`. The voice page has no camera preview so the waveform + timer pair is the focal composition — typography should be `.title` weight.
-- **Permission**: `AVAudioSession.sharedInstance().requestRecordPermission { granted in … }` on first-ever VOICE shutter tap. Surface an "Open Settings" banner on permanent denial (deep-link with `UIApplication.openSettingsURLString`).
-- **Background behaviour**: do not declare `UIBackgroundModes audio` — recording stops on backgrounding (mirror of Android's "no foreground service" decision). Hook `scenePhase` in SwiftUI or `applicationDidEnterBackground` in UIKit to call the VM's async stop path.
-- **Torn-file probe**: on orphan-recovery, open each staged `.m4a` with `AVAsset(url:)` and check `asset.duration.seconds.isFinite && duration > 0`. If not, the file was killed mid-record — delete and skip.
+- `AVAudioRecorder` configured `kAudioFormatMPEG4AAC` / 48000 / mono / 96000 bps. `AVAudioSession.sharedInstance()` activated `.playAndRecord` + `.defaultToSpeaker` + `.allowBluetooth` on first record; deactivated on stop.
+- **Amplitude**: `recorder.updateMeters()` + `averagePower(forChannel:)` every 33ms; `pow(10, db/20)` to 0–1; expose via `@Published var amplitude: Float`.
+- **Waveform**: `Canvas` over a 128-sample ring buffer, scrolling oldest→newest. Bind via `@ObservedObject` / `.onReceive(publisher)`, **not** `publisher.value` reads inside `body` — SwiftUI doesn't track those (same gotcha as Compose's `snapshotFlow { stateFlow.value }`).
+- **Elapsed-time caption**: `TimelineView(.periodic(from: startedAt, by: 0.5))`, `.title` weight, since the waveform + timer pair is the focal composition (no preview).
+- **Permission**: `AVAudioSession.requestRecordPermission` on first VOICE shutter; "Open Settings" banner on permanent denial (`UIApplication.openSettingsURLString`).
+- **Background**: do not declare `UIBackgroundModes audio`. Hook `scenePhase` to call the VM's async stop on backgrounding.
+- **Torn-file probe**: open the staged `.m4a` with `AVAsset(url:)` and reject when `duration.seconds` isn't finite or is ≤ 0.
 
 ### Orientation
 
-- Lock to portrait: in `Info.plist` set `UIInterfaceOrientation` to `UIInterfaceOrientationPortrait` only; override `supportedInterfaceOrientations` at the view-controller level.
-- Detect physical orientation via `CoreMotion`: an `CMMotionManager` polling `deviceMotion` at ~10Hz, reading gravity vector, snapping to the nearest cardinal (0/90/180/270).
-- Write the orientation into `AVCapturePhotoOutput.connection(with: .video)?.videoRotationAngle` (iOS 17+) or the older `videoOrientation` API so the captured photo's EXIF orientation reflects physical pose.
-- Counter-rotate icons in SwiftUI via `.rotationEffect(.degrees(-deviceOrientation))` + `.animation(.spring())`. Use a `DeviceOrientationStore` (observable) that emits shortest-arc cumulative angles so a 0° → 90° rotation doesn't spin through 270°.
+- Lock to portrait via `Info.plist` + `supportedInterfaceOrientations`.
+- `CMMotionManager` polling gravity vector at ~10Hz, snapping to cardinal (0/90/180/270).
+- Write into `AVCapturePhotoOutput.connection(with: .video)?.videoRotationAngle` (iOS 17+) / `videoOrientation` so the EXIF tag matches physical pose.
+- Counter-rotate icons via `.rotationEffect(.degrees(-deviceOrientation))` + spring animation; use a shortest-arc cumulative angle store so 0°→90° doesn't spin through 270°.
 
-### Output-folder persistence
+### Output-folder persistence (security-scoped bookmark)
 
-- `UIDocumentPickerViewController` in `.open` mode with `.folder` type. Callback returns a security-scoped URL.
-- Persist as `url.bookmarkData(options: .withSecurityScope)` to `UserDefaults` or a plist in application-support.
-- **Every access** (not just at pick time) must be bracketed: `url.startAccessingSecurityScopedResource()` → use → `url.stopAccessingSecurityScopedResource()`. Failing to do this will cause the URL to become unreachable after app relaunch. Wrap in a helper `func withBookmarkedRoot<T>(_ block: (URL) throws -> T) rethrows -> T`.
-- Create `bundles/` and `stitched/` under the root at first access.
+- `UIDocumentPickerViewController(.open, .folder)`; persist `url.bookmarkData(options: .withSecurityScope)`.
+- **Every access** must bracket `startAccessingSecurityScopedResource()` / `stopAccessingSecurityScopedResource()` — failing this leaves the URL unreachable after relaunch. Wrap in a `withBookmarkedRoot<T>` helper.
+- Create `bundles/` and `stitched/` under the root on first access.
 
-### Staging (internal storage — NOT inside the bookmark)
+### Staging (in `applicationSupportDirectory`, not the bookmark)
 
-- Root: `FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]/staging/`.
-- Per-session dir: `staging/session-{UUID()}/`.
-- Per-item file: `session-{uuid}/{UUID()}.{jpg|mp4|m4a}` — flat per-session directory; modality is carried in the in-memory `StagedItem` sealed type and the `PendingBundle` manifest, not the staging layout.
-- Use `FileHandle` or `Data.write(to:)` for photo writes; `AVCaptureMovieFileOutput.startRecording(to:)` for video; `AVAudioRecorder(url:)` for voice — all point at the staging file URL directly. No bookmark dance.
-- **Order log**: `session-{uuid}/.order` file, append-only, `{timestampMs}\t{filename}\n` rows. Write synchronously at item-add time for photos and at start-of-recording for video/voice — so the intended capture order is preserved even if a recording is killed mid-flight. Use `FileHandle.seekToEndOfFile()` + `write(_:)` with appending-open, or `Data.write(to:url, options: [.appendOnly])` as the platform permits.
+- `applicationSupportDirectory/staging/session-{UUID()}/{UUID()}.{jpg|mp4|m4a}` — flat per-session; modality lives in the `StagedItem` enum and `PendingBundle`, not the path.
+- `Data.write(to:)` (photos), `AVCaptureMovieFileOutput.startRecording(to:)` (video), `AVAudioRecorder(url:)` (voice) — all point at the staging URL directly.
+- **Order log**: `.order` file, append-only `{timestampMs}\t{filename}\n` per item. `FileHandle.seekToEndOfFile() + write(_:)`.
 
 ### Manifest store
 
-- JSON-encode the manifest struct (Codable `PendingBundle`) to `application-support/pending/{bundle-id}.json` via `JSONEncoder`.
-- Atomicity: `data.write(to: url, options: [.atomic])` so a crash mid-write leaves a valid-or-absent file, never corrupt.
-- **Polymorphic `PendingItem`**: model as a Codable enum with associated values (`case photo(PendingPhoto)`, `case video(PendingVideo)`, `case voice(PendingVoice)`), or Swift sealed enums via `@CodingKeys` + a custom `init(from:)` that reads a `"type"` discriminator. Include a top-level `version: Int` field on `PendingBundle` and branch decoding for backward compatibility with pre-multimodal manifests (none exist on iOS yet since this is a greenfield port, but the pattern preserves forward compatibility).
+- `Codable PendingBundle` → JSON via `JSONEncoder` → `applicationSupportDirectory/pending/{bundle-id}.json` via `data.write(to: url, options: [.atomic])`.
+- **Polymorphic `PendingItem`**: Codable enum with associated values (`case photo(PendingPhoto)`, etc.) using a custom `init(from:)` that reads a `"type"` discriminator. Top-level `version: Int = 2` — Swift's encoder writes non-optional `let`s with defaults unconditionally, so the field always lands on disk.
 
 ### Bundle-ID counter
 
-- Back it with a single-file JSON or property list at `application-support/counter.plist`: `{lastDate: "yyyy-mm-dd", lastCounter: Int}`.
-- Gate reads/writes behind an `actor BundleCounterStore` so concurrent commits serialise on the actor.
-- Reset counter to 1 when `lastDate != today`.
+- `applicationSupportDirectory/counter.plist`: `{lastDate, lastCounter}`. Gate reads/writes behind an `actor`. Reset to 1 on date change.
 
 ### Worker
 
-- One `Operation` per bundle on a dedicated `OperationQueue(name: "recon.bundle-worker", maxConcurrentOperationCount: 1)`. The `maxConcurrentOperationCount = 1` is the equivalent of Android's process-wide worker mutex.
-- For each operation:
-    1. Wrap in `UIApplication.shared.beginBackgroundTask(withName: "bundle-{id}")` so the OS grants ~30 seconds even if the user switches away.
-    2. Run the work on a detached `Task` inside the operation.
-    3. End the background task in `finally`.
-- For longer backlogs (multiple bundles queued), register a `BGProcessingTaskRequest` (`BackgroundTasks` framework) that drains remaining manifests when the system is idle and charging. Use identifier `{ios-bundle-id}.drain` (reverse-DNS, declared in `Info.plist` under `BGTaskSchedulerPermittedIdentifiers`); set `requiresNetworkConnectivity = false`, `requiresExternalPower = false` unless the queue is large (>5 bundles).
-- The worker body is manifest-driven (exact mirror of Android): load manifest → partition `orderedItems` into photos/videos/voices via a pure `planRouting(manifest)` → (optionally) copy raw items into `bundles/{id}/{photos,videos,audio}/` respectively + stamp final EXIF on photos only → write per-video `.mp4.thumb.jpg` poster frames + per-voice `.m4a.thumb.jpg` glyph tiles → (optionally, and only if photos.isNotEmpty()) stitch + copy to bookmarked `stitched/` → delete manifest → reap empty staging session.
-- **Video poster frames**: extract via `AVAssetImageGenerator(asset:).copyCGImage(at: .zero, actualTime: nil)`; scale to ~48dp square; write as JPEG via `CGImageDestination`.
-- **Voice thumbnails**: programmatically render a 96×96 PNG/JPG with a navy backdrop + white mic glyph (Core Graphics paths, no SF Symbol rasterisation needed — the glyph is simple enough to hand-draw). Mirror Android's `renderVoiceThumbnail()`.
+- `OperationQueue(maxConcurrentOperationCount: 1)` for the process-wide serialization. Each `Operation` wraps a detached `Task` in `beginBackgroundTask(withName:)` / `endBackgroundTask` so the OS grants ~30 s even when the user switches away. For long backlogs, register a `BGProcessingTaskRequest` to drain remaining manifests when idle (declare its identifier in `Info.plist`'s `BGTaskSchedulerPermittedIdentifiers`).
+- Worker body is the platform-neutral Phase 3 verbatim: load manifest → `planRouting` → per-modality copy + photo final-EXIF → optional stitch → reap manifest + staging.
+- **Video poster**: `AVAssetImageGenerator.copyCGImage(at: .zero, ...)` → JPEG via `CGImageDestination`.
+- **Voice thumbnail**: hand-drawn 96×96 navy + mic-glyph via Core Graphics.
 
 ### Failure surfacing
 
-- The worker publishes failures through a `Publisher<BundleFailure, Never>` (Combine) or `AsyncStream<BundleFailure>`. The capture screen subscribes.
-- Mirror Android's "acknowledged-set" trick: snapshot the set of in-flight-to-failed transitions at subscription time and only emit deltas after.
+- `AsyncStream<BundleFailure>` (or Combine `Publisher`) consumed by the capture screen. Snapshot in-flight failures at subscription as "acknowledged" so historical replays don't surface.
 
 ### Stitcher
 
-- `CoreImage` with a `CIFilter` chain or a hand-rolled `CGContext`:
-    - Decode each source as `CGImageSource` → `CGImage`.
-    - Apply orientation from EXIF via `CGImagePropertyOrientation`.
-    - Scale each to common width (pure `computeLayout` function first, ported 1:1 from the Kotlin version — `LOW=1600`, `STANDARD=1800`, `HIGH=.max`, height cap `32_000`, heap fraction `0.6`).
-    - Draw each into a single `CGContext` of size `commonWidth × totalHeight`.
-    - Encode as JPEG via `CGImageDestination` at quality tier (`0.70 / 0.82 / 0.92` for LOW/STANDARD/HIGH).
-- Write to a temp URL in `NSTemporaryDirectory()` first, then copy to the bookmarked `stitched/` via `FileManager.copyItem(at:to:)` with `startAccessingSecurityScopedResource` bracketing.
+- Pure `computeLayout` ported 1:1 from Kotlin (`LOW=1600`, `STANDARD=1800`, `HIGH=.max`, height cap `32_000`, heap fraction `0.6`).
+- Decode `CGImageSource` → apply EXIF orientation → draw into one `CGContext(commonWidth × totalHeight)` → JPEG via `CGImageDestination` at quality `0.70 / 0.82 / 0.92`.
+- Write to `NSTemporaryDirectory()` first, then `FileManager.copyItem(at:to:)` into the bookmarked `stitched/` (with security-scope bracketing).
 
 ### EXIF
 
-- At capture time: `CGImageDestinationAddImage` with a metadata dict: `kCGImagePropertyExifDateTimeOriginal`, `kCGImagePropertyTIFFOrientation`, `kCGImagePropertyTIFFMake`, `kCGImagePropertyTIFFModel`, `kCGImagePropertyGPSLatitude` / `...Longitude` if available.
-- At worker time: open the file with `CGImageSourceCreateWithURL`, read existing metadata dict, mutate to add `kCGImagePropertyExifUserComment = "Recon:{bundleId}:p{kk}"` (or `:stitch`), backfill GPS if missing and a refreshed location is available, re-encode with `CGImageDestinationCreateWithURL(destURL, type, 1, nil)` + `CGImageDestinationAddImageFromSource` + `CGImageDestinationSetProperties` for the updated metadata.
-- Single open/save pass per file, mirroring Android's `stampFinalMetadata`.
+- Capture time: `CGImageDestinationAddImage` with `kCGImagePropertyExif*` + `kCGImagePropertyTIFF*` + `kCGImagePropertyGPS*`.
+- Worker time: read existing metadata via `CGImageSourceCreateWithURL`, add `kCGImagePropertyExifUserComment = "Recon:{bundleId}:p{kk}"` (or `:stitch`), backfill GPS if missing, re-encode in one open/save pass.
 
 ### Location
 
-- `CLLocationManager` with `.desiredAccuracy = kCLLocationAccuracyNearestTenMeters`, `.distanceFilter = 50`. Request `whenInUse` authorization on first capture-screen mount.
-- Cache last fix with a 30s TTL; refresh via `requestLocation()` (single-shot) when the cache is ≥15s old (coalesce threshold, mirror of Android).
-- Worker-time refresh: wrap in `try await withTimeout(2.0) { locationProvider.refresh() }` — if it doesn't complete in 2 seconds, commit proceeds without GPS backfill.
+- `CLLocationManager` `.desiredAccuracy = kCLLocationAccuracyNearestTenMeters`, `.distanceFilter = 50`, `whenInUse` auth on first capture-screen mount. 30 s TTL cache, 15 s refresh threshold. Worker-time refresh wrapped in a 2 s timeout.
 
 ### Settings
 
-- Bookmark + flags: `UserDefaults.standard`. Keys mirror Android's set: `rootBookmark`, `stitchQuality` (enum raw), `cameraMode` (ZSL/EXT enum raw), `videoQuality` (enum raw), `maxVideoLengthSeconds: Int?` (nil = unlimited), `shutterSoundOn`, `saveIndividualPhotos`, `saveStitchedImage`, `deleteDelaySeconds`, `deleteConfirmEnabled`, `seenTutorialSteps: Set<String>`.
-- Expose as a `Published` stream (Combine) or `AsyncStream` for SwiftUI observation.
+- `UserDefaults` keys mirroring the Android set: `rootBookmark`, `stitchQuality`, `cameraMode`, `videoQuality`, `maxVideoLengthSeconds`, `shutterSoundOn`, `saveIndividualPhotos`, `saveStitchedImage`, `deleteDelaySeconds`, `deleteConfirmEnabled`, `seenTutorialSteps`. Expose via `@Published` / `AsyncStream`.
 - Enforce the at-least-one-output invariant at both write time and read time.
 - **UI label for `saveIndividualPhotos`**: render as **"Individual files in subfolder"**, not "Individual photos in subfolder". The underlying storage key retained the `Photos` suffix for manifest + `UserDefaults` backward compatibility, but the gate covers photos, videos, and voice memos equally — so the user-facing label is modality-agnostic. Same label wording as the Android build.
 - **Tutorial step IDs** match Android: `modality`, `commit`, `discard`, `deleteOne`, `reorder`, `divide`. Store as a `Set<String>` in `UserDefaults` via `Codable`-backed property or a JSON-encoded string.
@@ -906,53 +810,78 @@ This section is the SOTA target for an iOS port, informed by the Android referen
 
 ### Gesture zones
 
-The queue strip is three sibling views, not a nested hierarchy:
-- `DiscardZoneView`: a `UIView` owning its own `UIPanGestureRecognizer` filtered to leftward motion; fires discard on completion past threshold (distance OR velocity, mirroring Android's hybrid).
-- A middle `UICollectionView` with horizontal scroll, long-press-then-drag reorder via `UICollectionViewDropDelegate`, and per-cell `UISwipeGestureRecognizer(direction: .down)` for delete-one.
-- `BundleZoneView`: mirror of `DiscardZoneView`, filtered to rightward motion, fires commit.
-
-Between cells, a 24dp-wide invisible divider view owns a separate pan recognizer for the divide / un-divide gesture. Z-ordered above the cells so it wins the touch.
-
-Because zones and cells are physically separate views with their own recognizers, iOS's standard gesture arbitration routes touches unambiguously — no `shouldRecognizeSimultaneouslyWith` overrides needed.
-
-The commit animation (queue contents sliding into the right zone with the zone flashing accent color) is a `UIViewPropertyAnimator` choreographed from a snapshot of the collection view and the zone's layer.
+The queue strip is three sibling views — left-handle commit zone, middle `UICollectionView` (horizontal scroll + per-cell `UISwipeGestureRecognizer(.down)` for delete + drop-delegate reorder), right-handle discard zone — each owning its own `UIPanGestureRecognizer` direction-filtered to commit-distance-OR-velocity hybrid. Between cells, a 24-pt invisible divider view with its own pan recognizer, z-ordered above. Standard arbitration routes touches; no `shouldRecognizeSimultaneouslyWith` overrides needed. Commit animation: `UIViewPropertyAnimator` over a snapshot of the collection view and the zone's layer.
 
 ### Visual design
 
-- Dark capture screen with white controls; system background elsewhere.
-- SF Symbols for all icons: `gearshape`, `bolt.slash` / `bolt.badge.automatic` / `bolt`, `camera.rotate`, `photo.on.rectangle`, `video`, `mic`, `rectangle.stack`, `waveform`, etc.
-- Respect safe areas, especially bottom inset for home-indicator gesture interaction (mirror of Android's `navigationBarsPadding()` + `systemGestureExclusion`).
-- Accent colors: commit-green `#2E7D32`, discard-amber `#B26A00`, delete-red (system destructive), record-red `#D32F2F`, voice-navy `#1F2A44`. Map to asset catalog with dark/light variants.
+- Dark capture screen, white controls; system background elsewhere.
+- SF Symbols: `gearshape`, `bolt.slash` / `bolt.badge.automatic` / `bolt`, `camera.rotate`, `photo.on.rectangle`, `video`, `mic`, `rectangle.stack`, `waveform`.
+- Accent colors: commit `#2E7D32`, discard `#B26A00`, delete (system destructive), record `#D32F2F`, voice `#1F2A44`.
+- Respect safe-area bottom inset (home-indicator gesture region).
 
 ### Modality switch (swipe + pill)
 
-- Wrap the capture slab (preview + control row) in a `DragGesture()` on the container. Translate the slab via `.offset(x: dragX)` during drag. The swipe and the pill stay visually coupled by feeding `dragProgress = dragX / slabWidth` into the pill's selected-segment indicator offset.
-- Modality state machine: `@Published var modality: Modality` + a `modalityTransition` state (stable / transitioning-with-pending) so a fast double-swipe resolves to the final intended state without lost transitions (mirror of Android's `ModalityTransition`).
-- Per-modality content visibility: `if modality != .voice { CameraPreviewView(...) }` — SwiftUI layout preservation needs an `.opacity(0)` + `.allowsHitTesting(false)` pattern to keep the slot height consistent, mirror of Android's alpha=0 pattern.
-- Animation: two-stage commit (tween slide in drag direction, then snap to 0 as modality swaps) vs cancel (`interactiveSpring(response: 0.3, dampingFraction: 1.0)`). Don't use `interactiveSpring` with a bouncy damping — iOS will oscillate identically to Compose.
-- Spatial model: `VIDEO ← PHOTO → VOICE`. Swipe *right* (drag PHOTO rightward) reveals VIDEO on the left it was hiding; swipe *left* reveals VOICE on the right. Useful when debugging direction — getting the ghost-reveal side wrong is easy.
+- `DragGesture()` on the slab container; `.offset(x: dragX)` during drag. Pill indicator translates linearly with `dragProgress = dragX / slabWidth`.
+- `@Published var modality: Modality` + a `modalityTransition` state (stable / transitioning-with-pending) so fast double-swipes don't lose intermediate states.
+- Per-modality visibility: keep the camera preview in the tree with `.opacity(0).allowsHitTesting(false)` in VOICE so the slot height stays constant on switch-back.
+- Two-stage animation: commit-path tween slide off in drag direction then snap to 0; cancel-path `interactiveSpring(response: 0.3, dampingFraction: 1.0)`. **Do not** use a bouncy damping — same overshoot bug as Compose.
+- Spatial model: `VIDEO ← PHOTO → VOICE`, no wrap.
 
-### Gesture tutorial (6-step overlay, demo overlays its real gesture zone)
+### Gesture tutorial
 
-The tutorial scrim consumes all pointer events and walks through the six gestures: `modality`, `commit`, `discard`, `deleteOne`, `reorder`, `divide`. Persistence uses `seenTutorialSteps: Set<String>` in `UserDefaults` (unioned on dismiss), so future step additions only show the delta.
+- Six steps (`modality`, `commit`, `discard`, `deleteOne`, `reorder`, `divide`); scrim consumes all pointer events; `seenTutorialSteps: Set<String>` in `UserDefaults` unioned on dismiss.
+- **Placement rule**: each step's demo overlays its real gesture zone — the queue-strip five render in a 72-pt bottom strip mirroring the real queue; `modality` renders in the 3:4 preview area.
+- Modality demo: ~1.6 s tween + 600 ms hold loop. PHOTO placeholder translates right by `progress * width`; VIDEO ghost slides in from `-width`. Pill indicator lerps from PHOTO segment center to VIDEO segment center; segment text colors lerp **continuously** from black-under-indicator to white-distant (a binary flip at 0.5 flashes visibly).
 
-**Placement rule — each step's demo overlays its real on-screen gesture zone**, not a fixed bottom strip:
+### LocalSend bundle transfer
 
-- The five queue-strip demos (commit / discard / deleteOne / reorder / divide) render in a 72dp-tall strip pinned above the home indicator, matching the real queue's position. The demo is a fake 4-thumbnail row with a looping animated finger.
-- The `modality` demo renders in the 3:4 preview area (upper slab, below the top bar), matching the real viewfinder position — where the swipe gesture actually originates.
+A clean-room Swift port of the Android sender. Same shape, same on-the-wire contract, same trust model (per-install self-signed cert, fingerprint pinned during the TLS handshake). The platform-neutral protocol behavior is documented in [LocalSend bundle transfer](#localsend-bundle-transfer); this section is just the iOS API mapping.
 
-This is load-bearing for muscle-memory transfer on dismiss: the user's hand is already over the region the gesture uses. SwiftUI pattern — branch the tutorial's `VStack` on step type and put the demo above or below the text block accordingly. `Spacer()` weights handle the slack.
+**Module shape** (mirrors `network/localsend/`):
 
-**Modality demo internals** (mirror of Android's `ModalitySwipeDemo`):
+- `LocalSendController` — top-level coordinator. Owns one base `URLSession` (default config), one `LocalSendDiscovery`, one lazy `LocalSendUploader`. Mutex-caches the local `Info` block (alias + deviceModel + fingerprint) so each `discover` / `send` call doesn't re-read `UserDefaults` and re-touch the cert manager.
+- `LocalSendDiscovery` — multicast send/listen on `224.0.0.167:53317`. Use Apple's `Network.framework`: `NWConnectionGroup` with a multicast `NWEndpoint.Group` listening on the IPv4 group. Send one announce on start, then surface inbound announces as `Peer` records on an `AsyncStream<Peer>`. **No multicast lock equivalent needed** — iOS doesn't filter inbound multicast by default like Android does, so there's no analogue to `WifiManager.MulticastLock`. The `Local Network` privacy permission (`NSLocalNetworkUsageDescription` in `Info.plist` + a `NSBonjourServices` declaration including `_localsend._tcp`) is the iOS-specific gate — first multicast operation triggers the system prompt; denial silently produces zero peers. Surface a "Open Settings to enable Local Network access" hint if discovery times out without prior permission.
+- `LocalSendUploader` — per-session protocol implementation. `send(peer, info, items, onProgress) -> SendBundleResult`:
+    1. Build a peer-specific `URLSession` with a delegate that overrides `urlSession(_:didReceive:completionHandler:)` to do fingerprint pinning during the TLS handshake (see Trust model below). Reusing the base session via `configuration.copy()` shares URL cache + protocol classes.
+    2. `POST /api/localsend/v2/prepare-upload` with the JSON body `{info, files: [wireName: FileMetadata]}`.
+    3. If the response omits tokens for any requested file, `POST /cancel` and fail with `"Receiver dropped N file(s); refusing to send a partial bundle"`. **Do not silently skip** — partial-data masquerading as success is the worst outcome.
+    4. Per file, `POST /api/localsend/v2/upload?sessionId&fileId&token` with the body streamed via `URLSession.uploadTask(withStreamedRequest:)` + an `InputStream` reading from the staged file URL in 64 KB chunks. Cap parallel uploads at 3 via a `DispatchSemaphore` or actor-protected counter. Poll `Task.isCancelled` between chunks for fast cancellation.
+    5. Throttle progress emissions to 50 ms (chunk callbacks fire ~120 events/s peak across 3 parallel uploads); force-emit lifecycle moments (start / per-file completion / terminal state) so the count never lags the visual.
+    6. On `CancellationError`, HTTP error, or `URLError`, send `/cancel` best-effort and return `Failed`.
+- `LocalSendTrustManager` (delegate-based, since iOS doesn't expose a direct `X509TrustManager` analogue):
+    - In the session delegate's `didReceive challenge`, branch on `protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust`.
+    - Read `challenge.protectionSpace.serverTrust`, copy the leaf cert (`SecTrustCopyCertificateChain` on iOS 15+, `SecTrustGetCertificateAtIndex(trust, 0)` on older), `SecCertificateCopyData(...)` to get the DER bytes, SHA-256 it, hex-encode lowercase, compare against the announced fingerprint.
+    - Match → `completionHandler(.useCredential, URLCredential(trust: serverTrust))`. Mismatch → `completionHandler(.cancelAuthenticationChallenge, nil)`. There's no equivalent to Android's `AbstractTrustManagerWrapper` hostname-check pitfall — iOS's `URLSession` lets the delegate own trust completely.
+- `LocalSendCertManager` — per-install self-signed cert. Generate via `Security.framework`: `SecKeyCreateRandomKey` for an RSA 2048 keypair, then build an X.509 cert via the lower-level `SecCertificateCreateWithData` API or — more practically — vendor a `swift-asn1`-based helper to construct the cert. Cache PEM-encoded leaf + private key in the app's Application Support directory at `application-support/localsend/cert.pem`. 100-year validity (fingerprint pinning makes expiry checks moot). Pure helper `computeFingerprintHex(_ derBytes: Data) -> String` returns lowercase 64-char SHA-256 hex.
+- `LocalSendDtos.swift` — every wire shape (`Announce`, `RegisterRequest/Response`, `Info`, `FileMetadata`, `FileTimestamps`, `PrepareUploadRequest/Response`) as `Codable` structs. `JSONEncoder.outputFormatting = []` (compact); `JSONDecoder` defaults are fine. The `version` field is `let version: String = "2.1"` — Swift's encoder writes it because non-optional `let`s with defaults serialize unconditionally (analogue of `encodeDefaults = true` in kotlinx.serialization). Nullable fields use `Optional` properties + `encoder.dataEncodingStrategy = ...` defaults that omit `nil` (analogue of `explicitNulls = false`). Decoding ignores unknown keys by default.
 
-- 3:4 rounded-rect card with a mini `VIDEO · PHOTO · VOICE` pill at the top.
-- `Animatable(progress: Float)` loop: 0 → 1 over ~1.6s tween + 600ms hold + snap + 300ms gap.
-- Current-modality placeholder (PHOTO tint) translates right by `progress * width`.
-- Ghost modality placeholder (VIDEO tint) starts at `-width` and slides in behind via `(progress - 1) * width`. Z-order: ghost first (back), current last (front) — so the reveal is "PHOTO slides off to expose VIDEO".
-- Finger glyph sweeps from `0.28 * width` to `0.72 * width` horizontally at the vertical midline.
-- Pill indicator translates from PHOTO's segment center to VIDEO's segment center linearly with `progress`; segment text colors lerp from black (under the white indicator) to white-0.85 (distant) based on **continuous** distance-from-indicator, not a binary threshold. A binary flip at 0.5 flashes visibly — smooth lerp avoids it.
+**Bundle Browser selection model** (mirror of Android):
 
-**Queue-strip demos** are pixel-level mirrors of the real queue's 72dp strip: 56dp thumbs, 6dp gap, muted gradient tints, a `Finger` ring-over-dot glyph tracking the gesture motion. Reuse the Android visual language exactly; the iOS `Canvas` or `ZStack`-with-`.offset` patterns map 1:1 from Compose's `Canvas` / `graphicsLayer.translationX`.
+- A row's resting offset *is* its selected state — no separate tint. Swipe right past ~40% of an 80dp reveal width snaps the row to that offset; the exposed strip is solid green with a `checkmark.circle.fill` icon.
+- Swipe left from 0 → standard swipe-to-delete (existing flow). Swipe left from selected → clamped to 0 (deselect-only, no delete).
+- Tap the green check zone or swipe back to 0 → deselect.
+- Processing rows (worker still in flight) skip the gesture handler entirely.
+- Contextual top toolbar swaps in when ≥1 row selected: close-X left, "N selected" title, paper-plane (`paperplane.fill`) Send action right. Tapping close clears the selection and animates every row back to 0; a suppression flag prevents follow-through finger motion from re-selecting mid-animation.
+
+**Send sheet** (mirror of Android's `LocalSendSheet`):
+
+- Modal sheet (`.sheet(isPresented:)` with `.presentationDetents([.large])`) opening with the selected `[CompletedBundle]`.
+- Three internal states: `Discovering(timedOut: Bool)`, `Sending(peerAlias, bundleCount, progress: SendProgress?)`, `Done(bundleCount, totalFiles, totalBytes, peer, result)`.
+- 12-second discovery timeout flips to "No peers found" with `Try again` / `Close`. `Try again` rotates a `discoveryAttempt` counter that re-keys the discovery + countdown effects.
+- `Sending` shows a `ProgressView(value:total:)` driven by `progress.sentBytes / progress.totalBytes`, with the wire path of the most recent file underneath as monospaced caption.
+- `Done` is icon-led: 72pt filled `checkmark.circle.fill` (Success) / `info.circle.fill` (AlreadyReceived) / `xmark.octagon.fill` (Failed) tinted by the result, then three centered text lines:
+    - `titleLarge` headline. Success: `"{N} bundle(s) ({F} files, {Y.Y MB})"` — byte formatter is base-1000 with `Locale(identifier: "en_US_POSIX")` so `.` is the decimal separator regardless of device locale. AlreadyReceived: "Already received". Failed: "Send failed".
+    - `bodyMedium` recipient line: `"Sent to {peer.alias}"` (Success), `"To {peer.alias}"` (other states).
+    - `bodyMedium` identity line: `"{deviceModel} · {fingerprint.prefix(8)}"` — same format used in the peer-list rows.
+- Single `FilledTonalButton`-equivalent (`Button(...) { ... }.buttonStyle(.borderedProminent).tint(.secondary)`) labeled "Done" — full-width, the only CTA on the sheet.
+- `closeAndDismiss` calls the dismiss callback synchronously and offloads the discovery teardown (`stopDiscovery` may take ~1s for the receive loop's `soTimeout` to wake) onto a process-scoped `Task` (the `AppContainer` analogue's `appScope`), so the modal scrim stops blocking touches the moment the user taps Done.
+
+**Single session for all selected bundles**: bundling N selected bundles into one `prepare-upload` is mandatory — back-to-back sessions to the same peer 409 BLOCKED until the user manually dismisses each on the receiver. Wire fileNames carry `{bundleId}/{subfolder}/{leaf}`; receiver materializes one folder per bundle.
+
+**Permissions**:
+- `NSLocalNetworkUsageDescription` in `Info.plist` (required for any LAN traffic on iOS 14+).
+- `NSBonjourServices` array including `_localsend._tcp` (lets the system pre-warm the privacy prompt for the LocalSend service type).
+- No `NSCameraUsageDescription` / `NSMicrophoneUsageDescription` change — those are already declared for capture.
 
 ### Testing
 
@@ -964,25 +893,10 @@ This is load-bearing for muscle-memory transfer on dismiss: the user's hand is a
     - `PendingBundle` round-trip → `PendingBundleSerializationTests` (v1 legacy decode → v2 in-memory shape; v2 round-trips with `version:2`; unknown version returns nil).
     - `BundleWorker.planRouting` → `BundleWorkerRoutingTests` (photo-only, video-only, voice-only, mixed-modality partitions; `shouldStitch` flag).
     - `ModalitySwipeMath.resolveTarget` → `ModalitySwipeMathTests` (distance-threshold, velocity-shortcut, endpoint-no-wrap from VIDEO and VOICE).
-- Manual smoke path: same as Android — first-run folder pick + permissions + tutorial; capture 3–5 photos; swipe to VIDEO + record a clip; swipe to VOICE + record a memo (grant mic permission); commit; verify per-modality subfolders + stitch in bookmarked folder; swipe-discard + undo; let undo time out; delete-one; reorder; kill the app mid-record; relaunch; torn file is dropped, remaining queue is restored in capture order.
-
-### Effort estimate (from Android delta)
-
-- Camera photo + orientation + zoom + flash + lens flip: **~4 days**.
-- Video capture (`AVCaptureMovieFileOutput`, concurrent session config, max-length, poster extraction): **~2 days**.
-- Voice capture (`AVAudioRecorder`, audio session lifecycle, amplitude polling, scrolling waveform + M:SS caption): **~1.5 days**.
-- Staging + manifest store (Codable + polymorphic item) + bookmark I/O helpers: **~2 days**.
-- Worker + background task + operation queue + per-modality routing: **~2 days**.
-- Stitcher port: **~1 day** (layout math is pure; CoreImage composition is straightforward).
-- EXIF (capture-time + final-pass, photos only): **~1 day**.
-- Location provider with TTL: **~0.5 day**.
-- Settings + UserDefaults-equivalent (plus cameraMode + videoQuality + maxVideoLength + seenTutorialSteps): **~1 day**.
-- Capture UI + queue strip + gestures **including modality-switch swipe** + per-modality control visibility: **~5 days** (gesture mechanics are the most subtle part; the modality-switch slab animation is a re-learnable headache — budget for playtesting).
-- Bundle Preview + pending-delete + processing-row + mixed-modality subtitle + per-modality icons: **~2 days**.
-- Gesture tutorial (6-step, step-set-persisted, per-step demo positioned over its real gesture zone — preview for `modality`, queue strip for the other five; smooth per-segment pill lerp): **~1.5 days**.
-- Polish (haptics tuning, shimmer animations, icon counter-rotation, waveform performance on older devices): **~2 days**.
-
-**Total: ~4–4.5 weeks solo.** The multimodal surface adds about a week to the pre-multimodal estimate; most of the additional time is video+voice pipelines and the modality-swipe gesture tuning, not architecture.
+    - `LocalSendDtos` round-trip → `LocalSendDtoTests` (every wire shape, exact spec field names, `version` always emitted, optional omission on `nil`, unknown-key tolerance).
+    - `LocalSendUploader.wireNameFor` + `buildPrepareUploadRequest` → `LocalSendUploaderRoutingTests` (`{bundleId}/{subfolder}/{leaf}` composition, multi-bundle items coexist in one payload, insertion-order preserved).
+    - `LocalSendCertManager.computeFingerprintHex` → `LocalSendFingerprintTests` (known SHA-256 vectors; 64-char lowercase hex invariants).
+- Manual smoke path: same as Android — first-run folder pick + permissions + tutorial; capture 3–5 photos; swipe to VIDEO + record a clip; swipe to VOICE + record a memo (grant mic permission); commit; verify per-modality subfolders + stitch in bookmarked folder; swipe-discard + undo; let undo time out; delete-one; reorder; kill the app mid-record; relaunch; torn file is dropped, remaining queue is restored in capture order; multi-select two bundles in Bundle Preview, send to a desktop LocalSend receiver on the same Wi-Fi, verify the receiver materializes one `{bundleId}/{photos,videos,audio,stitched}/` directory per bundle.
 
 ---
 
@@ -990,5 +904,5 @@ This is load-bearing for muscle-memory transfer on dismiss: the user's hand is a
 
 - [`README.md`](./README.md) — Android reference implementation: module layout, dependency versions, class-by-class responsibilities.
 - [`RELEASE.md`](./RELEASE.md) — Signing, R8, Play Store / AAB packaging runbook.
-- [`BACKLOG.md`](./BACKLOG.md) — Post-MVP ideas (OCR / MinerU companion, LocalSend peer-to-peer transfer).
+- [`BACKLOG.md`](./BACKLOG.md) — Post-MVP ideas (OCR / MinerU companion, background-record FGS).
 - [`CLAUDE.md`](./CLAUDE.md) — Condensed architecture reference for Claude Code agents.

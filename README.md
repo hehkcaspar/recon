@@ -10,7 +10,7 @@ Native Android **multimodal** camera app for capturing **bundles** of photos, vi
 - [`BACKLOG.md`](./BACKLOG.md) — post-MVP directions (OCR / MinerU companion, background-record FGS).
 - [`CLAUDE.md`](./CLAUDE.md) — condensed architecture reference for Claude Code agents.
 
-This README is the **Android-specific technical reference**: module layout, dependency versions, resilience rationale, and testing. Read `recon-mvp-designs.md` for the product design rationale.
+This README is the **Android-specific technical reference**: module layout, dependency versions, Android-only gotchas, and testing. Read `recon-mvp-designs.md` for the product / interaction / pipeline / resilience design rationale.
 
 ---
 
@@ -80,69 +80,20 @@ No DI framework — a plain singleton [`AppContainer`](./app/src/main/java/com/e
 ## Architecture at a glance
 
 ```
-         ┌──────────────────────────────────────────────────────┐
-         │                   UI (Compose)                       │
-         │   CaptureScreen → CaptureViewModel                   │
-         │     ┌─────────────────────────────────────┐          │
-         │     │  ModalityPill · swipe carousel       │          │
-         │     │  PHOTO · VIDEO · VOICE                │          │
-         │     └─────────────────────────────────────┘          │
-         └──────────────┬──────────────────────────┬────────────┘
-                        │                          │
-          ┌─────────────┼─────────────┐            │
-          ▼             ▼             ▼            ▼
-   CaptureController  StagingStore  VoiceController
-   (Preview +         (internal FS  (MediaRecorder,
-    ImageCapture +     + .order log  amplitudeFlow)
-    VideoCapture       + discard)
-    concurrent)                            │
-          │             │                  │
-          └─────────────┼──────────────────┘
-                        ▼
-                ManifestStore (JSON on disk)
-                PendingBundle v2 (sealed PendingItem
-                { Photo | Video | Voice })
-                        │
-                        ▼
-                WorkScheduler
-                        │
-                        ▼
-                BundleWorker ── planRouting ── Stitcher (photos-only)
-                        │
-                        ▼
-                SafStorage (user-picked tree via SAF)
-                        │
-                        ▼
-                bundles/{id}/{photos,videos,audio}/  +  stitched/
+UI (Compose) ── CaptureScreen → CaptureViewModel ── ModalityPill: PHOTO · VIDEO · VOICE
+   │
+   ├─ CaptureController   (Preview + ImageCapture + VideoCapture concurrent)
+   ├─ StagingStore        (internal FS + .order log + .discarded marker)
+   └─ VoiceController     (MediaRecorder + amplitudeFlow)
+                                      │
+ManifestStore  ── PendingBundle v2 (sealed PendingItem { Photo | Video | Voice })
+                                      │
+WorkScheduler ── BundleWorker ── planRouting ── Stitcher (photos-only)
+                                      │
+SafStorage    → bundles/{id}/{photos,videos,audio}/  +  stitched/
 ```
 
-### Three-phase capture lifecycle
-
-**Phase 1 — Shutter (UI-thread budget).** `CaptureViewModel.onShutter` dispatches on `_modality.value`:
-
-- **PHOTO** (≤100ms): CameraX `takePicture()` → write the JPEG to internal staging (`filesDir/staging/session-{uuid}/{photo-uuid}.jpg` — each file is a random UUID; queue order lives in the manifest + the session's `.order` append-log, not the filesystem) → stamp EXIF (time, GPS if available, orientation) → decode a small thumbnail → push `StagedItem.Photo` onto the queue.
-- **VIDEO** (two taps): first tap → mic-permission pre-check (shared with VOICE; skipped when the user has toggled the left-of-shutter mic button off, in which case the clip records silently) → `CaptureController.startVideoRecording(filesDir/.../{uuid}.mp4, audioEnabled = vm.videoAudioEnabled)` via CameraX `Recorder.prepareRecording(...).withAudioEnabled().start()` (or plain `start()` when audio is off / RECORD_AUDIO denied). Order-log entry appended at start. While recording, CameraX emits `VideoRecordEvent.Status` events (~1 Hz); the listener pushes `event.recordingStats.audioStats.audioAmplitude` into `videoAudioAmplitude: StateFlow<Float>` so the red recording pill can show a live wave. Second tap → `stopVideoRecording()` awaits `VideoRecordEvent.Finalize` → `MediaMetadataRetriever.getFrameAtTime(0)` for the queue poster → push `StagedItem.Video`. Audio mode is frozen at `start()`, so `onToggleVideoAudio` ignores mid-record taps; the modality pill also disables during `Recording`, so VIDEO and VOICE can't contend for the mic.
-- **VOICE** (two taps): first tap → `VoiceController.startRecording` via `MediaRecorder` (AAC-LC m4a, 48kHz mono, 96kbps). If `RECORD_AUDIO` is missing, the VM surfaces `micPermissionNeeded` (shared with VIDEO) which triggers the runtime permission launcher from `CaptureScreen`. Order-log at start. Second tap → `stopRecording` → push `StagedItem.Voice` with duration from `SystemClock.elapsedRealtime` deltas. Amplitude polling via `MediaRecorder.getMaxAmplitude()` at ~30Hz feeds the `VoiceOverlay` waveform.
-
-No SAF writes in Phase 1 for any modality. `BusyState { Idle, Capturing, Recording, Rebinding }` is the single source of truth — transitions are flipped synchronously on Main *before* launching the async coroutine so rapid double-taps can't race into duplicate starts.
-
-**Phase 2 — Commit (single frame).** User swipes the queue. `CaptureViewModel.onCommitBundle` pivots the UI synchronously on Main — nulls `currentSession`, clears `queue` + `dividers` — so the shutter is ready on the very next frame. The actual bookkeeping (allocate bundle IDs, write [`PendingBundle`](./app/src/main/java/com/example/bundlecam/pipeline/PendingBundle.kt) manifests to disk with `orderedItems: List<PendingItem>` polymorphic sealed list, enqueue `BundleWorker`s) runs in a background coroutine. If the process dies before the manifest is saved, staged files are still on disk and `OrphanRecovery` restores the session as a queue on next launch.
-
-**Phase 3 — Worker (seconds–tens of seconds, off the UI thread).** `BundleWorker` loads the manifest, calls the pure companion `planRouting(manifest)` to partition `orderedItems` into photos / videos / voices with 1-based **global capture-order indices** (a mixed `[P, V, A, P]` queue produces `-p-001, -v-002, -a-003, -p-004` filenames — sparse per modality, dense across). Then:
-
-- **Photos** (if `saveIndividualPhotos`): bounded 2s GPS refresh → stamp per-file EXIF `UserComment`s (`Recon:{bundleId}:pNNN`) in a single open/save → SAF copy into `bundles/{id}/photos/`.
-- **Videos** (always): SAF copy into `bundles/{id}/videos/`. No EXIF — MP4 carries rotation in the `tkhd.matrix` set by CameraX `Recorder` at start-time.
-- **Voices** (always): SAF copy into `bundles/{id}/audio/`. No EXIF.
-- **Stitch** (if `saveStitchedImage` *and* photos list non-empty): [`Stitcher`](./app/src/main/java/com/example/bundlecam/pipeline/Stitcher.kt) produces one vertical JPEG into `stitched/{id}-stitch.jpg`. **Photo-only** — video frames are never pulled into the stitch, and voice-only / video-only bundles skip stitching entirely (no empty stitch file).
-
-Then deletes the staging session and manifest file. A process-wide `Mutex` (`workMutex`) serializes all workers so stitch heap stays bounded — I/O-bound video copy is currently serialized under the same mutex; splitting is a deferred perf refactor.
-
-### Resilience
-
-- **Queue survives app kill across all three modalities**. Photos are on internal storage the moment shutter fires; video files are continuously flushed by CameraX's Media3 Muxer so a mid-record kill typically leaves a playable MP4; voice files are the common torn-file case because `MediaRecorder` has no equivalent. On next launch, [`OrphanRecovery`](./app/src/main/java/com/example/bundlecam/pipeline/OrphanRecovery.kt) prunes completed `WorkInfo`, re-enqueues any pending manifests without in-flight work, filters the staging session for jpg/mp4/m4a files (skipping dot-files + zero-byte), validates mp4/m4a playability via `MediaMetadataRetriever.extractMetadata(DURATION)` (null → torn → deleted), and restores the queue as sealed `RestoredItem { Photo, Video, Voice }`.
-- **Queue ordering across mixed media** comes from a per-session `.order` append-log (`{systemClockMs}\t{filename}\n`) rather than filesystem mtimes — video/voice `lastModified` is *stop()* time, not *start()* time, so a mtime sort would scramble a `[V, P, A]` capture into `[P, A, V]`. The log is appended at start-of-recording (before the file even exists) so a torn file still has a correctly-ordered entry that gets filtered by existence check on restore. Pre-Phase-D sessions without a log fall back to mtime sort.
-- **Bundle ID is allocated atomically** from DataStore before any SAF I/O — if the worker fails partway, the counter doesn't rewind.
-- **Worker failures are observable**: `WorkScheduler.observeFailures()` emits a flow of failures, filtering out stale pre-existing failures on first subscription (see the `acknowledged` set) so replayed history doesn't spam the user.
+For the platform-neutral product / interaction / pipeline / resilience spec, see [`recon-mvp-designs.md`](./recon-mvp-designs.md). The remainder of this README is Android-specific implementation detail.
 
 ---
 
@@ -270,33 +221,19 @@ The protocol's session lifecycle on the *receiver* is interactive: a session sta
 
 ---
 
-## Key design decisions
+## Android-specific implementation notes
 
-**Main-thread commit pivot; bookkeeping runs off-thread** — the commit swipe is gated purely on Main-thread state mutations (null `currentSession`, empty `queue`). Bundle-ID allocation (DataStore), manifest serialization (JSON + file write), and worker enqueue (WorkManager DB insert) all run in a background coroutine after the shutter is already ready. If the process dies between the UI pivot and the manifest save, the staging session still has the photos on disk and `OrphanRecovery` restores them as an uncommitted queue on next launch. Net: shutter re-enables within one frame of the swipe — previously 30–100ms of blocked UI.
+The platform-neutral rationale (three-phase pipeline, manifest indirection, staging store, worker mutex, discard-marker, processing-row bridge, gesture model, edge-zone math, etc.) lives in [`recon-mvp-designs.md`](./recon-mvp-designs.md) § "Design decisions". Notes below are Android-only details a porter does **not** need but a maintainer of this codebase does.
 
-**Manifest file indirection (vs WorkManager `Data`)** — a 50-photo bundle's photo paths exceed WorkManager's 10KB `Data` input limit. Instead, the VM writes a `PendingBundle` JSON next to the app's internal files; only the `bundleId` goes through `Data`, and the worker loads the rest from disk. This also makes orphan recovery trivial: if the process dies mid-commit, the manifest persists and is replayed on next launch.
-
-**Staging store for resilience** — photos are written to internal storage on capture, not held in memory. A queue of 50 photos costs ~2.5MB of thumbnails, not ~250MB of decoded JPEG. If the process is killed, the staging session persists on disk and `OrphanRecovery` can restore the queue.
-
-**Per-bundle `Mutex` in `BundleWorker`** — stitching a tall image allocates ~60% of heap. Running two in parallel on a mid-range device reliably OOMs. A process-wide `Mutex` forces serial execution; bundles queue up and drain.
-
-**`observeFailures()` filters pre-existing failures** — WorkManager replays historical `WorkInfo` on new `observe()` calls. Without filtering, every app launch would re-surface yesterday's transient bundle failure. The scheduler snapshots the set of failures on first emission as "acknowledged" and only emits fresh failures thereafter.
-
-**Discard marker is synchronous, not coroutine-scoped** — capture-time discard uses a 3-second undo window whose cleanup runs in `viewModelScope`. If the process dies inside that window, the coroutine is cancelled and the staging session files persist, which `OrphanRecovery` would then restore as an "uncommitted queue" — the discarded photos come back. `StagingStore.markDiscarded` drops a `.discarded` marker file *synchronously* on the discard gesture (one `File.createNewFile()` on internal storage, ~1ms — Main-thread-safe), before the timer starts. On next launch, `OrphanRecovery` sees the marker and deletes the session instead of restoring. Undo removes the marker.
-
-**Per-bundle-delete timers are independent** — the Bundle Preview screen's undo window is multi-slot: swiping multiple bundles in quick succession starts separate timers, each hard-deleting on its own expiry. Each row has its own "Undo" button. `BundlePreviewViewModel` uses a `Map<String, Job>` keyed by bundle id (rather than the single-slot `TimedSlot` used by capture-time discard) so no pending delete preempts another.
-
-**Processing rows bridge the worker gap** — the worker takes seconds-to-tens-of-seconds to write a bundle, so a user who commits and immediately navigates to Bundle Preview would otherwise see the newest bundle "missing". `BundlePreviewViewModel` subscribes to `WorkScheduler.observeActiveBundleIds()` and renders a `ProcessingBundleRow` for each in-flight worker at the top of the list. When a bundle leaves the active set (worker finished), the VM refreshes the SAF listing *before* dropping the processing id from state — so the completed row takes over without a blank frame where neither exists. Failed workers simply disappear from the processing set; the existing `observeFailures()` channel surfaces the error on the capture screen.
-
-**Orientation via `OrientationEventListener` + `imageCapture.targetRotation`** — `DisplayRotation` only catches 90°/270° rotations when the activity's `screenOrientation=portrait`. The accelerometer-based listener catches all four, snaps to the nearest cardinal, and feeds the translated `Surface.ROTATION_*` into `ImageCapture` so the **EXIF orientation** tag matches the physical device pose even when the UI doesn't rotate.
-
-**UI counter-rotation (not UI rotation)** — `screenOrientation=portrait` locks the layout. For icons (settings, folder, zoom labels) to feel right-side-up, they get a `rotate(-deviceOrientation)` `Modifier` driven by a cumulative-target `animateFloatAsState` that picks the shortest arc (no 270° spins when going 0° → 90°).
-
-**Gesture model** — the queue strip has three disjoint sibling gesture zones: two `EdgeZone`s at the screen edges (commit / discard via `detectHorizontalDragGestures`) and the tray in between (horizontal scroll + per-thumbnail long-press reorder + vertical drag-to-delete). Because each zone is a separate child of an outer `Box`, Compose's hit-test routes each pointer-down unambiguously — no arbitration, no slop tuning. Commit / discard uses **hybrid thresholds**: commit if `|dragX| >= maxWidth/2` **or** `|velocity| >= 80.dp/s` in the commit direction. Velocity tracking via Compose's `VelocityTracker`. Tide-gradient fills toward the destination edge as progress grows; destination zone shows the accent color + glyph throughout swipe, intensifies on commit, then fades out — driven by `max(destinationAlpha, flashAlpha)` so there's no visual seam between swipe-end and commit animation.
-
-**Queue-size-aware edge zones** — the base `EdgeZone` width is 60dp, but when the tray has empty slack (short queue, thumbs don't fill across) each zone grows by `slack / 2` so the user can start a commit / discard swipe from further inward. Capped at `maxWidth * 0.33f` per side with a `24dp` neutral middle guard — zones can never meet, and on a full tray they collapse back to 60dp. Width changes animate over 180ms linear so a mid-gesture queue-size change (e.g. a burst shot resolving while the user is dragging) doesn't yank the hit region from under the finger. The **destination fill** (tick / cross + commit flash) is decoupled from the input width: it always renders at 60dp anchored to the screen-edge side, so widening the input area doesn't bloat the visual. `systemGestureExclusion()` still goes flush to the screen edge (just over more pixels).
-
-**Edge zones overlap tray, not vice versa** — the `EdgeZone`s are stacked on top of the tray inside a `Box`. The tray is padded 48dp on each side so thumbnails render in the middle 48dp→W-48 slab. `detectHorizontalDragGestures` inside each zone only claims pointers after crossing horizontal touch slop, so taps and vertical drags propagate to thumbnails beneath even when the zone widens into thumbnail territory. Long-press-then-drag reorder still fires from the thumbnail's own `pointerInput` because long-press doesn't move.
+- **`OrientationEventListener` writes both `imageCapture.targetRotation` and `videoCapture.targetRotation`** — `DisplayRotation` only fires on activity rotations, but `screenOrientation=portrait` blocks those, so without the accelerometer feed EXIF orientation would never reflect a sideways device pose. `Recorder` freezes its rotation at `start()`, so mid-record writes are harmless no-ops.
+- **`Modifier.draggable`'s `onDragStopped` scope is composition-tied** — running the slab spring-back inside it gets cancelled when `setModality()` recomposes the lambda. The animation runs in a `rememberCoroutineScope`-scoped coroutine instead.
+- **`CameraPreview` rolls its own pointer handlers** — Compose's `detectTapGestures` / `detectTransformGestures` consume the down event, which starves the ancestor `Modifier.draggable` of the modality-swipe gesture. Bespoke `awaitEachGesture { awaitFirstDown(); waitForUpOrCancellation() }` for tap-to-focus + a matching multi-touch block for pinch is what lets the swipe carousel coexist with focus + zoom.
+- **`VoiceController.amplitudeFlow` collected directly, not via `snapshotFlow`** — `snapshotFlow { amplitudeFlow.value }` never re-emits past the initial 0 because `StateFlow.value` isn't a Compose snapshot state. The `VoiceOverlay` consumes the flow with `.collect { }`. Same gotcha applies on iOS with SwiftUI / `@Published.value`.
+- **`LocalSendDiscovery.start()` runs `withContext(Dispatchers.IO)`** — socket bind / `joinGroup` / send are blocking JVM calls; the upstream `LaunchedEffect` is on Main, so without dispatching off Main, every send trips `NetworkOnMainThreadException`.
+- **Receive loop checks `currentCoroutineContext().isActive`, not `scope.isActive`** — when the child receive job is cancelled, the parent scope stays active, so `cancelAndJoin` on `scope.isActive` would hang forever waiting for the loop to exit.
+- **`FingerprintPinningTrustManager` extends `X509ExtendedTrustManager` directly** — extending plain `X509TrustManager` causes the JDK to wrap it in `AbstractTrustManagerWrapper`, which adds a hostname check against the cert's CN. Our per-install certs have CN "Recon", not the peer's IP, so the wrapper would fail every handshake.
+- **`AppContainer.appScope` is `SupervisorJob + Main.immediate`, not a caller-provided composition scope** — `configureRoot(uri)` and `LocalSendSheet.closeAndDismiss`'s `stopDiscovery` need to outlive the calling screen's coroutine scope (popping Settings or dismissing the sheet would otherwise cancel them mid-flight).
+- **WorkManager auto-init is disabled** in the manifest (`<provider tools:node="remove">`) so our `Configuration.Provider` actually wins the race against `Application.onCreate`. Without it, the default WorkManager config is created first.
 
 ---
 
