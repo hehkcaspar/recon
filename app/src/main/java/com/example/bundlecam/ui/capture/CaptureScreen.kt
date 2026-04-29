@@ -34,6 +34,8 @@ import androidx.compose.material.icons.filled.Cameraswitch
 import androidx.compose.material.icons.filled.FlashAuto
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
@@ -122,6 +124,7 @@ private fun CaptureScreenContent(
     val settings by vm.settings.collectAsStateWithLifecycle()
     val lensFacing by vm.lensFacing.collectAsStateWithLifecycle()
     val flashMode by vm.flashMode.collectAsStateWithLifecycle()
+    val videoAudioEnabled by vm.videoAudioEnabled.collectAsStateWithLifecycle()
     val modality by vm.modality.collectAsStateWithLifecycle()
     val recordingStartedAtMs by vm.recordingStartedAtMs.collectAsStateWithLifecycle()
     val zoomInfo by vm.zoomInfo.collectAsStateWithLifecycle()
@@ -136,13 +139,13 @@ private fun CaptureScreenContent(
     ) { /* no-op; capture proceeds regardless */ }
     var locationAsked by rememberSaveable { mutableStateOf(false) }
 
-    val voicePermissionLauncher = rememberLauncherForActivityResult(
+    val micPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
-    ) { granted -> vm.onVoicePermissionResult(granted) }
-    val voicePermissionNeeded by vm.voicePermissionNeeded.collectAsStateWithLifecycle()
-    LaunchedEffect(voicePermissionNeeded) {
-        if (voicePermissionNeeded) {
-            voicePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+    ) { granted -> vm.onMicPermissionResult(granted) }
+    val micPermissionNeeded by vm.micPermissionNeeded.collectAsStateWithLifecycle()
+    LaunchedEffect(micPermissionNeeded) {
+        if (micPermissionNeeded) {
+            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
 
@@ -380,6 +383,8 @@ private fun CaptureScreenContent(
                     VideoRecordingPill(
                         startedAtMs = recordingStartedAtMs!!,
                         contentRotation = contentRotation,
+                        audioEnabled = videoAudioEnabled,
+                        audioAmplitudeFlow = vm.videoAudioAmplitudeFlow,
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .padding(bottom = 12.dp),
@@ -396,13 +401,16 @@ private fun CaptureScreenContent(
                     .padding(bottom = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                // Camera-only auxiliary controls: zoom + flash + lens-flip. Hidden when
-                // the active modality doesn't use the camera (voice) or when they
+                // Camera-only auxiliary controls: zoom + flash/mic + lens-flip. Hidden
+                // when the active modality doesn't use the camera (voice) or when they
                 // can't meaningfully operate (no torch wiring in video yet, so flash
-                // is hidden in VIDEO too — having an icon that does nothing is worse
-                // than not having it). During a recording these are all disabled.
+                // is hidden in VIDEO — having an icon that does nothing is worse than
+                // not having it). During a recording these are all disabled. The
+                // left-of-shutter slot becomes the mic-toggle in VIDEO so audio capture
+                // can be turned off without leaving the modality.
                 val cameraControlsVisible = modality != Modality.VOICE
                 val flashVisible = modality == Modality.PHOTO
+                val micToggleVisible = modality == Modality.VIDEO
                 val lensFlipVisible = modality != Modality.VOICE
                 val sideControlsEnabled = state.busy == BusyState.Idle
 
@@ -438,6 +446,25 @@ private fun CaptureScreenContent(
                                 tint = when {
                                     !sideControlsEnabled -> Color.White.copy(alpha = 0.25f)
                                     flashMode == FlashMode.Off -> Color.White.copy(alpha = 0.65f)
+                                    else -> Color.White
+                                },
+                                modifier = Modifier
+                                    .size(26.dp)
+                                    .rotate(contentRotation),
+                            )
+                        }
+                    } else if (micToggleVisible) {
+                        IconButton(
+                            onClick = vm::onToggleVideoAudio,
+                            enabled = sideControlsEnabled,
+                            modifier = Modifier.size(48.dp),
+                        ) {
+                            Icon(
+                                imageVector = if (videoAudioEnabled) Icons.Filled.Mic else Icons.Filled.MicOff,
+                                contentDescription = if (videoAudioEnabled) "Mic on, tap to mute" else "Mic off, tap to unmute",
+                                tint = when {
+                                    !sideControlsEnabled -> Color.White.copy(alpha = 0.25f)
+                                    !videoAudioEnabled -> Color.White.copy(alpha = 0.65f)
                                     else -> Color.White
                                 },
                                 modifier = Modifier

@@ -120,6 +120,12 @@ class CaptureViewModel(
     private val _flashMode = MutableStateFlow(FlashMode.Off)
     val flashMode: StateFlow<FlashMode> = _flashMode.asStateFlow()
 
+    // VIDEO-mode mic toggle. Default on so video records with sound; the user can flip
+    // it off via the mic button left of the video shutter (mirrors flash in photo mode).
+    // Session-scoped — not persisted, matching `_flashMode`.
+    private val _videoAudioEnabled = MutableStateFlow(true)
+    val videoAudioEnabled: StateFlow<Boolean> = _videoAudioEnabled.asStateFlow()
+
     private val _modality = MutableStateFlow(Modality.PHOTO)
     val modality: StateFlow<Modality> = _modality.asStateFlow()
 
@@ -134,10 +140,16 @@ class CaptureViewModel(
     // VoiceOverlay to render the scrolling waveform.
     val voiceAmplitudeFlow: StateFlow<Int> = container.voiceController.amplitudeFlow
 
-    // Set to true when the user taps the VOICE shutter and permission is missing. The
-    // CaptureScreen's permission launcher observes this and kicks off the request flow.
-    private val _voicePermissionNeeded = MutableStateFlow(false)
-    val voicePermissionNeeded: StateFlow<Boolean> = _voicePermissionNeeded.asStateFlow()
+    // CameraX-reported audio amplitude during a video recording. Range [0f, 1f]; 0f when
+    // not recording or when audio is disabled. Updated ~1Hz by VideoRecordEvent.Status.
+    // Consumed by `VideoRecordingPill` for the small white wave indicator.
+    val videoAudioAmplitudeFlow: StateFlow<Float> = captureController.videoAudioAmplitude
+
+    // Set to true when the user taps the VOICE or VIDEO shutter without RECORD_AUDIO.
+    // CaptureScreen's permission launcher observes this and kicks off the request flow;
+    // both modalities share the same permission, so they share this gate.
+    private val _micPermissionNeeded = MutableStateFlow(false)
+    val micPermissionNeeded: StateFlow<Boolean> = _micPermissionNeeded.asStateFlow()
 
     private val _events = MutableSharedFlow<CaptureEvent>(extraBufferCapacity = 4)
     val events: SharedFlow<CaptureEvent> = _events.asSharedFlow()
@@ -263,6 +275,12 @@ class CaptureViewModel(
     private fun onShutterVideo() {
         when (_uiState.value.busy) {
             BusyState.Idle -> {
+                // Mic permission is only required when the user wants audio in the clip.
+                // If they've toggled audio off, we skip the prompt and record silently.
+                if (_videoAudioEnabled.value && !container.voiceController.hasPermission()) {
+                    _micPermissionNeeded.value = true
+                    return
+                }
                 // Sync-flip to a transient busy state so a rapid double-tap can't launch
                 // two start coroutines. The shutter button's `enabled` gate reads
                 // `Idle || Recording`, so Capturing disables it until the async work
@@ -296,7 +314,10 @@ class CaptureViewModel(
             // still carries the correct order. OrphanRecovery skips entries whose files
             // never materialized or are zero-byte.
             container.stagingStore.appendOrderEntry(session, outputFile.name)
-            val started = captureController.startVideoRecording(outputFile)
+            val started = captureController.startVideoRecording(
+                outputFile,
+                audioEnabled = _videoAudioEnabled.value,
+            )
             if (started) {
                 _uiState.update {
                     it.copy(busy = BusyState.Recording, lastError = null)
@@ -324,7 +345,7 @@ class CaptureViewModel(
                 // Permission pre-check stays synchronous: if mic isn't granted, we surface
                 // the launcher signal without flipping busy (so the start can retry).
                 if (!container.voiceController.hasPermission()) {
-                    _voicePermissionNeeded.value = true
+                    _micPermissionNeeded.value = true
                     return
                 }
                 _uiState.update { it.copy(busy = BusyState.Capturing) }
@@ -339,7 +360,7 @@ class CaptureViewModel(
     }
 
     private fun startVoiceRecordingFlow() {
-        // Permission is guaranteed by onShutterVoice's pre-check or by onVoicePermissionResult's
+        // Permission is guaranteed by onShutterVoice's pre-check or by onMicPermissionResult's
         // auto-retry path. VoiceController.startRecording() rechecks defensively.
         confirmPendingDiscardIfAny()
         val session = currentSession ?: container.stagingStore.createSession().also {
@@ -358,7 +379,7 @@ class CaptureViewModel(
                 }
                 is VoiceRecordingResult.PermissionDenied -> {
                     _uiState.update { it.copy(busy = BusyState.Idle) }
-                    _voicePermissionNeeded.value = true
+                    _micPermissionNeeded.value = true
                 }
                 is VoiceRecordingResult.Error -> {
                     _uiState.update {
@@ -412,19 +433,28 @@ class CaptureViewModel(
 
     /**
      * Called by CaptureScreen after the runtime RECORD_AUDIO permission flow resolves.
-     * Clears the `voicePermissionNeeded` signal and, if granted + still in VOICE modality
-     * + still idle, auto-retries the start so the user's original tap isn't lost.
+     * Clears the `micPermissionNeeded` signal and, if granted + still idle, auto-retries
+     * the start in whichever modality requested it (VOICE or VIDEO) so the user's
+     * original tap isn't lost.
      */
-    fun onVoicePermissionResult(granted: Boolean) {
-        _voicePermissionNeeded.value = false
+    fun onMicPermissionResult(granted: Boolean) {
+        _micPermissionNeeded.value = false
         if (!granted) {
-            _uiState.update {
-                it.copy(lastError = "Voice recording needs mic permission")
+            val message = when (_modality.value) {
+                Modality.VIDEO -> "Video audio needs mic permission"
+                else -> "Voice recording needs mic permission"
             }
+            _uiState.update { it.copy(lastError = message) }
             return
         }
-        if (_modality.value == Modality.VOICE && _uiState.value.busy == BusyState.Idle) {
-            startVoiceRecordingFlow()
+        if (_uiState.value.busy != BusyState.Idle) return
+        when (_modality.value) {
+            Modality.VOICE -> startVoiceRecordingFlow()
+            Modality.VIDEO -> {
+                _uiState.update { it.copy(busy = BusyState.Capturing) }
+                startVideoRecordingFlow()
+            }
+            else -> Unit
         }
     }
 
@@ -715,6 +745,13 @@ class CaptureViewModel(
                 FlashMode.On -> FlashMode.Off
             }
         }
+    }
+
+    fun onToggleVideoAudio() {
+        // Ignore mid-recording — VideoCapture's audio mode is frozen at start(), so a
+        // mid-record toggle would be a UX lie. The button is also disabled while busy.
+        if (_uiState.value.busy != BusyState.Idle) return
+        _videoAudioEnabled.update { !it }
     }
 
     // Called from `CameraPreview`'s bind LaunchedEffect around `CaptureController.bind()`.

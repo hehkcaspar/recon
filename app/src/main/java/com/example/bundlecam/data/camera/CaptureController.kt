@@ -1,6 +1,9 @@
 package com.example.bundlecam.data.camera
 
+import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -106,6 +109,13 @@ class CaptureController(context: Context) {
 
     private val _zoomInfo = MutableStateFlow<ZoomInfo?>(null)
     val zoomInfo: StateFlow<ZoomInfo?> = _zoomInfo.asStateFlow()
+
+    // Latest audio amplitude reported by CameraX during the active video recording.
+    // Range [0f, 1f]; 0f when no recording is active or audio is disabled. Sourced
+    // from `VideoRecordEvent.Status.recordingStats.audioStats.audioAmplitude`, which
+    // CameraX emits at ~1 Hz alongside other recording stats.
+    private val _videoAudioAmplitude = MutableStateFlow(0f)
+    val videoAudioAmplitude: StateFlow<Float> = _videoAudioAmplitude.asStateFlow()
 
     private val _deviceOrientation = MutableStateFlow(0)
     val deviceOrientation: StateFlow<Int> = _deviceOrientation.asStateFlow()
@@ -222,14 +232,16 @@ class CaptureController(context: Context) {
     }
 
     /**
-     * Start a video recording into [outputFile]. Silent-only (`withAudioEnabled` is
-     * omitted so we skip the `RECORD_AUDIO` requirement and leave the mic free for the
-     * voice modality's `MediaRecorder` to own).
+     * Start a video recording into [outputFile]. When [audioEnabled] is true and
+     * `RECORD_AUDIO` is granted, the clip carries an audio track; otherwise it's silent.
+     * The VM owns the user's mic-toggle and pre-prompts for permission, so the silent
+     * fallback here is just defensive.
      *
      * Returns true if the recording started. False if VideoCapture isn't bound (the
      * device degraded to photo-only) or another recording is already live.
      */
-    fun startVideoRecording(outputFile: File): Boolean {
+    @SuppressLint("MissingPermission")
+    fun startVideoRecording(outputFile: File, audioEnabled: Boolean): Boolean {
         val rec = recorder ?: run {
             Log.w(TAG, "startVideoRecording: no Recorder bound; video unsupported on this device")
             return false
@@ -240,17 +252,49 @@ class CaptureController(context: Context) {
         }
         val deferred = CompletableDeferred<RecordingResult>()
         val options = FileOutputOptions.Builder(outputFile).build()
-        val pendingRecording = rec.prepareRecording(appContext, options)
+        val basePending = rec.prepareRecording(appContext, options)
+        val audioGranted = ContextCompat.checkSelfPermission(
+            appContext,
+            Manifest.permission.RECORD_AUDIO,
+        ) == PackageManager.PERMISSION_GRANTED
+        val pendingRecording = when {
+            !audioEnabled -> basePending
+            audioGranted -> try {
+                basePending.withAudioEnabled()
+            } catch (se: SecurityException) {
+                Log.w(TAG, "withAudioEnabled rejected despite granted RECORD_AUDIO; recording silently", se)
+                basePending
+            }
+            else -> {
+                Log.w(TAG, "RECORD_AUDIO not granted at startVideoRecording; recording silently")
+                basePending
+            }
+        }
+        _videoAudioAmplitude.value = 0f
         val recording = pendingRecording.start(ContextCompat.getMainExecutor(appContext)) { event ->
-            if (event is VideoRecordEvent.Finalize) {
-                val result = if (event.hasError()) {
-                    Log.w(TAG, "Video finalized with error ${event.error}", event.cause)
-                    RecordingResult.Error(event.error, event.cause)
-                } else {
-                    val durationMs = event.recordingStats.recordedDurationNanos / 1_000_000L
-                    RecordingResult.Success(outputFile, durationMs)
+            when (event) {
+                is VideoRecordEvent.Status -> {
+                    // CameraX emits Status events ~1 Hz with current RecordingStats. The
+                    // audioStats.audioAmplitude is in [0,1] when the audio track is live;
+                    // AUDIO_STATE_DISABLED returns 0. Non-finite values shouldn't happen
+                    // but we coerce defensively so the UI never sees NaN.
+                    val raw = event.recordingStats.audioStats.audioAmplitude
+                    _videoAudioAmplitude.value = if (raw.isFinite()) {
+                        raw.toFloat().coerceIn(0f, 1f)
+                    } else 0f
                 }
-                deferred.complete(result)
+                is VideoRecordEvent.Finalize -> {
+                    _videoAudioAmplitude.value = 0f
+                    val result = if (event.hasError()) {
+                        Log.w(TAG, "Video finalized with error ${event.error}", event.cause)
+                        RecordingResult.Error(event.error, event.cause)
+                    } else {
+                        val durationMs = event.recordingStats.recordedDurationNanos / 1_000_000L
+                        RecordingResult.Success(outputFile, durationMs)
+                    }
+                    deferred.complete(result)
+                }
+                else -> Unit
             }
         }
         activeRecording = recording
