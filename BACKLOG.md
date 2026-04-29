@@ -4,6 +4,8 @@ Ideas captured during MVP design that are **not** scoped for the current milesto
 
 For the product and interaction spec that *is* shipped, see [`recon-mvp-designs.md`](./recon-mvp-designs.md). For the Android reference implementation, see [`README.md`](./README.md).
 
+> Item 2 of this list — **LocalSend interop for peer-to-peer bundle transfer** — has shipped. See `recon-mvp-designs.md` § "LocalSend bundle transfer" for the user-visible UX and `README.md` § `network/localsend/` for the Android implementation. The remaining backlog items renumber accordingly.
+
 ---
 
 ## 1. OCR / document-understanding pipeline for bundle → Markdown
@@ -14,7 +16,7 @@ Post-process a committed bundle (raw JPEGs + stitched image) into a structured M
 
 ### Best-quality path — MinerU VLM on a desktop companion
 
-Run [MinerU](https://github.com/opendatalab/mineru) (current `mineru` 3.0.x as of April 2026) on a personal desktop, reached over the LAN via the LocalSend interop in item 2 below. Use the **VLM backend** (`MinerU2.5-2509-1.2B` — 1.16B-param Qwen2-VL derivative, ~4.6 GB BF16; or `MinerU2.5-Pro-2510` if hardware permits) for the strongest open-source document-understanding output currently available: layout-faithful Markdown with LaTeX formulas, HTML tables, and learned reading order.
+Run [MinerU](https://github.com/opendatalab/mineru) (current `mineru` 3.0.x as of April 2026) on a personal desktop, reached over the LAN via the now-shipped LocalSend interop. Use the **VLM backend** (`MinerU2.5-2509-1.2B` — 1.16B-param Qwen2-VL derivative, ~4.6 GB BF16; or `MinerU2.5-Pro-2510` if hardware permits) for the strongest open-source document-understanding output currently available: layout-faithful Markdown with LaTeX formulas, HTML tables, and learned reading order.
 
 Realistic hardware expectations: an Apple Silicon Mac with 16+ GB unified memory runs the VLM workably at CPU/MPS speeds (tens of seconds per page); a Linux/Windows box with a discrete GPU and 8+ GB VRAM runs it near-real-time. If GPU isn't available, the **pipeline backend** (`mineru -b pipeline`) is the workable second choice on CPU-only desktops — slower and slightly less faithful on complex layouts, but no GPU dependency.
 
@@ -33,7 +35,7 @@ Consumes raw per-page JPEGs from `bundles/{bundle-id}/` (never the stitched comp
 The "MinerU companion" can be as thin as a Python script that watches an inbox folder, runs `mineru -p {file_or_dir} -o {out_dir} -b vlm` per bundle, and drops the result back. The architectural commitment is just "the bundle ships off-device; something out there produces a `.md`; the `.md` lands in `bundles/{bundle-id}/`". Concrete options ranked by setup effort:
 
 - **Easiest:** a Syncthing-shared folder between phone and desktop, plus a desktop-side `inotifywait`/`fswatch` shell loop that runs `mineru` on each new bundle and writes the `.md` back into the same folder. Zero protocol work.
-- **Cleaner:** a small Python receiver speaking the LocalSend protocol (item 2), accepting bundles, running MinerU, and replying via LocalSend's send-back. Pairs well with item 2's clean-room sender.
+- **Cleaner:** a small Python receiver speaking the LocalSend protocol, accepting bundles, running MinerU, and replying via LocalSend's send-back. Pairs symmetrically with the shipped sender.
 - **Heaviest:** a first-party Kotlin desktop app (Compose Multiplatform) that wraps `mineru` as a subprocess and presents a peer to the phone. Probably overkill for personal use.
 
 ### Routing
@@ -50,7 +52,7 @@ Two reasonable defaults — pick one based on usage pattern.
 - OCR output never influences stitch layout — visual and semantic artifacts stay independent and separately reproducible.
 - The on-device pass runs as a chained `WorkRequest` after `BundleWorker`, not as a third stage inside it, so failures retry independently and the stitch-mutex scope stays tight.
 - Extend the `PendingBundle` manifest with a `sidecarMarkdown` field rather than introducing a second manifest type.
-- The companion route doesn't touch the worker pipeline at all — it's a user-initiated send (item 2) followed by an inbound `.md` write whenever the desktop replies.
+- The companion route doesn't touch the worker pipeline at all — it's a user-initiated LocalSend send followed by an inbound `.md` write whenever the desktop replies (which would also require the inbound side of LocalSend, currently sender-only).
 
 ### Open questions
 
@@ -60,58 +62,7 @@ Two reasonable defaults — pick one based on usage pattern.
 
 ---
 
-## 2. LocalSend interop for peer-to-peer bundle transfer
-
-Implement a clean-room Kotlin sender that speaks the [LocalSend protocol](https://github.com/localsend/protocol) (current spec **v2.1**, cut 2026-01-13; reference app v1.17.0) so a committed bundle (raw JPEGs + stitched image, plus any `.md` sidecar) can be pushed to any device on the LAN running LocalSend — desktop, phone, tablet, or our own MinerU companion from item 1.
-
-We are **not** bundling the upstream Flutter app; just enough protocol to send. Realistic effort: **~2–4 days** for a working sender, plus 1–2 days for cert-fingerprint UX and SAF-streaming polish.
-
-### Discovery
-
-On share-sheet open, acquire a `WifiManager.MulticastLock`, open a `MulticastSocket` joined to `224.0.0.167:53317` on every non-loopback IPv4 interface, and emit one announce — JSON `{alias, version:"2.1", deviceModel, deviceType:"mobile", fingerprint, port:53317, protocol:"https", download:false, announce:true}`. Peers reply via `POST /api/localsend/v2/register` (preferred) or a multicast response with `announce:false`. Drop self-echoes by `fingerprint`. Release the lock the moment the sheet closes — the spec's "no background multicast chatter" rule is non-negotiable.
-
-### Transport
-
-HTTPS on TCP `53317`, prefix `/api/localsend/v2/…`. Use **OkHttp 4.12+** with a custom `X509TrustManager` that accepts any self-signed cert plus a no-op `HostnameVerifier`; trust is fingerprint-pinned (SHA-256 of the peer's leaf cert, captured at discovery and re-verified post-handshake), not CA-based. Generate one self-signed cert per install and cache it.
-
-### Upload flow
-
-Three calls per bundle:
-
-1. `POST /api/localsend/v2/prepare-upload` with `{info, files:{fileId:{id, fileName, size, fileType:"image/jpeg", sha256?}}}` (optional `?pin=…`); receiver shows the trust prompt here, response is `{sessionId, files:{fileId:token}}`.
-2. Per file, `POST /api/localsend/v2/upload?sessionId=…&fileId=…&token=…` with the raw binary as the request body — **not** multipart, one file per request, parallelizable across files within the bundle.
-3. `POST /api/localsend/v2/cancel?sessionId=…` on user abort.
-
-Errors: 401 PIN required, 403 rejected by user, 409 session blocked, 429 rate-limit, 204 "already received". No native resumability — a failed upload re-runs the whole file.
-
-### SAF streaming
-
-A custom `RequestBody.writeTo(sink)` that pulls from `contentResolver.openInputStream(documentFile.uri)` and copies in chunks. Never `readBytes()` the stitched JPEG (can be 20 MB+).
-
-### Permissions
-
-`INTERNET`, `ACCESS_WIFI_STATE`, `CHANGE_WIFI_MULTICAST_STATE`, `ACCESS_NETWORK_STATE`. `NEARBY_WIFI_DEVICES` (Android 13+) is **not** required for outbound multicast on an already-connected Wi-Fi network — skip it. JSON: reuse existing `kotlinx.serialization`; add `Info`, `PrepareUploadRequest`, `FileMetadata`, `PrepareUploadResponse`.
-
-### UX shape
-
-Action lives on a future bundles-browser row (long-press → action sheet → bottom sheet that scans on open and dismisses on close, listing peers as they register). Cert fingerprint shown as a short hex on first contact for trust-on-first-use. Gate send on `manifestStore.get(bundleId) == null` so we never ship a bundle whose `BundleWorker` is still running. Progress and failures use the existing `ActionBanner`; no persistent status rows. The capture screen's silence principle stays intact — no "share" affordance lives there.
-
-### Edge cases
-
-- Hotel / carrier networks blocking multicast (no fix — surface "no peers found").
-- AP isolation hiding peers on the same SSID (same — user-actionable, not app-fixable).
-- IPv6-only Wi-Fi where the IPv4 multicast group is unreachable (LocalSend desktop falls back to a `/24` legacy TCP sweep — defer this to v2, MVP can require IPv4).
-- Upstream protocol breaking changes (pin to `v2.1` in README, accept that an eventual bump may be required).
-
-### Open questions
-
-- Trust-on-first-use vs. always show fingerprint.
-- Whether to also implement **receive** (would need an embedded HTTP server — Ktor server-cio or NanoHTTPD — and a SAF-folder write target, useful symmetrically for getting the MinerU companion's `.md` back).
-- Whether to allow batch-share of multiple bundles in one session or keep it one-bundle-per-share for simplicity.
-
----
-
-## 3. Background recording via foreground service
+## 2. Background recording via foreground service
 
 Keep recordings running when the Activity pauses — screen lock, home-button press, switching to another app. Currently `CaptureScreen`'s `LifecycleEventEffect(ON_PAUSE)` routes to `CaptureViewModel.onLifecyclePaused()`, which stops both video and voice takes. The MVP ships a `view.keepScreenOn = true` flag scoped to `busy == Recording`, which prevents the display timeout from firing `ON_PAUSE` mid-take; but that fix doesn't help when the user locks the phone manually or switches apps, and voice memos in particular are a modality where it's natural to tap-start then pocket the phone.
 

@@ -589,6 +589,83 @@ When a user swipes-commits and immediately opens Bundle Preview, the worker is s
 
 ---
 
+## LocalSend bundle transfer
+
+Committed bundles can be transferred peer-to-peer over the LAN to any device running the [LocalSend](https://github.com/localsend/protocol) protocol (v2.1) — a desktop, another phone, or a dedicated companion script. Recon implements the **sender** side of the protocol; receiving is out of scope. The user-visible affordance lives in the Bundle Preview screen.
+
+### Selection model
+
+A row is the atomic unit. There is no file-level selection; you pick whole bundles. Selection is gesture-driven:
+
+- **Swipe right** on a normal row past ~40% of the 80dp reveal width (or with a fast right flick) → row snap-translates to the right by 80dp and stays there. The exposed leading strip is solid green with a check-circle icon. The row's resting offset *is* its selected state — there is no separate tint.
+- **Swipe back** (drag the selected row left toward 0) **or tap the green check** → row animates back to 0, deselected.
+- **Swipe left** on an unselected row → standard swipe-to-delete (unchanged).
+- A selected row's gesture cone is clamped to `[0, revealWidth]`: a selected row can't be deleted directly. Deselect first, then swipe left.
+- A processing row (worker still in flight) skips the gesture handler entirely. The bundle's worker is writing files; selection or delete during that window would race the writes.
+
+The contextual top app bar swaps in when ≥1 bundle is selected: close-X on the left, "N selected" as the title, paper-plane Send action on the right. Tapping close (or system back) clears the selection and animates every selected row back to 0 simultaneously. A dedicated suppression flag prevents a follow-through finger motion right after the X tap from re-selecting a row mid-animation.
+
+### Discovery
+
+Tapping Send opens a modal bottom sheet. On open, the sheet starts UDP multicast discovery on `224.0.0.167:53317`: it acquires `WifiManager.MulticastLock` (without it, Android filters inbound multicast packets to silence on most devices), joins the group on every non-loopback IPv4 NIC, and emits one announce. Peers respond either via multicast UDP (`announce: false`) or via HTTP `POST /api/localsend/v2/register` to the announcer's IP. Recon does **not** run an inbound HTTP server — the protocol allows that, and most peers will fall back to multicast UDP responses.
+
+The sheet shows a spinner while the peer list is empty. After 12 seconds of nothing, the sheet swaps to a "No peers found" message with `Try again` (drains the discovery session, clears the peer list, starts fresh) and `Close` buttons. Discovered peers appear as rows showing the peer's alias, deviceModel, and the first 8 hex chars of their fingerprint (a trust-on-first-use cue).
+
+### Single session for all selected bundles
+
+Tapping a peer kicks off the transfer. **All selected bundles ship in one prepare-upload session.** This is non-negotiable, not a convenience: LocalSend's receiver state machine treats a session as active until the user dismisses the receive panel on their desktop, *not* until the last file lands. Two sequential `prepare-upload` calls to the same peer would 409 BLOCKED on the second until the user manually dismisses the first transfer's panel. Bundling collapses that into one user-visible transfer.
+
+The wire path for each file is `{bundleId}/{subfolder}/{leaf}` (or `{bundleId}/{leaf}` for legacy flat-layout bundles). The `subfolder` is `"photos"` / `"videos"` / `"audio"` for raw modality files, `"stitched"` for the composite. LocalSend's receiver parses `/` separators verbatim and creates the matching directory structure under its save root, with `..` traversal blocked. So a 2-bundle send produces:
+
+```
+{receiver-save-root}/
+  {bundle-A-id}/
+    photos/   {bundle-A-id}-p-001.jpg ...
+    videos/   {bundle-A-id}-v-001.mp4 ...
+    audio/    {bundle-A-id}-a-001.m4a ...
+    stitched/ {bundle-A-id}-stitch.jpg
+  {bundle-B-id}/
+    ...
+```
+
+mirroring Recon's own SAF layout, one self-contained directory per bundle.
+
+### Trust model
+
+Peers identify themselves by SHA-256 fingerprint of their leaf TLS cert, advertised in the discovery announce. Recon generates one self-signed RSA cert per install (cached on disk, lazily on first use), and the same hex hash goes into our own announces.
+
+There is no CA validation. The trust manager is fingerprint-pinned — during the TLS handshake, `checkServerTrusted` computes the leaf cert's SHA-256 and compares to the announced fingerprint. Match → return → session authenticates. Mismatch → throw `CertificateException` → handshake fails fast. Doing this *during* the handshake (rather than post-handshake from an interceptor reading `peerCertificates`) is required: an Android Conscrypt session whose trust manager is a no-op is left unverified, which makes `SSLSession.getPeerCertificates()` throw and OkHttp's `Handshake.get` swallow it into an empty list.
+
+Each peer-specific OkHttpClient is built per `send` call via `baseClient.newBuilder().sslSocketFactory(...)` so the connection pool / dispatcher / timeouts stay shared while the trust manager carries the right peer's expected fingerprint.
+
+### Transfer semantics
+
+The sender-side flow is:
+
+1. `POST /api/localsend/v2/prepare-upload` with `{info, files: { wireName: { id, fileName, size, fileType } }}`. The receiver shows a confirmation prompt; on accept, replies with `{sessionId, files: { wireName: token }}`.
+2. If any requested file is missing from the response's tokens, sender posts `/cancel` and fails the whole send with a clear error — silently shipping the rest would be partial-data masquerading as success.
+3. Per file, `POST /api/localsend/v2/upload?sessionId&fileId&token` with the raw bytes streamed in 64 KB chunks. Up to 3 files in flight concurrently. The body reads via `contentResolver.openInputStream(uri)` (never `readBytes()` on a 20 MB stitched JPEG) and polls the calling Job's `isActive` between chunks so cancellation aborts at the next chunk boundary.
+4. On any error or coroutine cancellation, sender posts `/cancel` best-effort.
+
+Progress is reported as session-level totals (files completed / total, bytes sent / total) plus the wire path of the most recently active file. Chunk callbacks fire ~120 events/s peak across the parallel uploads, so progress emissions are throttled to 20 Hz; lifecycle moments (start, file completion, terminal state) force-emit so the count never lags the visual.
+
+### Failure modes
+
+- **No peers found** after 12s: Wi-Fi network blocking multicast (hotel / carrier / AP isolation) or the receiver isn't listening. Surface "No peers found" + Try again.
+- **409 BLOCKED on prepare-upload**: receiver still has the previous transfer's panel open. Surface "Receiver still has the previous transfer open. Tap Done on the receiving device, then retry." — the only actionable cause in the single-session model.
+- **403 rejected**: receiver explicitly declined.
+- **204 already received**: receiver had every file already (sha256 dedup, if both ends opt in). UI says "Peer already had this content."
+- **Mid-transfer drop**: sender posts `/cancel` and fails with "Upload failed: …".
+
+### Sender-only by design
+
+We don't run an inbound HTTP server. Two consequences worth flagging:
+
+- A peer that *only* responds to multicast announces via HTTP `/register` (rather than UDP multicast reply) won't appear in our peer list. Most LocalSend implementations send both, so in practice this is rare.
+- Future flows like the BACKLOG OCR-companion's "send the .md back" can't be pure-LocalSend without inbound. They'd require either embedding a small HTTP server or an out-of-band channel (Syncthing, an mDNS service, etc.).
+
+---
+
 ## Design decisions
 
 Decisions with non-obvious rationale, captured so future ports can make equivalent trade-offs (or override them with the "why" in hand).
@@ -644,6 +721,12 @@ Decisions with non-obvious rationale, captured so future ports can make equivale
 25. **Two-stage swipe animation, not a bouncy spring.** A spring with initial velocity overshoots and oscillates, which reads as "bounce back and forth" to the user. The commit path instead slides off in the drag direction with a predictable `tween`, then snaps back to 0 as the modality-swapped content arrives — the user sees a decisive slide, not a bouncy settle. The cancel path uses `DampingRatioNoBouncy` for a clean springback.
 
 26. **Per-modality explicit visibility, not a blanket layout switch.** When the user is in VOICE, `CameraPreview`'s alpha goes to 0 (layout preserved to avoid thrashing on switch-back), the flash button and lens-flip button are `if (modality != VOICE)` removed, and the `ZoomControl` alpha goes to 0 (layout preserved similarly). Each control decides its own visibility rule. This is more verbose than a single "hide everything camera-related" modifier, but it (a) makes each rule reviewable in one place, (b) lets VIDEO keep zoom and lens-flip but drop flash, (c) surfaces non-obvious cases during review (the zoom chips *layout* is preserved in VOICE so the viewfinder doesn't shuffle vertically on switch back).
+
+27. **Single LocalSend session for all selected bundles, not one session per bundle.** LocalSend's receiver clears its session only on user dismissal of the receive panel (or explicit `/cancel`), not on file-count completion. Sequential per-bundle sessions to the same peer thus 409 BLOCKED until the user manually dismisses each. Collapsing N bundles into one prepare-upload eliminates the gate entirely — the user sees one "Receiving files" panel listing all files and clicks Done once. The wire fileName carries `{bundleId}/{subfolder}/{leaf}` so the receiver materializes one folder per bundle under its save root.
+
+28. **Fingerprint-pinning during the TLS handshake, not in a post-handshake interceptor.** A no-op trust manager + an OkHttp interceptor reading `response.handshake.peerCertificates` was the obvious design — but Conscrypt on Android marks the SSLSession as unverified when the trust manager doesn't actually validate, which makes `SSLSession.getPeerCertificates()` throw and OkHttp's `Handshake.get` swallow it into an empty cert list. The interceptor then has nothing to verify. Moving the SHA-256 check inside `X509ExtendedTrustManager.checkServerTrusted` solves it: match → return → session is authenticated → everything downstream works. The trust manager extends `X509ExtendedTrustManager` directly (not just `X509TrustManager`) so the JDK doesn't wrap us in `AbstractTrustManagerWrapper` which adds its own hostname-check incompatible with our per-install cert's CN.
+
+29. **Snap-position selection on bundle rows, not tap-to-toggle.** A swipe-right on a row snap-translates to a fixed 80dp reveal width and stays there. The row's resting offset *is* its selected state — there is no separate tint. Tap on the green check zone deselects; swipe-back to 0 deselects. No long-press, no tap-anywhere-to-toggle. The reasoning: an explicit, reversible gesture per state change reads better than an ephemeral tap, and a snap-position model gives an obvious target for the "tap the check to undo" affordance. Swipe-left to delete coexists in the same `pointerInput` block, signed-offset clamped per state (selected rows clamp at `[0, revealWidth]` so they can only be deselected, not deleted).
 
 ---
 
