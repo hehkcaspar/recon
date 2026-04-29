@@ -35,6 +35,17 @@ class LocalSendDiscoveryFilterTest {
     }
 
     @Test
+    fun self_echo_filter_is_case_insensitive() {
+        // Some LocalSend implementations (e.g. the official Flutter app via basic_utils)
+        // emit the fingerprint in uppercase hex; ours is lowercase. A naive `==` would
+        // miss a self-echo if a peer reflected our announce in a different casing.
+        val ownLower = "abc123def456"
+        val echoUpper = Announce(alias = "Us", fingerprint = "ABC123DEF456", announce = true)
+        val bytes = bytesOf(echoUpper)
+        assertNull(LocalSendDiscovery.parseAnnounce(bytes, bytes.size, ownLower))
+    }
+
+    @Test
     fun announce_false_reply_is_returned() {
         // Peers reply via multicast UDP with announce:false; we still surface them.
         val reply = Announce(alias = "Peer", fingerprint = "peerFp", announce = false)

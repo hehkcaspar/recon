@@ -99,3 +99,32 @@ Either is a multi-day refactor and also requires `FOREGROUND_SERVICE_CAMERA`. De
 - Does the user expect a PiP viewfinder while VIDEO-backgrounded? Probably no — PiP is its own scope — but worth flagging.
 - If the user backgrounds during VIDEO (voice has FGS, video doesn't), should the app **block** backgrounding with a snackbar, or let the recording get cut? MVP is the latter; product decision pending once voice FGS lands.
 
+---
+
+## 3. LocalSend PIN support (sender-side)
+
+The LocalSend v2 protocol lets a receiver gate `prepare-upload` behind a numeric PIN: first request returns `HTTP 401`, sender re-issues with `?pin=NNNN`, three wrong attempts trigger a per-IP `HTTP 429` lockout that the receiver maintains until restart. The official Flutter app supports this end-to-end; Recon currently surfaces a `401` as a generic banner error ("Peer requires a PIN — not supported yet") and aborts.
+
+### Why it's not blocking
+
+A pinned receiver is rare in practice — most desktop/mobile users leave PIN off — and when it does happen the failure is graceful (clear error, no half-state on either side). It's a UX completeness item, not a security gap: the protocol's PIN is enforced by the **receiver**, not validated by the sender, so missing it on the sender side just means we can't talk to those peers. Recon's fingerprint pinning provides authentication independently of PIN.
+
+### Shape of the change
+
+- **DTO surface.** `PrepareUploadRequest` is unchanged; the PIN rides as a `?pin=` query parameter on `POST /api/localsend/v2/prepare-upload`. Add a PIN-augmented variant of `LocalSendUploader.prepareUpload` that appends the param, or extend the existing one to take an optional `pin: String?`.
+- **State machine in `LocalSendUploader.send`.** First call with no PIN; on `401`, return a new `SendBundleResult.PinRequired(promptMessage)` instead of `Failed(...)`. The sheet observes this, surfaces a numeric-keypad modal, then retries `send()` with the entered PIN. On a second `401`, surface "Wrong PIN — N attempts remaining" derived from the receiver's response body if it includes a counter, otherwise generic. On `429`, surface "Receiver locked — wait or restart their app".
+- **Sheet UX.** Reuse the existing `LocalSendSheet` modal stack. PIN entry is a 4-digit numeric field with auto-focus, two buttons (Cancel / Retry), no autofill, no clipboard paste (low risk but matches the keypad UX of the official app). PIN never persists — clear on dismiss and on success.
+- **Cancellation.** The existing `sendCancelBestEffort` path still applies if the user dismisses the PIN modal mid-prep; the receiver's session was created at `prepare-upload`-time only on success, so a 401-then-dismiss leaves nothing to clean up. Verify against the spec — if the receiver allocates a sessionId before PIN check, add a cancel.
+- **Tests.** Extend `LocalSendUploaderRoutingTest` with a fake server returning `401` then `200`; verify the URL on the second attempt carries `?pin=` and the sessionId from the second response is the one used for `/upload`. Add a test for the `429` lockout returning `Failed` (not `PinRequired`).
+
+### Architectural rules
+
+- PIN is a per-call argument, not stored anywhere on `LocalSendController`. No DataStore, no cache. The user types it every time.
+- `SendBundleResult.PinRequired` is a new variant in the existing sealed class — the sheet handles all retry orchestration, the controller stays stateless.
+- Don't pre-prompt for PIN before the first attempt — most peers don't require one, and a speculative prompt would be UX clutter. The 401 round-trip is cheap.
+
+### Open questions
+
+- Some receivers may include a "wrong PIN, X attempts left" message in the 401 body (the spec is loose here). Worth parsing if present, but the surface should degrade gracefully if absent.
+- Does Recon want to remember "this peer was last seen with PIN" so the next send pre-prompts? Probably no — peers can toggle PIN at any time, the cached state would be stale immediately.
+

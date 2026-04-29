@@ -245,7 +245,10 @@ class LocalSendDiscovery(context: Context) {
             val text = String(buffer, 0, length, Charsets.UTF_8)
             val announce = runCatching { LocalSendJson.decodeFromString<Announce>(text) }
                 .getOrNull() ?: return null
-            if (announce.fingerprint == ownFingerprint) return null
+            // Case-insensitive: our own fingerprint is always lowercase hex, but a peer
+            // implementation that echoes back uppercase (the official Flutter app's
+            // basic_utils outputs uppercase) would slip past `==`. Defense-in-depth.
+            if (announce.fingerprint.equals(ownFingerprint, ignoreCase = true)) return null
             if (announce.protocol != "https") return null
             return announce
         }
