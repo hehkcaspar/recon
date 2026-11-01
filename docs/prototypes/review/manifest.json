@@ -1,86 +1,128 @@
 {
-  "generatedAt": "2026-11-01T17:09:37.380Z",
+  "generatedAt": "2026-11-01T19:01:32.449Z",
   "renderer": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-  "referencesValidated": 338,
+  "referencesValidated": 693,
   "portability": "Self-contained symbols and Roboto. Isolated file must match HTTP exactly. Img allows only compositor rounding: max channel delta 8/255 and mean pixel delta 0.05/255.",
   "files": {
     "recon-capture-design-system.svg": {
       "width": 1440,
-      "height": 3860,
-      "svgSha256": "6b0c7e88ea515cd564520491dbba647d5e700daa6202c333d9cf4d6d41ca2f90",
-      "pngSha256": "b81a59b052653641a270b5fc7659de7f570c3f4393770e85fdc061148d64fbd5",
-      "filePngSha256": "b81a59b052653641a270b5fc7659de7f570c3f4393770e85fdc061148d64fbd5",
-      "imagePngSha256": "9ba309de9b9e03a7b587ffe4d2727213ddda157a3ad2ea1ef31ae5d1a54f3df1",
+      "height": 6900,
+      "svgSha256": "6e3c35110553269c21af322026d1e06816641554f4a4418e838318bc7b4d4f22",
+      "pngSha256": "8d46ad6d7c818509c14405124e43a2fc28488a8e5d3d3c6fa735506ab2fe8704",
+      "filePngSha256": "8d46ad6d7c818509c14405124e43a2fc28488a8e5d3d3c6fa735506ab2fe8704",
+      "imagePngSha256": "b8f39b5f68cdaa7c6c3110c33c4576694d0ec2db3b36c94743b9cb2697d55e76",
       "imageContextDifference": {
-        "maxChannelDelta": 4,
-        "changedPixels": 18010,
-        "meanPixelDelta": 0.0032428396660909614
-      }
+        "maxChannelDelta": 81,
+        "changedPixels": 23503,
+        "meanPixelDelta": 0.0031836755233494362
+      },
+      "strictImageContextPassed": false,
+      "rasterException": "rasterization/README.md"
     },
     "recon-capture-phone.svg": {
       "width": 360,
       "height": 800,
-      "svgSha256": "65161ad29b40c19cbbf6408ea72797c33d7e0e0545b1bb5c7472518881b0bac5",
-      "pngSha256": "b667ddbc371570aa6fb64ba32709af3169385f85fc56c74b93da745644e103f6",
-      "filePngSha256": "b667ddbc371570aa6fb64ba32709af3169385f85fc56c74b93da745644e103f6",
-      "imagePngSha256": "b667ddbc371570aa6fb64ba32709af3169385f85fc56c74b93da745644e103f6",
+      "svgSha256": "57d91b3823ff6a80bdfa1c44883e5fb342b9617fef98b7b2907c39dc080273a9",
+      "pngSha256": "9dfea94d5ddaba913c6bcf96ed9a5e9af473d20f0d486536173eb0fbd2b3b89e",
+      "filePngSha256": "9dfea94d5ddaba913c6bcf96ed9a5e9af473d20f0d486536173eb0fbd2b3b89e",
+      "imagePngSha256": "9dfea94d5ddaba913c6bcf96ed9a5e9af473d20f0d486536173eb0fbd2b3b89e",
       "imageContextDifference": {
         "maxChannelDelta": 0,
         "changedPixels": 0,
         "meanPixelDelta": 0
-      }
+      },
+      "strictImageContextPassed": true,
+      "rasterException": null
     },
     "recon-capture-phone-annotated.svg": {
       "width": 960,
       "height": 920,
-      "svgSha256": "417a43b168e2b330393b305688c69f52fa038d30fe74546ddac83280be96397d",
-      "pngSha256": "00fd1961e59a8e665945327522d5ed6ad2e9a7499f69904012b6294e00e897f6",
-      "filePngSha256": "00fd1961e59a8e665945327522d5ed6ad2e9a7499f69904012b6294e00e897f6",
-      "imagePngSha256": "00fd1961e59a8e665945327522d5ed6ad2e9a7499f69904012b6294e00e897f6",
+      "svgSha256": "33e890c011d182aa72a4087b936c0c4a9b4f123beb06450f637d3952e93e2cb7",
+      "pngSha256": "aa5d8dc33b152aa8ecd5150d6061069b33853c3ab16202853fe478ea52c57af2",
+      "filePngSha256": "aa5d8dc33b152aa8ecd5150d6061069b33853c3ab16202853fe478ea52c57af2",
+      "imagePngSha256": "aa5d8dc33b152aa8ecd5150d6061069b33853c3ab16202853fe478ea52c57af2",
       "imageContextDifference": {
         "maxChannelDelta": 0,
         "changedPixels": 0,
         "meanPixelDelta": 0
-      }
+      },
+      "strictImageContextPassed": true,
+      "rasterException": null
     },
     "recon-capture-cover.svg": {
       "width": 360,
       "height": 576,
-      "svgSha256": "8542f88f8d26af4d3a23191419ebaf42138bbf39c07bba7ed4ef3ede5d32c736",
-      "pngSha256": "7b69675b6f42587bb074cc7f0bf45e386d906b36f4595193164c2bd3491b8562",
-      "filePngSha256": "7b69675b6f42587bb074cc7f0bf45e386d906b36f4595193164c2bd3491b8562",
-      "imagePngSha256": "7b69675b6f42587bb074cc7f0bf45e386d906b36f4595193164c2bd3491b8562",
+      "svgSha256": "41bcfc8ddad8d552d9ba28f892665d68d4ddf9908a4d79d21f8cf4aa92d15adb",
+      "pngSha256": "62458668b2bac7eb8efb65e4f299d18dc15a5ce919b40ff0456b52fe51824e22",
+      "filePngSha256": "62458668b2bac7eb8efb65e4f299d18dc15a5ce919b40ff0456b52fe51824e22",
+      "imagePngSha256": "62458668b2bac7eb8efb65e4f299d18dc15a5ce919b40ff0456b52fe51824e22",
       "imageContextDifference": {
         "maxChannelDelta": 0,
         "changedPixels": 0,
         "meanPixelDelta": 0
-      }
+      },
+      "strictImageContextPassed": true,
+      "rasterException": null
     },
     "recon-capture-fold8-inner.svg": {
       "width": 2040,
-      "height": 1980,
-      "svgSha256": "f619b0706752d32154fde747bf7c13b8284556b5b0cf910b207c8c5a14506d23",
-      "pngSha256": "e70350eac0a47f0ea26535621599be16b5d64e1513b7752b1304b315f2c35acf",
-      "filePngSha256": "e70350eac0a47f0ea26535621599be16b5d64e1513b7752b1304b315f2c35acf",
-      "imagePngSha256": "e70350eac0a47f0ea26535621599be16b5d64e1513b7752b1304b315f2c35acf",
+      "height": 2180,
+      "svgSha256": "4d37c2bb57c7d1a46b4fe6f21f1855ccd73a87066385925c3fe09fc51141892a",
+      "pngSha256": "e1bb7eba7785f323a83e47c8e770e2c0b1af52e7228fa3030b3f48cbfc477b73",
+      "filePngSha256": "e1bb7eba7785f323a83e47c8e770e2c0b1af52e7228fa3030b3f48cbfc477b73",
+      "imagePngSha256": "e1bb7eba7785f323a83e47c8e770e2c0b1af52e7228fa3030b3f48cbfc477b73",
       "imageContextDifference": {
         "maxChannelDelta": 0,
         "changedPixels": 0,
         "meanPixelDelta": 0
-      }
+      },
+      "strictImageContextPassed": true,
+      "rasterException": null
     },
     "recon-capture-fold8-ultra-inner.svg": {
       "width": 2040,
-      "height": 4210,
-      "svgSha256": "12dd1edf8b9677d20c546998f07c841b56771a7b55dd1ff493d2e011547704c9",
-      "pngSha256": "757fbb047383772ff2f7bf7e514c253146d6d7537990a27fab5d5ae4d337ed6f",
-      "filePngSha256": "757fbb047383772ff2f7bf7e514c253146d6d7537990a27fab5d5ae4d337ed6f",
-      "imagePngSha256": "757fbb047383772ff2f7bf7e514c253146d6d7537990a27fab5d5ae4d337ed6f",
+      "height": 4300,
+      "svgSha256": "81645443260497d1b908b670044550a17921f1b66cc0e0b513dfca4ac059ce23",
+      "pngSha256": "9efe49bee0bc2a3d17204ab2b7f0be9f20e119ae0800d6c2e5224ff00421f5b6",
+      "filePngSha256": "9efe49bee0bc2a3d17204ab2b7f0be9f20e119ae0800d6c2e5224ff00421f5b6",
+      "imagePngSha256": "9efe49bee0bc2a3d17204ab2b7f0be9f20e119ae0800d6c2e5224ff00421f5b6",
       "imageContextDifference": {
         "maxChannelDelta": 0,
         "changedPixels": 0,
         "meanPixelDelta": 0
-      }
+      },
+      "strictImageContextPassed": true,
+      "rasterException": null
+    },
+    "recon-capture-layout-checks.svg": {
+      "width": 2040,
+      "height": 3670,
+      "svgSha256": "d6343bd4ee53e91ddf93cc9d1a27e0732f21e29724a420977a61ccf5fba2a019",
+      "pngSha256": "80b162ba8292000a466189aae5c668fc3e91e24a0e6fd3070849d8cf8935b0f4",
+      "filePngSha256": "80b162ba8292000a466189aae5c668fc3e91e24a0e6fd3070849d8cf8935b0f4",
+      "imagePngSha256": "80b162ba8292000a466189aae5c668fc3e91e24a0e6fd3070849d8cf8935b0f4",
+      "imageContextDifference": {
+        "maxChannelDelta": 0,
+        "changedPixels": 0,
+        "meanPixelDelta": 0
+      },
+      "strictImageContextPassed": true,
+      "rasterException": null
+    },
+    "recon-capture-aspect-ratios.svg": {
+      "width": 2040,
+      "height": 4960,
+      "svgSha256": "2531239e737c51e7e6d0bc2b418a518cc6a115753b501355c656bf701804a595",
+      "pngSha256": "24eb40e890e3953fe6f40f5d5e01240a443f78fe15fb5388d5d33e144774ebb5",
+      "filePngSha256": "24eb40e890e3953fe6f40f5d5e01240a443f78fe15fb5388d5d33e144774ebb5",
+      "imagePngSha256": "24eb40e890e3953fe6f40f5d5e01240a443f78fe15fb5388d5d33e144774ebb5",
+      "imageContextDifference": {
+        "maxChannelDelta": 0,
+        "changedPixels": 0,
+        "meanPixelDelta": 0
+      },
+      "strictImageContextPassed": true,
+      "rasterException": null
     }
   },
   "assets": {

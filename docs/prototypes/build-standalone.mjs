@@ -37,7 +37,7 @@ async function save(name, previous, next) {
 }
 await save(canonical, design, embedFont(design));
 let phone;
-for (const kind of ['phone', 'cover', 'fold8-inner', 'fold8-ultra-inner']) {
+for (const kind of ['phone', 'cover', 'fold8-inner', 'fold8-ultra-inner', 'layout-checks', 'aspect-ratios']) {
   const name = `recon-capture-${kind}.svg`;
   const previous = await readFile(join(root, name), 'utf8');
   let text = previous;
@@ -79,9 +79,9 @@ ${phone.trim()}
   <text x="440" y="34" font-size="22" font-weight="700">Phone / PHOTO idle</text>
   <text x="24" y="836" font-size="14" fill="#bdbdbd">360 × 800 logical units · artboard at 1:1</text>
   <g fill="none" stroke="#777" stroke-width="1">
-    <path d="M372 316H408V156H424"/>
-    <path d="M372 654H414V328H424"/>
-    <path d="M372 742H420V456H424"/>
+    <path d="M372 312H408V156H424"/>
+    <path d="M372 604H414V328H424"/>
+    <path d="M372 692H420V456H424"/>
   </g>
   <g font-size="18" font-weight="700">
     <text x="440" y="160">Preview gestures</text>
@@ -92,17 +92,17 @@ ${phone.trim()}
   <g font-size="15" fill="#ccc">
     <text x="440" y="192">Swipe right → VIDEO · swipe left → VOICE</text>
     <text x="440" y="220">Tap to focus · pinch to zoom</text>
-    <text x="440" y="248">Complete 3:4 frame; no stretch or crop.</text>
+    <text x="440" y="248">Full-width 3:4 stream; zoom overlays its lower edge.</text>
     <text x="440" y="364">Flash · shutter · switch camera</text>
-    <text x="440" y="392">12-unit gaps: zoom → shutter → queue.</text>
+    <text x="440" y="392">12-unit visual gaps: zoom → shutter → queue.</text>
     <text x="440" y="492">Left edge → swipe right to commit</text>
     <text x="440" y="520">Right edge → swipe left to discard</text>
     <text x="440" y="548">Thumbnail ↓ pull down to delete one item</text>
     <text x="440" y="576">Long-press + drag ↔ to reorder</text>
     <text x="440" y="604">Gap ↓ split · gap ↑ remove divider</text>
-    <text x="440" y="632">Active colored swiper replaces its edge handle.</text>
+    <text x="440" y="632">3 visible items; scroll for more. Edge swiper replaces handle.</text>
     <text x="440" y="760">Notes and leader lines never enter the app viewport.</text>
-    <text x="440" y="788">Safe insets: top 24 · bottom 22 (illustrative).</text>
+    <text x="440" y="788">24-unit safe insets + 48-unit queue travel (fixtures).</text>
     <text x="440" y="816">Scene text/grid are camera test content, not app UI.</text>
     <text x="440" y="844">State variants and gesture diagrams: design-system sheet.</text>
   </g>

@@ -1,10 +1,10 @@
 # SVG correction and review record
 
-Scope: the five Android SVG prototypes, the phone annotation companion, supporting assets and reference documentation. No Kotlin, manifest, iOS or camera implementation changes.
+Scope: eight Android SVG artifacts (design system, phone, cover, two inner matrices, phone annotations, layout checks and aspect-ratio studies), supporting assets and reference documentation. No Kotlin, manifest, iOS or camera implementation changes.
 
-**Accepted for static prototype reference on 2026-11-01.** All five batch gates passed. The final independent reviewer found no remaining actionable issues after corrections and inspected every current sheet and inner-screen artboard.
+**Historical acceptance:** the earlier five batch gates covered the files at those commits, not the current revised design. Current batch evidence appears below when verified.
 
-**Scope correction after native-camera research:** those gates validated rendered geometry and legibility, not actual camera/display orientation or grip ergonomics. The [orientation and grip review](../foldable-camera-orientation-ux-review.md) supersedes screen-level orientation/reach acceptance: the inner matrices omit the opposite window/frame axes visible in the supplied Fold8 rear-camera screenshots. Shared component verification and render reproducibility remain valid. Replacement layouts and on-device evidence are still required; do not treat the old inner-screen compositions as implementation-ready.
+**Current design correction:** inner matrices now follow the opposite window/frame axes visible in the supplied Fold8 rear-camera screenshots. This correction needs no additional hardware proof. The whole-design revision also updates queue travel, grip grouping, shared states and developer guidance. Runtime transform and reach tests are recorded in the [backlog](camera-layout-implementation.md); they do not block the corrected static design.
 
 ## Portability follow-up
 
@@ -95,3 +95,17 @@ Commit workflow: complete a batch, validate it, obtain independent review, resol
 Each batch gate records review of rendered static prototypes. The five primary SVGs and annotation companion render with shared dependencies, pass XML/reference validation, and preserve their drawn preview ratios. `review/manifest.json` ties saved PNG evidence to SVG and font hashes. Approval covers historical rendering, shared component geometry and reproducibility in the reference renderer. Inner-screen orientation and ergonomic compositions are superseded pending replacement layouts and device evidence, as explained in the [orientation review](../foldable-camera-orientation-ux-review.md). This does not promise identical rasterization in every SVG viewer or device.
 
 Runtime gestures, TalkBack behavior, font scaling, CameraX transforms, actual hardware insets, hinge handling and recording continuity are not verified by static SVGs. They remain requirements in the [prototype contract](README.md) and [adaptive implementation plan](../adaptive-foldable-capture-plan.md). Device names are scenario labels; no hardware specifications are certified here.
+
+## Whole-design correction and adaptive framing batch — 2026-11-01
+
+**PASS for static design reference and commit**, independently reviewed by GPT-6.1-SOL reviewer Zeno (`01a1982b-d57e-7020-9c86-4f5221c43798`). The reviewer inspected all eight sheets, every design-system panel and gesture legend, all 15 aspect-ratio examples, corrected Fold8 directions, left-hand/hinge cases and the two real-cover feedback examples. A second pass verified the final header/backdrop contrast, corrected video-family heading and final scrim renders. No remaining actionable visual defects were found. Component author/auditor Ramanujan (`01a1981f-f987-73c3-bef4-0aed3be5392d`) was separate from the final reviewer.
+
+Corrected the demonstrated rear-frame directions immediately from the supplied Samsung screenshots. Replaced the undersized compact preview with width-maximized framing and overlay controls; complete 9:16 frames on the short cover use available height. Added square and variable Full-style framing examples, without assuming all cameras deliver 3:4. Inner layouts group capture controls into side/bottom docks and preserve queue gesture travel. Labels and explanations remain outside app viewports.
+
+The component pass restores native white shutter rings/Cameraswitch, balances primary/decorative microphones, separates edge and split hit regions, preserves colored handle replacement and directional fades, and adds explicit pending/armed/reversed/cancelled, reorder, empty/overflow, accessible action, recording-lock, tutorial and long-text states. Existing runtime shortcomings are documented; no Kotlin or manifest changes are included.
+
+Evidence: final manifest generated **2026-11-01 19:01:32 UTC**; 693 local references resolve; all eight HTTP and isolated-file renders match exactly; 36 generated geometries validate ratios, target separation, bounds and queue travel, including nested split ownership. All 288,000 pixels of the phone match its annotated companion. XML, JavaScript syntax, standalone/layout freshness and whitespace checks pass.
+
+The design-system HTML-image render has one explicit, exact-hash [rasterization exception](review/rasterization/README.md). Its strict image-context result remains **false**, not silently relabeled a pass. Independent review confirmed sparse curve-edge coverage differences without obvious displacement or broken geometry. Other artifacts retain the original strict image-context tolerances. Any change to the pinned source/direct/image hash triple invalidates the exception.
+
+This batch supersedes earlier screen geometry and incomplete state specimens. Official-source coding guidance and the remaining runtime, accessibility, grip and cross-engine validation work are in [camera-layout-implementation.md](camera-layout-implementation.md). Those backlog tasks do not block correcting the demonstrated design errors.

@@ -2,7 +2,7 @@
 
 Status: planning only. No implementation changes are included in this document.
 
-2026-11-01 correction: read the [camera orientation and grip review](foldable-camera-orientation-ux-review.md). Wide/tall window shape does not determine upright camera frame shape. The current inner SVGs omit the opposite-axis combinations shown in the supplied native-camera screenshots; their orientation and reach assumptions require revision before implementation.
+2026-11-01 correction: read the [camera orientation and grip review](foldable-camera-orientation-ux-review.md). Wide/tall window shape does not determine upright camera frame shape. The inner SVGs now correct the opposite-axis combinations shown in the supplied native-camera screenshots. Use the revised [prototype contract](prototypes/README.md) and [coding guidance/backlog](prototypes/camera-layout-implementation.md); remaining device validation does not block these design corrections.
 
 ## Goal
 
@@ -97,7 +97,7 @@ Reuse the existing components:
 - recording indicators
 - queue strip
 
-First extract the current content into an unchanged compact layout shell. Then add the wide shell. Do not rebuild every control as an adaptive component.
+Extract shared controls once, then build the compact overlay and side/bottom arrangements from the revised SVG contract. On short compact windows, maximize the fitted preview and layer controls over a contrast scrim rather than reducing the camera to a thumbnail. Keep the same control sizes and queue gesture runway across shells.
 
 The wide shell should fit the independently oriented camera frame, then place controls in usable regions. A wide window may contain a tall preview, and a tall window a wide preview. Compare a compact side control group and bottom control group using available space and grip reach, rather than width greater than height alone. Keep zoom, mode access and shutter close; evaluate a left/right dock preference without reversing queue chronology or gesture meanings.
 
@@ -162,8 +162,8 @@ CameraX `VideoCapture.setTargetRotation()` does not change an already-running `R
 2. Separate camera-binding readiness from capture `BusyState` so binding changes cannot make an active recording appear idle.
 3. Remove portrait-only manifest and documentation assumptions.
 4. Verify active-display, physical-pose and camera-transform coordinate bases for preview and EXIF/video setup; derive frame direction independently of window shape.
-5. Extract the unchanged compact layout shell.
-6. Add the single wide layout shell.
+5. Extract shared controls and implement the compact preview/overlay geometry from the revised prototypes.
+6. Add the shared side/bottom dock arrangements, fitting the actual upright stream ratio independently of window shape.
 7. Add hinge-boundary and safe-inset placement.
 8. Validate queue reach/travel, system-gesture boundaries and cancel-without-action behavior; update external tutorial annotations for both shells.
 9. Add Compose/layout and transition tests.

@@ -1,106 +1,88 @@
-# Recon Android capture prototype contract
+# Recon Android capture design contract
 
-Status: static SVG design reference. See [review record](REVIEW.md) for acceptance evidence and limits.
+Static SVG reference, revised 2026-11-01. Android application code is unchanged. These designs supersede the earlier screen geometry; runtime validation belongs in the backlog and does not block evident design corrections.
 
-**Orientation review correction (2026-11-01):** the existing inner-screen matrices omit wide-window/tall-frame and tall-window/wide-frame cases shown by the supplied Samsung camera screenshots. They remain visual proposals, not an accepted camera-orientation or ergonomic implementation contract. Read the [orientation and grip review](../foldable-camera-orientation-ux-review.md) before using their screen geometry. Shared component approvals remain useful; screen-level orientation/reach approval is superseded pending revised prototypes and device evidence.
+## Read and view
 
-## Reading order
+1. [Design system](recon-capture-design-system.svg) and [component behavior contract](COMPONENT-CONTRACT.md): reusable controls, queue states, gestures, feedback and recording.
+2. [Phone](recon-capture-phone.svg), [cover](recon-capture-cover.svg), [external phone annotations](recon-capture-phone-annotated.svg).
+3. [Fold8 inner](recon-capture-fold8-inner.svg): four PHOTO artboards; corrected wide-window/tall-frame and tall-window/wide-frame compositions, rear and front.
+4. [Fold8 Ultra inner](recon-capture-fold8-ultra-inner.svg): the same pose study for PHOTO and VIDEO on near-square windows.
+5. [Aspect-ratio designs](recon-capture-aspect-ratios.svg): 15 phone/cover/inner examples for 3:4, 9:16 photo/video, square and variable Full-style output.
+6. [Layout checks](recon-capture-layout-checks.svg): opposite framing exceptions, left-hand dock with split queue, and a separating-hinge example.
+7. [Coding guidance and validation backlog](camera-layout-implementation.md), [review evidence](REVIEW.md), [implementation plan](../adaptive-foldable-capture-plan.md).
 
-1. [Design system](recon-capture-design-system.svg): canonical tokens, shared symbols, states and gesture diagrams.
-2. [Phone](recon-capture-phone.svg) and [cover](recon-capture-cover.svg): compact capture composition. The [phone annotation sheet](recon-capture-phone-annotated.svg) explains gestures outside an identical 1:1 phone artboard.
-3. [Fold8 inner](recon-capture-fold8-inner.svg): four photo states.
-4. [Fold8 Ultra inner](recon-capture-fold8-ultra-inner.svg): four photo states plus four actual video states.
-5. [Adaptive implementation plan](../adaptive-foldable-capture-plan.md): future runtime behavior.
+Every screen is self-contained. Open its SVG directly, or use the matching PNG in `review/`. Labels, measurement explanations and gesture instructions live outside the app viewport. The clean 360 × 800 phone is embedded unchanged at 1:1 in its annotation sheet. Test-scene words, grid and asymmetric objects represent camera content, not permanent app labels.
 
-The device names identify the requested comparison scenarios. Their logical artboards and safe insets are **representative design inputs**, not verified hardware specifications or Android window measurements. Runtime layout must use actual window bounds, density, insets and separating-hinge geometry.
+## What changed and why
 
-## Dimensions and exceptions
+The supplied Samsung screenshots already demonstrate a tall upright rear-camera frame inside a wide inner window, and a wide upright rear-camera frame inside a tall inner window. Those directions are corrected now. The coding rule is neither “wide window means wide camera” nor its inverse: determine the upright stream direction independently, then fit it. Front and Ultra use explicit illustrative capability/pose fixtures; these are design proposals, not measured sensor metadata.
 
-All artboards use 1 SVG unit = 1 logical dp-like unit. Sheet titles and captions sit outside device frames. The clean phone has no gesture explanation panel, annotation arrows or safe-area guide lines. Its companion sheet puts all callouts outside the unchanged 360 × 800 viewport. Blue safe guides in the other existing artboards remain reference aids, not product chrome. All inner artboards render at 1:1; scene specimens on the component sheet are uniformly 0.75× for comparison.
+The controls follow the job and grip. A tall frame benefits from a compact side dock: mode, zoom, shutter and queue stay together instead of requiring travel between three screen corners. A wide frame gets a bottom dock. A separate left-hand example relocates the dock without mirroring text, scene, queue chronology or commit/discard semantics. This is a better-supported starting design; physical reach testing remains a backlog task.
 
-| Item | Contract |
+Queue gestures receive real layout space. A 72-unit strip reserves 48 additional units below it, above the bottom system inset. Narrow screens show three full-size media tiles in a 312-unit queue, inset 24 units from either edge; scroll reveals the rest. Larger windows retain four tiles in a 360-unit queue. Compact screens maximize preview width where the complete frame fits; controls can layer over a bottom contrast scrim. Blank space below the queue is the gesture travel area, not an instruction panel.
+
+## Geometry
+
+One SVG unit is one logical dp-like unit. Device names describe comparison scenarios, not runtime branches. Read actual window size, density, insets, camera capabilities and hinge bounds in production.
+
+| Element | Contract |
 | --- | --- |
-| Control icon | Official Google Material Icons Filled, 24-unit glyph box centered in a 48-unit slot |
-| Shutter | 80 × 80; 3-unit ring; photo center 64, video idle center 42, recording stop square 28 |
-| Voice shutter, idle | 58-unit white center; official Material microphone in a centered 32-unit glyph box; 80-unit button bounds |
-| Feedback overlay | Shared 328 × 48 specimen for a 360-unit viewport with 16-unit side insets; all three states keep the same bounds |
-| Focus | 80 × 80 nominal indicator bounds |
-| Queue | 360 × 72 reference strip; 56 × 56 thumbnails; 8 vertical padding; 6 ordinary gap |
-| Split | 24-unit gap; 4-unit divider centered in it; group expands symmetrically; edge handles stay fixed |
-| Mode / zoom | 40-unit visual pill with explicit transparent 48-unit tap bounds; zoom targets 48 × 48, centers 55 apart |
-| Compact top bar | Deliberate 4-unit gaps between settings, 248-wide mode pill and library; independent 48-high mode targets prevent scaling from reducing the hit height |
-| Typography | Bundled Roboto variable font; sheet title 32, panel title 22, component label 18, body 14, small note 12 |
-| Colors | Canvas black; white controls; record #EF5350; delete/error #D32F2F; commit #2E7D32; discard #B26A00; voice #1F2A44 |
+| Toolbar icon | Official Material Filled 24-unit glyph in a 48 × 48 slot |
+| Shutter | 80 × 80; centered 3-unit white ring with radius 38.5 |
+| Inner fills | PHOTO 64; VIDEO idle 42; recording stop 28; VOICE idle white disk 58 with black mic glyph box 32 |
+| Queue | Height 72; thumbnail 56; padding 8 vertically; ordinary gap 6 |
+| Queue capacity | 312-wide / three visible items on compact screens; 360-wide / four on inner screens |
+| Divider | 4 wide, centered in a 24-unit expanded gap; never covers an item |
+| Mode / zoom | 40-unit visual pill; explicit nonoverlapping 48-unit-high input targets |
+| Overlay | 328-wide compact specimen, minimum height 48; wraps/grows at larger text sizes |
+| Screen fixture insets | 24 top, bottom and drag-side clearance; replace with actual runtime insets |
+| Queue gesture runway | 48 below the strip, in addition to the actual bottom inset |
+| Spacing | 4-unit base; 12-unit visual gap between zoom, shutter and queue |
 
-The existing Android source uses 26dp control icons; this prototype intentionally normalizes glyphs to the official 24dp icon grid while retaining 48dp control slots. Thumbnail media markers are decorative, smaller than control glyphs. The timer uses the darker red for legible white timer text. The original 12dp control spacing is a preferred rhythm, not a requirement to shrink controls on constrained screens.
+[layout-geometry.json](layout-geometry.json) records exact bounds for all 36 screen fixtures. It is generated from [layout-screens.mjs](layout-screens.mjs), which also validates frame ratios, target separation, screen bounds and downward queue travel.
 
-The voice shutter is a primary-action exception to the 24-unit toolbar glyph size: its microphone uses a 32-unit box, keeping the official vector proportions, on the 58-unit white center already used by Android `VoiceShutterButton`. The actual microphone ink is approximately 18.7 × 25.3 units; glyph box and visible ink are different measurements. Android currently uses a 24dp microphone here, so the enlargement is a proposed design adjustment. Toolbar microphones and queue markers retain their existing sizes. Photo uses its native 64-unit center (80 minus 8-unit padding on each side), correcting the draft's 42-unit center; video keeps its native 42-unit idle dot. These distinct fills balance the functions within identical 80-unit button bounds.
-
-Error banners use a separate dark error-container tone, `#5B1F24`, behind white text; `#D32F2F` remains the delete/error accent. The banner is a container treatment, not a second deletion-action color. Its Dismiss label has 16-unit right padding and an explicit 64 × 48 action target; Undo has a 72 × 48 target.
-
-Undo, Saved and Error now share one overlay width and 48-unit minimum height; Undo and Dismiss labels align 16 units from the right edge. The saved message is centered without an action. This deliberately standardizes the earlier arbitrary 320/260/300-unit specimens. Android already shares `ActionBanner` between Undo and Error, while `BundleSavedShimmer` currently sizes to its text; making Saved use the same width is a proposed consistency change, not a claim about current runtime behavior. The 328-unit width is the compact specimen, not a hardcoded width for every window: use the allocated queue-overlay region minus 16-unit side insets. Longer/localized or scaled text must wrap and increase overlay height without resizing the queue layout; never scale the SVG's text and hit targets to fit a different width.
-
-| Artboard | Preview | Control alignment | Queue / bottom inset |
-| --- | --- | --- | --- |
-| Phone 360 × 800 | (12,92), 336 × 448 | Row centers (60,654), (180,654), (300,654) | y706–778 / 22 |
-| Cover 360 × 576 | (75,76), 210 × 280 | Row centers (103,448), (180,448), (257,448) | y492–564 / 12 |
-| Fold8 landscape 960 × 720 | (38,98), 660 × 495 | Rail center x830 | y632–704 / 16 |
-| Fold8 portrait 720 × 960 | (110,70), 500 × 666⅔ | Row center y832 | y876–948 / 12 |
-| Ultra landscape 960 × 864 | Photo (38,98), 620 × 465; video (38,156.125), 620 × 348.75 | Rail center x800 | y776–848 / 16 |
-| Ultra portrait 864 × 960 | Photo (182,70), 500 × 666⅔; video (244.5,70), 375 × 666⅔ | Row center y832 | y876–948 / 12 |
-
-These coordinates replace the draft plan where its rail overflowed the safe region or its shutter/queue bounds overlapped. Native app insets remain dynamic; the illustrated 12-unit bottom inset must not become a hardcoded navigation-bar height.
-
-The phone's removed explanation panel contributes no layout space. The recovered area enlarges the complete 3:4 preview; the zoom pill (y562–602), shutter (y614–694) and queue (y706–778) form one bottom control group with 12-unit visual gaps. Side controls keep 48-unit bounds and the source's symmetric 56-unit gaps to the shutter. This is a proposed adaptive geometry reference, not a screenshot of the running Android app: the current source requests a full-width preview and has different zoom geometry. Camera test-scene text and grid are sample camera content, not app labels. Actual onboarding remains a separate overlay state on the design-system sheet.
-
-## Gestures and state ownership
-
-| Start zone / state | Input | Result / cancellation |
+| Screen | Upright PHOTO frame | Dock / queue |
 | --- | --- | --- |
-| Preview, idle | Swipe right / left | Previous / next mode in VIDEO–PHOTO–VOICE order; distance or same-direction velocity commits; below threshold returns |
-| Preview | Tap / two-finger pinch | Focus / zoom; pinch owns the gesture once multiple pointers participate; a drag is not also a focus tap |
-| Left queue edge | Swipe right | Green commit swiper replaces the left neutral handle; fade points right; opposite handle remains |
-| Right queue edge | Swipe left | Amber discard swiper replaces the right neutral handle; fade points left; opposite handle remains; undo is offered |
-| Thumbnail | Pull down | One-item delete feedback; red glow and downward displacement; cancel before threshold or pointer cancellation restores the item |
-| Thumbnail | Long press, then drag left or right | Reorder; snap to slot on release; cancel restores position |
-| Visible inter-item gap | Pull down / up | Insert / remove divider; expanded gap is 24 units, ordinary gap 6; threshold haptic |
-| Tutorial visible | Input inside scrim | Tutorial consumes input; underlying capture gestures do not run |
-| Recording | Mode, queue, lens, flash and mic actions | Locked; stop remains available |
+| Phone 360 × 800 | 360 × 480, at (0,72); zoom overlays lower edge | Shutter y564; queue (24,656), 312 × 72 |
+| Cover 360 × 576 | 360 × 480, at (0,72); controls overlay | Shutter y340; queue (24,432), 312 × 72 |
+| Fold8 wide 960 × 720 | 459 × 612, at (58.5,84) | Right dock; queue (576,576), 360 × 72 |
+| Fold8 tall 720 × 960 | 672 × 504, at (24,92) | Bottom dock; queue (180,816), 360 × 72 |
+| Ultra wide 960 × 864 | 528 × 704, at (24,110) | Right dock; queue (576,720), 360 × 72 |
+| Ultra tall 864 × 960 | 693⅓ × 520, centered in preview region | Bottom dock; queue (252,816), 360 × 72 |
 
-**Gesture arbitration refinement:** ownership is selected by the initial visible zone and retained until release/cancel. A gap gesture must not steal a gesture that began on a thumbnail. Narrow gap lanes are gesture initiation regions, not 48dp tap buttons; their geometry does not satisfy an accessible tap target. Preserve existing screen-reader actions for commit/discard, remove and reorder, and provide split/unsplit semantic actions in implementation. Verify pointer arbitration and accessibility on-device; static rectangles cannot prove runtime hit testing.
+Preview rectangles use uniform scale. On compact screens, the 3:4 frame fills the usable width and controls overlay the image; this intentional visual occlusion is distinct from cropping the camera stream. Controls own input above the preview; taps/swipes beginning on a control cannot also focus or change mode. Other layouts fit the preview in the remaining region. The additional ratio sheet covers 9:16 PHOTO and VIDEO, 1:1 PHOTO, and variable Full-style crops. On the short cover, 9:16 fits to 297 × 528 with controls overlaying the frame: full-width 360 × 640 would exceed available height. VIDEO in inner matrices uses 9:16 or 16:9 in allocated regions. Controls may visually occlude part of an overlaid preview; this is not a crop or stretch of the stream. Capability fixtures show rear zoom presets versus front 1× and unavailable rear flash. Production controls depend on the selected camera's capabilities, not a universal rear/front assumption.
 
-The prototype intentionally replaces the legacy queue's active edge-handle decoration with the colored swiper. No neutral handle is drawn beneath an active check/close control. The idle queue has no background bar. Queue and focus examples are separate.
+The 24-unit toolbar glyph normalization, larger voice mic, consistent overlay widths, white recording rings, safe queue capacity and adaptive dock geometry are intentional prototype decisions. Preserve current Android behavior where it is sound, rather than copying accidental limitations. Shared queue handle geometry is 6 × 28 in this prototype; native idle handles currently differ.
 
-The long-press/reorder diagram centers the hold marker between equal left/right arrows, matching the preview-swipe diagram's directional convention. Its dashed halo distinguishes holding from immediate swiping; the arrow shafts stop outside the halo so the hold marker stays legible.
+## Behavior contract
 
-Queue edge-swipe diagrams reuse the actual 6 × 28 rounded neutral handle at 1:1, with inward arrows: left handle moves right to commit; right handle moves left to discard. This shows the starting affordance. Active colored swipers still replace the corresponding handle, as shown in the queue-state specimens.
+- Preview: tap focuses, pinch zooms, horizontal swipe changes idle mode. A pinch cannot also focus or switch mode.
+- Queue: left handle inward commits; right handle inward discards; colored swiper replaces that handle. Fades point toward travel. Other handle remains neutral.
+- Item pull-down deletes; long-press plus horizontal drag reorders; gap down/up splits/unsplits. Queue remains horizontal when the device rotates.
+- Initial visible region owns the gesture until release/cancel. Expanded split gaps must not steal thumbnail input. Ordinary narrow-gap gestures are shortcuts, not accessible tap targets.
+- A deliberate release commits an armed mutation. Cancellation, reversal below threshold, interrupted input or recording lock restores the prior state. Velocity alone must not discard media.
+- Selected-item actions provide Remove, Move earlier/later and Split after/Remove split without precise dragging. Preserve semantic actions for screen readers.
+- During recording, disable mutating pointer handlers and accessibility actions, not just opacity. Stop stays enabled; queued media stays visible.
+- Rotation continues the same recording. Fold/unfold stops and finalizes exactly once. Ordinary resize alone is not a fold.
 
-The delete-state specimen shows a 20-unit downward drag at 50% progress: only the dragged video thumbnail moves, to y28 from y8, with alpha 0.75. A dashed outline marks its original slot as an annotation. As in `QueueThumbnail.kt`, progress is `clamp(dragY / 40, 0, 1)` and thumbnail alpha is `clamp(1 - dragY / 80, 0.3, 1)`; deletion commits on release after exceeding 40 units. The usable-screen-bottom glow follows `DeleteGlow`: height 18, Gaussian sigma 56 centered beneath the dragged thumbnail, vertical transparent-to-`#D32F2F` gradient with maximum alpha `0.7 × progress` (0.35 in this specimen). The glow stays above system navigation insets. The specimen's baseline represents that usable bottom, not an extra queue background.
+See the component sheet for empty/overflow/split/reorder, armed/cancelled, tutorial, banner and recording examples. These are requirements for later implementation, not claims that existing Android handlers already enforce them.
 
-The design sheet also includes composed VIDEO and VOICE recording references: the active mode stays selected but locked; timer/waveform and Stop remain visible; existing queued media stays visible but disabled. Voice hides the camera side controls. These are state assemblies, not extra device layouts. Feedback banners occupy the queue overlay slot without pushing the shutter or queue downward.
+## Rebuild and review
 
-## Camera and transitions
+```sh
+node docs/prototypes/layout-screens.mjs
+node docs/prototypes/build-standalone.mjs
+node docs/prototypes/layout-screens.mjs --check
+node docs/prototypes/build-standalone.mjs --check
+xmllint --noout docs/prototypes/*.svg
+node docs/prototypes/render-review.mjs
+```
 
-Keep lens selection, front/rear facing, sensor-native orientation, display rotation, preview aspect and UI layout orientation separate. Wide window dimensions alone never determine camera rotation. The upright PHOTO frame can be 4:3 or 3:4, and VIDEO 16:9 or 9:16, independently of window shape. Derive that direction from the camera/display transform and selected output, then fit it. FIT_CENTER preserves the delivered preview stream; preview/capture crop agreement still needs verification. Circles remain circular, labels upright, and asymmetric landmarks expose accidental mirroring. Front preview mirroring remains an explicit future product decision; these test scenes are unmirrored. The current inner matrices cover only matching window/frame axes and require revision as described above.
+Edit screen geometry in `layout-screens.mjs`, shared symbols in the design-system SVG, and external phone callouts in `build-standalone.mjs`. Do not edit generated symbol blocks or font data. The bundler embeds only used shared definitions with scoped IDs.
 
-Gold lines separate matrix artboards; they are **not physical hinges** and do not validate hinge handling. On a separating hinge, fit the complete preview, focus feedback, primary controls, queue and their gesture regions within an available region. Flat-screen matrices do not prescribe a particular device crease or demonstrate a tabletop posture.
+The renderer checks eight SVGs in HTTP, isolated local-file and HTML-image contexts, with source/PNG hashes in `review/manifest.json`. Local-file output must equal HTTP. Image-context antialiasing normally allows max channel delta 8/255 and mean pixel delta 0.05/255. One exact design-system source/direct-PNG/image-PNG hash triple has a documented [curve-edge rasterization exception](review/rasterization/README.md): 308 of 9,936,000 pixels exceed delta8; the manifest explicitly records that the strict image-context check is false. Any changed source or raster invalidates the exception. The annotation sheet must contain the exact 288,000 phone pixels. Independent visual review supplements these structural checks. Android touch arbitration, camera output, accessibility and hand reach still require runtime testing.
 
-Rotation continues the same video or voice recording. Fold/unfold stops and finalizes once before adapting. These remain implementation requirements, not behavior executed by SVG.
+## Assets
 
-## Reproduce the evidence
-
-The five primary SVGs and the phone annotation companion are self-contained: open them directly. Components use local `<symbol>` / `<use>` references, and Roboto is embedded as font data. Viewing a screen does not require a web server, a sibling design-system SVG or an external font file.
-
-Shared components remain authored in `recon-capture-design-system.svg`. After changing them, run `node docs/prototypes/build-standalone.mjs`; it updates the marked generated definitions in each screen, includes only the required symbol dependencies, scopes IDs/styles to avoid collisions, and embeds the font. Do not hand-edit the generated blocks or font payloads. Edit each screen's layout outside its generated block. Run `node docs/prototypes/build-standalone.mjs --check` to detect stale exports without writing files.
-
-The same bundler generates `recon-capture-phone-annotated.svg` from the clean phone, at 1:1, plus external callouts. Edit those callouts in the bundler's sheet template; never maintain a second copy of the phone layout.
-
-Then run `node docs/prototypes/render-review.mjs`. It uses installed Chrome (or `CHROME_BIN`), starts a temporary loopback-only server, validates local IDs/references and embedded font bytes, checks PNG dimensions, and saves six PNGs plus source/asset hashes under `review/`. It also copies each SVG into an isolated directory and renders it via `file://`, then tests it through an HTML `<img>`. Local-file output must match HTTP exactly. Image-context output permits only tightly bounded compositor rounding (maximum channel delta 8/255 and mean pixel delta 0.05/255), with actual differences recorded in the manifest. The annotated sheet's phone region must match all 288,000 pixels of the clean phone exactly. These checks catch blank-component failures and accidental annotation-driven layout drift. The command requires local server and browser permissions; ordinary SVG viewing does not.
-
-Saved PNGs remain useful for viewers with incomplete SVG support. This validation covers the tested Chrome document/file/image contexts, not every third-party SVG engine. None of these checks run the Android app.
-
-## Asset sources
-
-Official [Google Material Icons](https://github.com/google/material-design-icons) paths come from `src/<category>/<name>/materialicons/24px.svg`: settings, collections, flash_off, flash_auto, flash_on, flip_camera_android, mic, mic_off, check, close and play_arrow. Paths are embedded once in shared symbols; Apache-2.0 license is bundled in `assets/Material-Icons-LICENSE.txt`.
-
-[Roboto from Google Fonts](https://github.com/google/fonts/tree/main/ofl/roboto) is bundled as `assets/Roboto.ttf` with `assets/Roboto-OFL.txt`. Font and icon sources were retrieved on 2026-11-01; hashes are recorded with review renders. Focus indicators, waveform, test scenes and gesture diagrams are Recon-specific vectors.
+Icons use [Google Material Icons](https://github.com/google/material-design-icons) Filled vectors; license in `assets/Material-Icons-LICENSE.txt`. Lens switching uses `cameraswitch` to match the Android source. Roboto comes from [Google Fonts](https://github.com/google/fonts/tree/main/ofl/roboto), with its license in `assets/Roboto-OFL.txt`. Recon-specific scene, focus, waveform and gesture vectors remain shared symbols.
