@@ -24,7 +24,17 @@ Added an external annotation companion generated from the exact clean phone at 1
 
 Independent GPT-6.1-SOL review: **PASS**, Euler (`01a1980c-13d3-7590-959a-99d04fa8d530`), explicitly selected in the spawn request. The reviewer reopened both final PNGs after the side-control spacing correction, checked 48-unit slots and exact 56-unit horizontal gaps, confirmed no clipping or annotations inside the phone, and independently compared all 288,000 phone pixels. Final phone/companion SVG and PNG hashes match `review/manifest.json`; no actionable findings remain. XML, bundler freshness, JavaScript syntax and whitespace checks also pass. This follow-up is verified before commit.
 
-## Batch gates
+## Voice shutter and feedback width follow-up
+
+The user identified a weak microphone in the shutter family and unexplained banner widths. The voice SVG had reused a 24-unit toolbar glyph and omitted Android's 58-unit white center. Restored that center and enlarged the official microphone glyph box to 32 units for the primary action; the 80-unit button, toolbar glyphs and queue markers keep their sizes. The larger shutter glyph is a documented proposal beyond Android's current 24dp glyph.
+
+Standardized Undo, Saved and Error specimens to 328 × 48, representing a 360-unit compact window with 16-unit side insets. The prior 320/260/300 widths were not a coherent layout rule. Android shares `ActionBanner` for Undo/Error but uses a content-sized Saved shimmer; equalizing Saved is documented as a proposed consistency change. Action labels now share the same 16-unit right inset while retaining 72/64 × 48 targets.
+
+Initial independent review found one additional imbalance: the draft photo center was 42 units rather than Android's native 64. Corrected it to 64 while retaining voice58 and video42; all outer button bounds and screen placements are unchanged.
+
+Independent GPT-6.1-SOL review: **PASS**, Erdos (`01a19811-a538-7a93-bf5c-d858ee3f460f`). The reviewer inspected all six final PNGs and confirmed the corrected shutter family is balanced, microphone sizing and banner alignment are sound, and no actionable findings remain. All six SVGs pass HTTP/isolated-file/image rendering, 325 references resolve, and all 288,000 phone/annotation pixels match. Screen layout markup outside generated shared definitions is unchanged; XML, bundler freshness and whitespace checks pass. This follow-up is verified before commit.
+
+## Initial batch gates
 
 Commit workflow: complete a batch, validate it, obtain independent review, resolve findings, then commit before starting the next batch. For this initial correction run, commits were recorded afterward from the final reviewed files and grouped by batch scope; they do not reconstruct the intermediate review snapshots. Shared components therefore include the final integration corrections in the design-system commit.
 

@@ -19,7 +19,9 @@ All artboards use 1 SVG unit = 1 logical dp-like unit. Sheet titles and captions
 | Item | Contract |
 | --- | --- |
 | Control icon | Official Google Material Icons Filled, 24-unit glyph box centered in a 48-unit slot |
-| Shutter | 80 × 80; 3-unit ring |
+| Shutter | 80 × 80; 3-unit ring; photo center 64, video idle center 42, recording stop square 28 |
+| Voice shutter, idle | 58-unit white center; official Material microphone in a centered 32-unit glyph box; 80-unit button bounds |
+| Feedback overlay | Shared 328 × 48 specimen for a 360-unit viewport with 16-unit side insets; all three states keep the same bounds |
 | Focus | 80 × 80 nominal indicator bounds |
 | Queue | 360 × 72 reference strip; 56 × 56 thumbnails; 8 vertical padding; 6 ordinary gap |
 | Split | 24-unit gap; 4-unit divider centered in it; group expands symmetrically; edge handles stay fixed |
@@ -30,7 +32,11 @@ All artboards use 1 SVG unit = 1 logical dp-like unit. Sheet titles and captions
 
 The existing Android source uses 26dp control icons; this prototype intentionally normalizes glyphs to the official 24dp icon grid while retaining 48dp control slots. Thumbnail media markers are decorative, smaller than control glyphs. The timer uses the darker red for legible white timer text. The original 12dp control spacing is a preferred rhythm, not a requirement to shrink controls on constrained screens.
 
+The voice shutter is a primary-action exception to the 24-unit toolbar glyph size: its microphone uses a 32-unit box, keeping the official vector proportions, on the 58-unit white center already used by Android `VoiceShutterButton`. The actual microphone ink is approximately 18.7 × 25.3 units; glyph box and visible ink are different measurements. Android currently uses a 24dp microphone here, so the enlargement is a proposed design adjustment. Toolbar microphones and queue markers retain their existing sizes. Photo uses its native 64-unit center (80 minus 8-unit padding on each side), correcting the draft's 42-unit center; video keeps its native 42-unit idle dot. These distinct fills balance the functions within identical 80-unit button bounds.
+
 Error banners use a separate dark error-container tone, `#5B1F24`, behind white text; `#D32F2F` remains the delete/error accent. The banner is a container treatment, not a second deletion-action color. Its Dismiss label has 16-unit right padding and an explicit 64 × 48 action target; Undo has a 72 × 48 target.
+
+Undo, Saved and Error now share one overlay width and 48-unit minimum height; Undo and Dismiss labels align 16 units from the right edge. The saved message is centered without an action. This deliberately standardizes the earlier arbitrary 320/260/300-unit specimens. Android already shares `ActionBanner` between Undo and Error, while `BundleSavedShimmer` currently sizes to its text; making Saved use the same width is a proposed consistency change, not a claim about current runtime behavior. The 328-unit width is the compact specimen, not a hardcoded width for every window: use the allocated queue-overlay region minus 16-unit side insets. Longer/localized or scaled text must wrap and increase overlay height without resizing the queue layout; never scale the SVG's text and hit targets to fit a different width.
 
 | Artboard | Preview | Control alignment | Queue / bottom inset |
 | --- | --- | --- | --- |
