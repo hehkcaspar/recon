@@ -1,6 +1,6 @@
 # SVG correction and review record
 
-Scope: the five Android SVG prototypes, supporting assets and reference documentation. No Kotlin, manifest, iOS or camera implementation changes.
+Scope: the five Android SVG prototypes, the phone annotation companion, supporting assets and reference documentation. No Kotlin, manifest, iOS or camera implementation changes.
 
 **Accepted for static prototype reference on 2026-11-01.** All five batch gates passed. The final independent reviewer found no remaining actionable issues after corrections and inspected every current sheet and inner-screen artboard.
 
@@ -13,6 +13,16 @@ All five SVGs now embed their fonts and required shared definitions. `build-stan
 Verification: all five HTTP PNGs are byte-identical to the previously accepted renders; all five isolated local-file renders match HTTP exactly. Phone, cover, Fold8 and Ultra also match exactly in HTML image context. The design-system image-context render differs only by compositor rounding (maximum channel delta 4/255, mean pixel delta approximately 0.003243/255). All 296 local references resolve, XML parses, and the bundler's non-mutating freshness check passes.
 
 Independent GPT-6.1-SOL review: **PASS**, Boole (`01a19801-966b-7ae3-8294-1e66f0d4fc82`). The reviewer visually inspected all five sheets, isolated phone/Fold8/Ultra renders and image-context outputs, independently reran the corrected isolation harness, and confirmed no external dependencies, CSS conflicts or remaining actionable findings. This follow-up is verified before commit.
+
+## Phone annotation separation follow-up
+
+The prior phone mock placed a gesture explanation panel inside the app viewport. Although labeled as an annotation, it consumed screen area and separated the shutter from the queue. That made the composition unsuitable as a clean geometry reference.
+
+Removed the panel and blue safe guides from the clean 360 × 800 phone. Reclaimed the space for a 336 × 448 complete 3:4 preview and a bottom control group with 12-unit visual gaps between zoom, shutter and queue. Side controls retain 48-unit targets and symmetric source-based spacing. The clean phone remains a proposed adaptive layout, not a measured Android runtime screenshot.
+
+Added an external annotation companion generated from the exact clean phone at 1:1. Explanatory text and leaders stay outside its viewport; camera test-scene markings remain inside the sample camera content. The renderer now verifies the annotated phone crop matches all 288,000 clean-phone pixels exactly, as well as checking all six files in HTTP, isolated-file and HTML image contexts. The four unaffected primary SVGs and PNGs match their previous committed hashes.
+
+Independent GPT-6.1-SOL review: **PASS**, Euler (`01a1980c-13d3-7590-959a-99d04fa8d530`), explicitly selected in the spawn request. The reviewer reopened both final PNGs after the side-control spacing correction, checked 48-unit slots and exact 56-unit horizontal gaps, confirmed no clipping or annotations inside the phone, and independently compared all 288,000 phone pixels. Final phone/companion SVG and PNG hashes match `review/manifest.json`; no actionable findings remain. XML, bundler freshness, JavaScript syntax and whitespace checks also pass. This follow-up is verified before commit.
 
 ## Batch gates
 
@@ -42,8 +52,8 @@ Commit workflow: complete a batch, validate it, obtain independent review, resol
 
 ## Technical evidence
 
-- All five SVGs parse with `xmllint --noout docs/prototypes/*.svg`.
-- The reproducible renderer validates unique IDs and all local references, checks all five PNG dimensions and embedded font bytes, and compares HTTP, isolated-file and image-context rendering. The current reference count is recorded in `review/manifest.json`.
+- All six SVGs parse with `xmllint --noout docs/prototypes/*.svg`.
+- The reproducible renderer validates unique IDs and all local references, checks all six PNG dimensions and embedded font bytes, and compares HTTP, isolated-file and image-context rendering. It also compares the clean phone with its annotated companion's phone pixels. The current reference count is recorded in `review/manifest.json`.
 - Eighteen displayed scene instances preserve their source aspect ratio, including exact 4:3 / 3:4 and 16:9 / 9:16 frames (portrait fractional values rounded to six decimals).
 - All inner-screen queue bottoms remain at least 12 logical units inside the frame. Phone and cover preserve their respective 22/12-unit illustrative bottom insets.
 - Current source and PNG hashes match `review/manifest.json`. Do not reuse a visual approval after source changes without rerendering affected artifacts.
@@ -54,6 +64,7 @@ Commit workflow: complete a batch, validate it, obtain independent review, resol
 
 - [Design system and gesture/recording states](review/recon-capture-design-system.png)
 - [Traditional phone](review/recon-capture-phone.png)
+- [Traditional phone with external annotations](review/recon-capture-phone-annotated.png)
 - [Cover screen](review/recon-capture-cover.png)
 - [Fold8 inner: four photo states](review/recon-capture-fold8-inner.png)
 - [Ultra inner: four photo and four video states](review/recon-capture-fold8-ultra-inner.png)

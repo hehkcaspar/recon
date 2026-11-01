@@ -53,7 +53,7 @@ function imageDifference(a, b) {
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const chrome = process.env.CHROME_BIN || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-const files = ['design-system', 'phone', 'cover', 'fold8-inner', 'fold8-ultra-inner']
+const files = ['design-system', 'phone', 'phone-annotated', 'cover', 'fold8-inner', 'fold8-ultra-inner']
   .map(name => `recon-capture-${name}.svg`);
 const allowed = new Set(files);
 const sources = new Map(await Promise.all(files.map(async name => [name, await readFile(join(root, name), 'utf8')])));
@@ -135,6 +135,20 @@ try {
     manifest.files[name] = { width: +width, height: +height, svgSha256: sha(svg), pngSha256: sha(png), filePngSha256, imagePngSha256, imageContextDifference };
     console.log(`Verified HTTP / isolated file / img: ${name}, ${width} × ${height}`);
   }
+  // Prove the explanation sheet cannot silently become a different mockup.
+  const cleanPhone = pixels(await readFile(join(output, 'recon-capture-phone.png')));
+  const annotatedPhone = pixels(await readFile(join(output, 'recon-capture-phone-annotated.png')));
+  let differentPixels = 0;
+  for (let y = 0; y < cleanPhone.height; y++) {
+    for (let x = 0; x < cleanPhone.width; x++) {
+      const a = (y * cleanPhone.width + x) * cleanPhone.channels;
+      const b = (y * annotatedPhone.width + x) * annotatedPhone.channels;
+      if ([0, 1, 2].some(c => cleanPhone.data[a + c] !== annotatedPhone.data[b + c])) differentPixels++;
+    }
+  }
+  if (differentPixels) throw new Error(`Annotated sheet changes ${differentPixels} phone pixels`);
+  manifest.annotatedPhone = { x: 0, y: 0, width: cleanPhone.width, height: cleanPhone.height, differentPixels };
+  console.log('Annotated phone matches clean phone exactly: 288000 pixels.');
   for (const asset of ['Roboto.ttf', 'Roboto-OFL.txt', 'Material-Icons-LICENSE.txt']) manifest.assets[asset] = sha(await readFile(join(root, 'assets', asset)));
   await writeFile(join(output, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
   console.log(`Validated ${references} references; evidence saved in ${output}`);

@@ -5,7 +5,7 @@ Status: static SVG design reference. See [review record](REVIEW.md) for acceptan
 ## Reading order
 
 1. [Design system](recon-capture-design-system.svg): canonical tokens, shared symbols, states and gesture diagrams.
-2. [Phone](recon-capture-phone.svg) and [cover](recon-capture-cover.svg): compact capture composition.
+2. [Phone](recon-capture-phone.svg) and [cover](recon-capture-cover.svg): compact capture composition. The [phone annotation sheet](recon-capture-phone-annotated.svg) explains gestures outside an identical 1:1 phone artboard.
 3. [Fold8 inner](recon-capture-fold8-inner.svg): four photo states.
 4. [Fold8 Ultra inner](recon-capture-fold8-ultra-inner.svg): four photo states plus four actual video states.
 5. [Adaptive implementation plan](../adaptive-foldable-capture-plan.md): future runtime behavior.
@@ -14,7 +14,7 @@ The device names identify the requested comparison scenarios. Their logical artb
 
 ## Dimensions and exceptions
 
-All artboards use 1 SVG unit = 1 logical dp-like unit. Sheet titles and captions sit outside device frames. Blue safe guides and gesture annotations are reference aids, not product chrome. All inner artboards render at 1:1; scene specimens on the component sheet are uniformly 0.75× for comparison.
+All artboards use 1 SVG unit = 1 logical dp-like unit. Sheet titles and captions sit outside device frames. The clean phone has no gesture explanation panel, annotation arrows or safe-area guide lines. Its companion sheet puts all callouts outside the unchanged 360 × 800 viewport. Blue safe guides in the other existing artboards remain reference aids, not product chrome. All inner artboards render at 1:1; scene specimens on the component sheet are uniformly 0.75× for comparison.
 
 | Item | Contract |
 | --- | --- |
@@ -34,7 +34,7 @@ Error banners use a separate dark error-container tone, `#5B1F24`, behind white 
 
 | Artboard | Preview | Control alignment | Queue / bottom inset |
 | --- | --- | --- | --- |
-| Phone 360 × 800 | (45,92), 270 × 360 | Row centers (98,559), (180,559), (262,559) | y706–778 / 22 |
+| Phone 360 × 800 | (12,92), 336 × 448 | Row centers (60,654), (180,654), (300,654) | y706–778 / 22 |
 | Cover 360 × 576 | (75,76), 210 × 280 | Row centers (103,448), (180,448), (257,448) | y492–564 / 12 |
 | Fold8 landscape 960 × 720 | (38,98), 660 × 495 | Rail center x830 | y632–704 / 16 |
 | Fold8 portrait 720 × 960 | (110,70), 500 × 666⅔ | Row center y832 | y876–948 / 12 |
@@ -42,6 +42,8 @@ Error banners use a separate dark error-container tone, `#5B1F24`, behind white 
 | Ultra portrait 864 × 960 | Photo (182,70), 500 × 666⅔; video (244.5,70), 375 × 666⅔ | Row center y832 | y876–948 / 12 |
 
 These coordinates replace the draft plan where its rail overflowed the safe region or its shutter/queue bounds overlapped. Native app insets remain dynamic; the illustrated 12-unit bottom inset must not become a hardcoded navigation-bar height.
+
+The phone's removed explanation panel contributes no layout space. The recovered area enlarges the complete 3:4 preview; the zoom pill (y562–602), shutter (y614–694) and queue (y706–778) form one bottom control group with 12-unit visual gaps. Side controls keep 48-unit bounds and the source's symmetric 56-unit gaps to the shutter. This is a proposed adaptive geometry reference, not a screenshot of the running Android app: the current source requests a full-width preview and has different zoom geometry. Camera test-scene text and grid are sample camera content, not app labels. Actual onboarding remains a separate overlay state on the design-system sheet.
 
 ## Gestures and state ownership
 
@@ -75,11 +77,13 @@ Rotation continues the same video or voice recording. Fold/unfold stops and fina
 
 ## Reproduce the evidence
 
-The five delivered SVGs are self-contained: open them directly. Components use local `<symbol>` / `<use>` references, and Roboto is embedded as font data. Viewing a screen does not require a web server, a sibling design-system SVG or an external font file.
+The five primary SVGs and the phone annotation companion are self-contained: open them directly. Components use local `<symbol>` / `<use>` references, and Roboto is embedded as font data. Viewing a screen does not require a web server, a sibling design-system SVG or an external font file.
 
 Shared components remain authored in `recon-capture-design-system.svg`. After changing them, run `node docs/prototypes/build-standalone.mjs`; it updates the marked generated definitions in each screen, includes only the required symbol dependencies, scopes IDs/styles to avoid collisions, and embeds the font. Do not hand-edit the generated blocks or font payloads. Edit each screen's layout outside its generated block. Run `node docs/prototypes/build-standalone.mjs --check` to detect stale exports without writing files.
 
-Then run `node docs/prototypes/render-review.mjs`. It uses installed Chrome (or `CHROME_BIN`), starts a temporary loopback-only server, validates local IDs/references and embedded font bytes, checks PNG dimensions, and saves five PNGs plus source/asset hashes under `review/`. It also copies each SVG into an isolated directory and renders it via `file://`, then tests it through an HTML `<img>`. Local-file output must match HTTP exactly. Image-context output permits only tightly bounded compositor rounding (maximum channel delta 8/255 and mean pixel delta 0.05/255), with actual differences recorded in the manifest. This catches the previous blank-component failure. The command requires local server and browser permissions; ordinary SVG viewing does not.
+The same bundler generates `recon-capture-phone-annotated.svg` from the clean phone, at 1:1, plus external callouts. Edit those callouts in the bundler's sheet template; never maintain a second copy of the phone layout.
+
+Then run `node docs/prototypes/render-review.mjs`. It uses installed Chrome (or `CHROME_BIN`), starts a temporary loopback-only server, validates local IDs/references and embedded font bytes, checks PNG dimensions, and saves six PNGs plus source/asset hashes under `review/`. It also copies each SVG into an isolated directory and renders it via `file://`, then tests it through an HTML `<img>`. Local-file output must match HTTP exactly. Image-context output permits only tightly bounded compositor rounding (maximum channel delta 8/255 and mean pixel delta 0.05/255), with actual differences recorded in the manifest. The annotated sheet's phone region must match all 288,000 pixels of the clean phone exactly. These checks catch blank-component failures and accidental annotation-driven layout drift. The command requires local server and browser permissions; ordinary SVG viewing does not.
 
 Saved PNGs remain useful for viewers with incomplete SVG support. This validation covers the tested Chrome document/file/image contexts, not every third-party SVG engine. None of these checks run the Android app.
 
