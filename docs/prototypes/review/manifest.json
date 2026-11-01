@@ -1,0 +1,42 @@
+{
+  "generatedAt": "2026-11-01T16:34:24.925Z",
+  "renderer": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "referencesValidated": 224,
+  "files": {
+    "recon-capture-design-system.svg": {
+      "width": 1440,
+      "height": 3860,
+      "svgSha256": "202b7698440ae8054fa354e9a911661f21ffbe23a42388fda6b229a911d3a68e",
+      "pngSha256": "ea3f504d85ae53019637e4a32a699a41a34e489f6d16222026aa49811846aea8"
+    },
+    "recon-capture-phone.svg": {
+      "width": 360,
+      "height": 800,
+      "svgSha256": "c3fb499ecef0780adde26f3ed849488aa0d00b9c6a460a40d752d13dd3ceedcd",
+      "pngSha256": "ab7c6af1afd9a5c1edbfe0d8efe92150bd7649c416bcf08c4848ca37f8ff94f6"
+    },
+    "recon-capture-cover.svg": {
+      "width": 360,
+      "height": 576,
+      "svgSha256": "151d9d8cb15707bb3a85ec8801ae29fb691db9de2dca808ef6734a35fb11d2b2",
+      "pngSha256": "e0c6ae44fb13efda3d60610389956851da15161b7bb4ef1f4292e28ce85f0cc9"
+    },
+    "recon-capture-fold8-inner.svg": {
+      "width": 2040,
+      "height": 1980,
+      "svgSha256": "2e69c7976eba0031bc43a2d245098d2f57a0d4fbf16fcce472376b7796fc54d3",
+      "pngSha256": "07d465a54d95c82a571f91a63155a4fdbb726336308563bdbf1562b8f584c0ca"
+    },
+    "recon-capture-fold8-ultra-inner.svg": {
+      "width": 2040,
+      "height": 4210,
+      "svgSha256": "659d1aa11c3fe11e4c0e7d10be6c1985cb633c52bbded070c7cdbdf73c0e24fb",
+      "pngSha256": "4b0a736bd1435200e96063c34521b621a5e76495b751d053591616f5d4cb6023"
+    }
+  },
+  "assets": {
+    "Roboto.ttf": "d7598e12c5dbef095ff8272cfc55da0250bd07fbdecbac8a530b9b277872a134",
+    "Roboto-OFL.txt": "061402327a96aadb0bfb694a960ed289ecd38d383e396243831ab81feb109c41",
+    "Material-Icons-LICENSE.txt": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd"
+  }
+}
