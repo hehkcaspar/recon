@@ -4,6 +4,16 @@ Scope: the five Android SVG prototypes, supporting assets and reference document
 
 **Accepted for static prototype reference on 2026-11-01.** All five batch gates passed. The final independent reviewer found no remaining actionable issues after corrections and inspected every current sheet and inner-screen artboard.
 
+## Portability follow-up
+
+The initial review covered HTTP rendering only. A user subsequently opened the Fold8 SVG in a preview that did not load external shared-symbol references: frames and captions appeared, while camera scenes and controls were blank. This was a delivery defect, despite the correct HTTP renders.
+
+All five SVGs now embed their fonts and required shared definitions. `build-standalone.mjs` regenerates local symbol dependencies from the canonical design system without changing the screen layouts. Each exported file can be viewed without sibling files or a server.
+
+Verification: all five HTTP PNGs are byte-identical to the previously accepted renders; all five isolated local-file renders match HTTP exactly. Phone, cover, Fold8 and Ultra also match exactly in HTML image context. The design-system image-context render differs only by compositor rounding (maximum channel delta 4/255, mean pixel delta approximately 0.003243/255). All 296 local references resolve, XML parses, and the bundler's non-mutating freshness check passes.
+
+Independent GPT-6.1-SOL review: **PASS**, Boole (`01a19801-966b-7ae3-8294-1e66f0d4fc82`). The reviewer visually inspected all five sheets, isolated phone/Fold8/Ultra renders and image-context outputs, independently reran the corrected isolation harness, and confirmed no external dependencies, CSS conflicts or remaining actionable findings. This follow-up is verified before commit.
+
 ## Batch gates
 
 Commit workflow: complete a batch, validate it, obtain independent review, resolve findings, then commit before starting the next batch. For this initial correction run, commits were recorded afterward from the final reviewed files and grouped by batch scope; they do not reconstruct the intermediate review snapshots. Shared components therefore include the final integration corrections in the design-system commit.
@@ -33,11 +43,11 @@ Commit workflow: complete a batch, validate it, obtain independent review, resol
 ## Technical evidence
 
 - All five SVGs parse with `xmllint --noout docs/prototypes/*.svg`.
-- The reproducible renderer validates unique IDs and all shared/local references, checks all five PNG dimensions, and confirms the bundled font is requested. The current reference count is recorded in `review/manifest.json`.
+- The reproducible renderer validates unique IDs and all local references, checks all five PNG dimensions and embedded font bytes, and compares HTTP, isolated-file and image-context rendering. The current reference count is recorded in `review/manifest.json`.
 - Eighteen displayed scene instances preserve their source aspect ratio, including exact 4:3 / 3:4 and 16:9 / 9:16 frames (portrait fractional values rounded to six decimals).
 - All inner-screen queue bottoms remain at least 12 logical units inside the frame. Phone and cover preserve their respective 22/12-unit illustrative bottom insets.
 - Current source and PNG hashes match `review/manifest.json`. Do not reuse a visual approval after source changes without rerendering affected artifacts.
-- Final evidence was generated at 2026-11-01 16:34:24 UTC. The final reviewer independently validated all 224 references and all SVG/PNG/asset hashes; inspected full sheets and native-size details including all four Fold8 and all eight Ultra artboards.
+- Initial five-batch evidence was generated at 2026-11-01 16:34:24 UTC. That final reviewer independently validated 224 references and all SVG/PNG/asset hashes; inspected full sheets and native-size details including all four Fold8 and all eight Ultra artboards. The portability follow-up regenerates the manifest; its timestamp and hashes describe the current files.
 - XML parsing, renderer syntax, ratio checks and whitespace checks (including untracked prototype files) passed. Only `docs/` is changed in the worktree.
 
 ## Saved renders

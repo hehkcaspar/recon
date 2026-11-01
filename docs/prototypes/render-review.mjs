@@ -1,20 +1,69 @@
 // Dependency-free SVG evidence renderer. Run from any directory with Node + Chrome.
 import { createServer } from 'node:http';
 import { readFile, writeFile, mkdir, mkdtemp } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { inflateSync } from 'node:zlib';
+
+// Chrome's image compositor can round antialiased channels slightly differently
+// from its SVG document renderer. Decode its 8-bit PNGs to measure that difference.
+function pixels(png) {
+  const width = png.readUInt32BE(16), height = png.readUInt32BE(20);
+  const channels = { 2: 3, 6: 4 }[png[25]];
+  if (png[24] !== 8 || !channels || png[28] !== 0) throw new Error('Unsupported PNG encoding');
+  const chunks = [];
+  for (let offset = 8; offset < png.length;) {
+    const length = png.readUInt32BE(offset);
+    if (png.toString('ascii', offset + 4, offset + 8) === 'IDAT') chunks.push(png.subarray(offset + 8, offset + 8 + length));
+    offset += length + 12;
+  }
+  const raw = inflateSync(Buffer.concat(chunks)), stride = width * channels;
+  const data = Buffer.alloc(stride * height);
+  for (let y = 0; y < height; y++) {
+    const filter = raw[y * (stride + 1)];
+    if (filter > 4) throw new Error('Unsupported PNG filter');
+    for (let x = 0; x < stride; x++) {
+      const i = y * stride + x;
+      const left = x >= channels ? data[i - channels] : 0;
+      const up = y ? data[i - stride] : 0;
+      const upperLeft = y && x >= channels ? data[i - stride - channels] : 0;
+      const prediction = left + up - upperLeft;
+      const dl = Math.abs(prediction - left), du = Math.abs(prediction - up), dc = Math.abs(prediction - upperLeft);
+      const paeth = dl <= du && dl <= dc ? left : du <= dc ? up : upperLeft;
+      data[i] = (raw[y * (stride + 1) + 1 + x] + [0, left, up, Math.floor((left + up) / 2), paeth][filter]) & 255;
+    }
+  }
+  return { width, height, channels, data };
+}
+function imageDifference(a, b) {
+  a = pixels(a); b = pixels(b);
+  if (a.width !== b.width || a.height !== b.height) throw new Error('Image-context dimensions changed');
+  let maxChannelDelta = 0, sum = 0, changedPixels = 0;
+  for (let i = 0; i < a.width * a.height; i++) {
+    let delta = 0;
+    for (let channel = 0; channel < 3; channel++) delta = Math.max(delta, Math.abs(a.data[i * a.channels + channel] - b.data[i * b.channels + channel]));
+    maxChannelDelta = Math.max(maxChannelDelta, delta); sum += delta;
+    if (delta) changedPixels++;
+  }
+  return { maxChannelDelta, changedPixels, meanPixelDelta: sum / (a.width * a.height) };
+}
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const chrome = process.env.CHROME_BIN || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const files = ['design-system', 'phone', 'cover', 'fold8-inner', 'fold8-ultra-inner']
   .map(name => `recon-capture-${name}.svg`);
-const allowed = new Set([...files, 'assets/Roboto.ttf']);
+const allowed = new Set(files);
 const sources = new Map(await Promise.all(files.map(async name => [name, await readFile(join(root, name), 'utf8')])));
+const fontData = (await readFile(join(root, 'assets/Roboto.ttf'))).toString('base64');
 const ids = new Map();
 for (const [name, text] of sources) {
+  if (!text.includes(`data:font/ttf;base64,${fontData}`)) throw new Error(`Missing embedded Roboto: ${name}`);
+  for (const [, resource] of text.matchAll(/url\(["']?([^\s)"']+)/g)) {
+    if (!resource.startsWith('#') && !resource.startsWith('data:')) throw new Error(`External resource in ${name}: ${resource}`);
+  }
   const all = [...text.matchAll(/\bid="([^"]+)"/g)].map(m => m[1]);
   if (new Set(all).size !== all.length) throw new Error(`Duplicate SVG ID in ${name}`);
   ids.set(name, new Set(all));
@@ -23,20 +72,26 @@ let references = 0;
 for (const [name, text] of sources) {
   for (const [, href] of text.matchAll(/\bhref="([^"]+)"/g)) {
     const [target, id] = href.split('#');
-    if (!id || !ids.get(target || name)?.has(id)) throw new Error(`Unresolved ${name}: ${href}`);
+    if (target || !id || !ids.get(name)?.has(id)) throw new Error(`Nonlocal or unresolved ${name}: ${href}`);
     references++;
   }
 }
 
-const fontServed = new Set();
 const server = createServer(async (req, res) => {
   const name = decodeURIComponent(new URL(req.url, 'http://localhost').pathname.slice(1));
+  if (name.startsWith('image-') && name.endsWith('.html')) {
+    const svgName = name.slice(6, -5);
+    if (allowed.has(svgName)) {
+      res.setHeader('Content-Type', 'text/html');
+      res.end(`<!doctype html><html><head><style>html,body{margin:0;background:#080808}img{display:block}</style></head><body><img src="/${svgName}" alt="SVG image-context portability check"></body></html>`);
+      return;
+    }
+  }
   if (!allowed.has(name)) { res.writeHead(404).end(); return; }
   try {
     const content = await readFile(join(root, name));
-    res.setHeader('Content-Type', name.endsWith('.ttf') ? 'font/ttf' : 'image/svg+xml');
+    res.setHeader('Content-Type', 'image/svg+xml');
     res.setHeader('Cache-Control', 'no-store');
-    if (name.endsWith('.ttf')) fontServed.add(name);
     res.end(content);
   } catch (error) { res.writeHead(500).end(String(error)); }
 });
@@ -44,26 +99,42 @@ await new Promise((resolve, reject) => { server.once('error', reject); server.li
 const port = server.address().port;
 const output = join(root, 'review');
 const profile = await mkdtemp(join(tmpdir(), 'recon-svg-render-'));
+const isolated = join(profile, 'isolated');
+await mkdir(isolated);
 await mkdir(output, { recursive: true });
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
-const manifest = { generatedAt: new Date().toISOString(), renderer: chrome, referencesValidated: references, files: {}, assets: {} };
+const manifest = { generatedAt: new Date().toISOString(), renderer: chrome, referencesValidated: references, portability: 'Self-contained symbols and Roboto. Isolated file must match HTTP exactly. Img allows only compositor rounding: max channel delta 8/255 and mean pixel delta 0.05/255.', files: {}, assets: {} };
 try {
   for (const [name, svg] of sources) {
     const [, width, height] = svg.match(/<svg[^>]*\bwidth="(\d+)"[^>]*\bheight="(\d+)"/);
     const screenshot = join(output, name.replace('.svg', '.png'));
-    await new Promise((resolve, reject) => {
-      const proc = spawn(chrome, ['--headless', '--disable-gpu', '--no-first-run', '--disable-background-networking', '--disable-component-update', '--disable-sync', '--disable-extensions', '--no-default-browser-check', `--user-data-dir=${profile}`, '--force-device-scale-factor=1', `--screenshot=${screenshot}`, `--window-size=${width},${height}`, '--hide-scrollbars', '--virtual-time-budget=2000', `http://127.0.0.1:${port}/${name}`], { stdio: ['ignore', 'ignore', 'pipe'] });
+    const render = (url, destination) => new Promise((resolve, reject) => {
+      const proc = spawn(chrome, ['--headless', '--disable-gpu', '--no-first-run', '--disable-background-networking', '--disable-component-update', '--disable-sync', '--disable-extensions', '--no-default-browser-check', `--user-data-dir=${profile}`, '--force-device-scale-factor=1', `--screenshot=${destination}`, `--window-size=${width},${height}`, '--hide-scrollbars', '--virtual-time-budget=2000', url], { stdio: ['ignore', 'ignore', 'pipe'] });
       let stderr = '';
       proc.stderr.on('data', chunk => { stderr += chunk; });
       proc.once('error', reject);
       proc.once('exit', code => code === 0 ? resolve() : reject(new Error(stderr)));
     });
+    await render(`http://127.0.0.1:${port}/${name}`, screenshot);
     const png = await readFile(screenshot);
     if (png.readUInt32BE(16) !== +width || png.readUInt32BE(20) !== +height) throw new Error(`Wrong raster dimensions: ${name}`);
-    manifest.files[name] = { width: +width, height: +height, svgSha256: sha(svg), pngSha256: sha(png) };
-    console.log(`Rendered ${name}: ${width} × ${height}`);
+    // Copy only this SVG into an isolated directory: no sibling component/font files.
+    const singleDirectory = join(isolated, name.replace('.svg', ''));
+    await mkdir(singleDirectory);
+    const alone = join(singleDirectory, name);
+    await writeFile(alone, svg);
+    const localPNG = join(profile, name + '.file.png');
+    const imagePNG = join(profile, name + '.img.png');
+    await render(pathToFileURL(alone).href, localPNG);
+    await render(`http://127.0.0.1:${port}/image-${name}.html`, imagePNG);
+    const filePngSha256 = sha(await readFile(localPNG));
+    const imageBytes = await readFile(imagePNG);
+    const imagePngSha256 = sha(imageBytes);
+    const imageContextDifference = imageDifference(png, imageBytes);
+    if (filePngSha256 !== sha(png) || imageContextDifference.maxChannelDelta > 8 || imageContextDifference.meanPixelDelta > 0.05) throw new Error(`Portability render mismatch: ${name}: ${JSON.stringify(imageContextDifference)}`);
+    manifest.files[name] = { width: +width, height: +height, svgSha256: sha(svg), pngSha256: sha(png), filePngSha256, imagePngSha256, imageContextDifference };
+    console.log(`Verified HTTP / isolated file / img: ${name}, ${width} × ${height}`);
   }
-  if (!fontServed.has('assets/Roboto.ttf')) throw new Error('Roboto was not requested; check font loading before acceptance.');
   for (const asset of ['Roboto.ttf', 'Roboto-OFL.txt', 'Material-Icons-LICENSE.txt']) manifest.assets[asset] = sha(await readFile(join(root, 'assets', asset)));
   await writeFile(join(output, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
   console.log(`Validated ${references} references; evidence saved in ${output}`);

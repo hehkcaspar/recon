@@ -75,9 +75,13 @@ Rotation continues the same video or voice recording. Fold/unfold stops and fina
 
 ## Reproduce the evidence
 
-Run `node docs/prototypes/render-review.mjs` from the repository. It uses installed Chrome (or `CHROME_BIN`), starts a temporary loopback-only server, validates IDs/references, checks PNG dimensions and font requests, and saves five PNGs plus source/asset hashes under `review/`. It requires local server and browser permissions. It does not run the Android app.
+The five delivered SVGs are self-contained: open them directly. Components use local `<symbol>` / `<use>` references, and Roboto is embedded as font data. Viewing a screen does not require a web server, a sibling design-system SVG or an external font file.
 
-For interactive inspection, serve this directory with `python3 -m http.server 8765 --bind 127.0.0.1 --directory docs/prototypes`, then open the SVG filenames on localhost. Keep the five SVGs and `assets/` together: screen files reference shared symbols. File-preview apps that block external `<use>` resources are not the reference renderer; use the saved PNGs in those apps.
+Shared components remain authored in `recon-capture-design-system.svg`. After changing them, run `node docs/prototypes/build-standalone.mjs`; it updates the marked generated definitions in each screen, includes only the required symbol dependencies, scopes IDs/styles to avoid collisions, and embeds the font. Do not hand-edit the generated blocks or font payloads. Edit each screen's layout outside its generated block. Run `node docs/prototypes/build-standalone.mjs --check` to detect stale exports without writing files.
+
+Then run `node docs/prototypes/render-review.mjs`. It uses installed Chrome (or `CHROME_BIN`), starts a temporary loopback-only server, validates local IDs/references and embedded font bytes, checks PNG dimensions, and saves five PNGs plus source/asset hashes under `review/`. It also copies each SVG into an isolated directory and renders it via `file://`, then tests it through an HTML `<img>`. Local-file output must match HTTP exactly. Image-context output permits only tightly bounded compositor rounding (maximum channel delta 8/255 and mean pixel delta 0.05/255), with actual differences recorded in the manifest. This catches the previous blank-component failure. The command requires local server and browser permissions; ordinary SVG viewing does not.
+
+Saved PNGs remain useful for viewers with incomplete SVG support. This validation covers the tested Chrome document/file/image contexts, not every third-party SVG engine. None of these checks run the Android app.
 
 ## Asset sources
 
