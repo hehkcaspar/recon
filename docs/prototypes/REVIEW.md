@@ -4,6 +4,8 @@ Scope: the five Android SVG prototypes, the phone annotation companion, supporti
 
 **Accepted for static prototype reference on 2026-11-01.** All five batch gates passed. The final independent reviewer found no remaining actionable issues after corrections and inspected every current sheet and inner-screen artboard.
 
+**Scope correction after native-camera research:** those gates validated rendered geometry and legibility, not actual camera/display orientation or grip ergonomics. The [orientation and grip review](../foldable-camera-orientation-ux-review.md) supersedes screen-level orientation/reach acceptance: the inner matrices omit the opposite window/frame axes visible in the supplied Fold8 rear-camera screenshots. Shared component verification and render reproducibility remain valid. Replacement layouts and on-device evidence are still required; do not treat the old inner-screen compositions as implementation-ready.
+
 ## Portability follow-up
 
 The initial review covered HTTP rendering only. A user subsequently opened the Fold8 SVG in a preview that did not load external shared-symbol references: frames and captions appeared, while camera scenes and controls were blank. This was a delivery defect, despite the correct HTTP renders.
@@ -90,6 +92,6 @@ Commit workflow: complete a batch, validate it, obtain independent review, resol
 
 ## Acceptance boundary
 
-Each batch gate is a review of rendered static prototypes. All five current SVGs render with their shared dependencies, pass XML/reference validation, preserve exact preview ratios, and received independent review after the final shared changes. `review/manifest.json` ties saved PNG evidence to SVG and font hashes. This is approval of the documented logical-unit layouts in the reference renderer; it does not promise identical rasterization in every SVG viewer or device.
+Each batch gate records review of rendered static prototypes. The five primary SVGs and annotation companion render with shared dependencies, pass XML/reference validation, and preserve their drawn preview ratios. `review/manifest.json` ties saved PNG evidence to SVG and font hashes. Approval covers historical rendering, shared component geometry and reproducibility in the reference renderer. Inner-screen orientation and ergonomic compositions are superseded pending replacement layouts and device evidence, as explained in the [orientation review](../foldable-camera-orientation-ux-review.md). This does not promise identical rasterization in every SVG viewer or device.
 
 Runtime gestures, TalkBack behavior, font scaling, CameraX transforms, actual hardware insets, hinge handling and recording continuity are not verified by static SVGs. They remain requirements in the [prototype contract](README.md) and [adaptive implementation plan](../adaptive-foldable-capture-plan.md). Device names are scenario labels; no hardware specifications are certified here.

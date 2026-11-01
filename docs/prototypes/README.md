@@ -2,6 +2,8 @@
 
 Status: static SVG design reference. See [review record](REVIEW.md) for acceptance evidence and limits.
 
+**Orientation review correction (2026-11-01):** the existing inner-screen matrices omit wide-window/tall-frame and tall-window/wide-frame cases shown by the supplied Samsung camera screenshots. They remain visual proposals, not an accepted camera-orientation or ergonomic implementation contract. Read the [orientation and grip review](../foldable-camera-orientation-ux-review.md) before using their screen geometry. Shared component approvals remain useful; screen-level orientation/reach approval is superseded pending revised prototypes and device evidence.
+
 ## Reading order
 
 1. [Design system](recon-capture-design-system.svg): canonical tokens, shared symbols, states and gesture diagrams.
@@ -79,7 +81,7 @@ The design sheet also includes composed VIDEO and VOICE recording references: th
 
 ## Camera and transitions
 
-Keep lens selection, front/rear facing, sensor-native orientation, display rotation, preview aspect and UI layout orientation separate. Wide window dimensions alone never determine camera rotation. Photo uses 4:3 in landscape / 3:4 in portrait; video uses 16:9 / 9:16. FIT_CENTER preserves complete content, including all four video frame markers. Circles remain circular, labels upright, and asymmetric landmarks expose accidental mirroring. Front preview mirroring remains an explicit future product decision; these test scenes are unmirrored.
+Keep lens selection, front/rear facing, sensor-native orientation, display rotation, preview aspect and UI layout orientation separate. Wide window dimensions alone never determine camera rotation. The upright PHOTO frame can be 4:3 or 3:4, and VIDEO 16:9 or 9:16, independently of window shape. Derive that direction from the camera/display transform and selected output, then fit it. FIT_CENTER preserves the delivered preview stream; preview/capture crop agreement still needs verification. Circles remain circular, labels upright, and asymmetric landmarks expose accidental mirroring. Front preview mirroring remains an explicit future product decision; these test scenes are unmirrored. The current inner matrices cover only matching window/frame axes and require revision as described above.
 
 Gold lines separate matrix artboards; they are **not physical hinges** and do not validate hinge handling. On a separating hinge, fit the complete preview, focus feedback, primary controls, queue and their gesture regions within an available region. Flat-screen matrices do not prescribe a particular device crease or demonstrate a tabletop posture.
 

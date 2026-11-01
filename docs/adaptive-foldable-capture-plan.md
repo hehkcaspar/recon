@@ -2,6 +2,8 @@
 
 Status: planning only. No implementation changes are included in this document.
 
+2026-11-01 correction: read the [camera orientation and grip review](foldable-camera-orientation-ux-review.md). Wide/tall window shape does not determine upright camera frame shape. The current inner SVGs omit the opposite-axis combinations shown in the supplied native-camera screenshots; their orientation and reach assumptions require revision before implementation.
+
 ## Goal
 
 Preserve Recon's current compact phone capture experience while supporting larger, unfolded, and hinge-separated windows with a small, maintainable layout design.
@@ -54,7 +56,7 @@ The transition classifier should be a pure, unit-tested function. It should not 
 
 - Ordinary orientation changes must not destroy the active recorder.
 - Keep `CaptureController` and recording state alive across rotation.
-- Update CameraX target rotation from the display/window rotation.
+- Update preview transforms for the active display. Select capture target rotation according to the supported physical-orientation/rotation-lock policy, normalized to the active display's reference basis; window width/height must never determine it. Audit 180-degree changes and display switches.
 - Resize or reconnect the preview without stopping the recorder.
 - Do not invoke the current blanket `ON_PAUSE` stop path for a rotation.
 
@@ -77,12 +79,12 @@ The stop/finalize operation must be idempotent and must preserve capture order a
 ## Camera plan
 
 - Remove the portrait-only activity restriction.
-- Use display/window rotation as the authoritative CameraX target rotation.
+- Separate display-following preview from capture orientation under rotation lock; use CameraX's documented listener/target-rotation policies and verify active-display coordinate bases. Do not infer rotation from window aspect.
 - Keep the existing 4:3 capture configuration initially.
 - Do not rebind for ordinary rotation or resize.
 - Rebind only for actual camera configuration changes, such as lens or camera mode.
 - Keep `PreviewView` as the preview surface.
-- Add CameraX `ViewPort`/`UseCaseGroup` only if the wide layout later uses cropped `FILL_CENTER` rendering and needs synchronized crop/focus coordinates.
+- Verify preview and selected photo/video output framing under `FIT_CENTER`. Use CameraX `ViewPort`/`UseCaseGroup` when synchronized crop regions are needed, including demonstrated mismatches with `FIT_CENTER`; this decision is not conditional on switching to `FILL_CENTER`. Derive the viewport from the intended capture framing and correct rotation, not an arbitrary window-filling rectangle.
 
 ## UI plan
 
@@ -97,9 +99,9 @@ Reuse the existing components:
 
 First extract the current content into an unchanged compact layout shell. Then add the wide shell. Do not rebuild every control as an adaptive component.
 
-The wide shell should keep the preview visually bounded and place controls in usable regions. In a horizontal unfolded window this may be a side rail; in a tall unfolded window it may remain a centered portrait capture column with additional breathing room.
+The wide shell should fit the independently oriented camera frame, then place controls in usable regions. A wide window may contain a tall preview, and a tall window a wide preview. Compare a compact side control group and bottom control group using available space and grip reach, rather than width greater than height alone. Keep zoom, mode access and shutter close; evaluate a left/right dock preference without reversing queue chronology or gesture meanings.
 
-The queue and gesture tutorial should be adapted after the main layout works. Their current bottom-strip assumptions should not drive the first abstraction.
+Design the horizontal queue's placement, complete gesture travel and safe cancellation alongside the capture group, before accepting layout geometry. Queue gestures are core product behavior, not a later decoration. Keep this one shared queue component; do not rotate its interaction axes with the camera image.
 
 ## Research facts: screen geometry and camera orientation
 
@@ -140,7 +142,7 @@ Rounded corners, camera cutouts, system bars, safe areas, and hinges reduce the 
 
 ### Fold8-specific camera layout consequences
 
-- The standard Fold8 inner display is close to the app's 4:3 photo capture shape, so a 4:3 preview can occupy most of the inner window.
+- The standard Fold8's numerical 4:3 panel ratio does not imply matching camera axes. The supplied native screenshots show a tall 3:4 rear preview in the wide inner window and a wide 4:3 rear preview in the tall inner window. Front-camera and Ultra mappings require separate evidence.
 - The Fold8 Ultra inner display is near-square, so a 4:3 photo preview or 16:9 video preview should be bounded with preserved aspect ratio; use the remaining region for controls or accept letterboxing.
 - Both cover displays should use the compact phone shell.
 - Do not rotate the preview merely because an unfolded window becomes wide. Use window bounds for Compose layout and CameraX sensor metadata plus actual display rotation for the camera transform.
@@ -159,11 +161,11 @@ CameraX `VideoCapture.setTargetRotation()` does not change an already-running `R
 1. Add and unit-test the rotation/fold/unfold transition classifier.
 2. Separate camera-binding readiness from capture `BusyState` so binding changes cannot make an active recording appear idle.
 3. Remove portrait-only manifest and documentation assumptions.
-4. Make display rotation authoritative for CameraX and EXIF/video setup.
+4. Verify active-display, physical-pose and camera-transform coordinate bases for preview and EXIF/video setup; derive frame direction independently of window shape.
 5. Extract the unchanged compact layout shell.
 6. Add the single wide layout shell.
 7. Add hinge-boundary and safe-inset placement.
-8. Update gesture tutorial placement for both shells.
+8. Validate queue reach/travel, system-gesture boundaries and cancel-without-action behavior; update external tutorial annotations for both shells.
 9. Add Compose/layout and transition tests.
 10. Validate on real foldable hardware.
 
@@ -212,6 +214,6 @@ The current repository has pure JVM tests but no Android instrumented camera/lay
 - [Google Pixel 10 specifications](https://store.google.com/product/pixel_10_specs)
 - [Samsung Galaxy S25 specifications](https://www.samsung.com/us/smartphones/galaxy-s/s25-navy-256gb-sm-s931udbexaa/)
 - [Apple iPhone 17 specifications](https://www.apple.com/iphone-17/specs/)
-- [Samsung Galaxy Z Fold8/Fold8 Ultra specifications](https://news.samsung.com/us/samsung-galaxy-z-fold8-ultra-fold8-flip8-foldables-perfected-for-every-way-of-living/)
+- [Samsung Galaxy Z Fold8/Fold8 Ultra announcement](https://news.samsung.com/us/samsung-galaxy-z-fold8-ultra-fold8-flip8-foldables-perfected-every-way-of-living/)
 - [Apple iPhone Duo technical specifications](https://www.apple.com/iphone-duo/specs/)
 - [Apple iPhone Duo camera guidance](https://developer.apple.com/videos/play/tech-talks/111465/)
