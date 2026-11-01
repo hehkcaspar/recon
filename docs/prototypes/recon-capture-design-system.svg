@@ -1,0 +1,309 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1440" height="3860" viewBox="0 0 1440 3860">
+  <title>Recon Android Capture Design System</title>
+  <desc>Static SVG component sheet for Recon's Android capture surface. Coordinates use dp-like units. Tap targets are at least 48dp; narrow divider lanes are gestures, not tap targets. Gesture starts are owned by their initial zone: gap for split, thumbnail for deletion/reorder. Material Icons paths are from google/material-design-icons, Apache-2.0.</desc>
+
+  <defs>
+    <style>
+      @font-face { font-family:Roboto; src:url("assets/Roboto.ttf") format("truetype"); font-weight:100 900; font-style:normal; font-display:block; }
+      .bg { fill:#080808; }
+      .panel { fill:#141414; stroke:#2b2b2b; stroke-width:1; }
+      .panel2 { fill:#1b1b1b; }
+      .white { fill:#fff; }
+      .muted { fill:#fff; opacity:.62; }
+      .disabled { fill:#fff; opacity:.25; }
+      .label, .pageTitle, .panelTitle { fill:#fff; font-family:Roboto,Arial,sans-serif; letter-spacing:.2px; }
+      .label { font-size:18px; }
+      .pageTitle { font-size:32px; font-weight:700; }
+      .panelTitle { font-size:22px; font-weight:700; }
+      .small { fill:#aaa; font-family:Roboto,Arial,sans-serif; font-size:14px; }
+      .tiny { fill:#777; font-family:Roboto,Arial,sans-serif; font-size:12px; }
+      .token { fill:#fff; font-family:Roboto,Arial,sans-serif; font-size:16px; }
+      .icon { fill:none; stroke:#fff; stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round; }
+      .iconThin { fill:none; stroke:#fff; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+      .nativeIcon { fill:#fff; }
+      .gestureLine { fill:none; stroke:#fff; stroke-width:3; stroke-linecap:round; stroke-linejoin:round; }
+      .gestureAccent { fill:none; stroke:#66a9ff; stroke-width:3; stroke-linecap:round; stroke-linejoin:round; }
+      .gestureBox { fill:#66a9ff; fill-opacity:.12; stroke:#66a9ff; stroke-opacity:.65; stroke-dasharray:5 5; }
+    </style>
+
+    <linearGradient id="commitSwipeFade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#2E7D32" stop-opacity=".78"/>
+      <stop offset="1" stop-color="#2E7D32" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="discardSwipeFade" x1="1" y1="0" x2="0" y2="0">
+      <stop offset="0" stop-color="#B26A00" stop-opacity=".82"/>
+      <stop offset="1" stop-color="#B26A00" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Google Material Icons / Filled 24dp glyphs centered in 48dp slots. -->
+    <symbol id="iconSettings" viewBox="0 0 48 48"><g class="nativeIcon" transform="translate(12 12)"><g><path d="M0,0h24v24H0V0z" fill="none"/><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></g></g></symbol>
+    <symbol id="iconLibrary" viewBox="0 0 48 48"><g class="nativeIcon" transform="translate(12 12)"><path d="M0 0h24v24H0z" fill="none"/><path d="M22 16V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2zm-11-4l2.03 2.71L16 11l4 5H8l3-4zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6H2z"/></g></symbol>
+    <symbol id="iconFlashOff" viewBox="0 0 48 48"><g class="nativeIcon" transform="translate(12 12)"><path d="M0 0h24v24H0z" fill="none"/><path d="M3.27 3L2 4.27l5 5V13h3v9l3.58-6.14L17.73 20 19 18.73 3.27 3zM17 10h-4l4-8H7v2.18l8.46 8.46L17 10z"/></g></symbol>
+    <symbol id="iconFlashAuto" viewBox="0 0 48 48"><g class="nativeIcon" transform="translate(12 12)"><path d="M0 0h24v24H0z" fill="none"/><path d="M3 2v12h3v9l7-12H9l4-9H3zm16 0h-2l-3.2 9h1.9l.7-2h3.2l.7 2h1.9L19 2zm-2.15 5.65L18 4l1.15 3.65h-2.3z"/></g></symbol>
+    <symbol id="iconFlashOn" viewBox="0 0 48 48"><g class="nativeIcon" transform="translate(12 12)"><path d="M0 0h24v24H0z" fill="none"/><path d="M7 2v11h3v9l7-12h-4l4-8z"/></g></symbol>
+    <symbol id="iconLens" viewBox="0 0 48 48"><g class="nativeIcon" transform="translate(12 12)"><g><rect fill="none" height="24" width="24"/></g><g><g><path d="M9,12c0,1.66,1.34,3,3,3s3-1.34,3-3s-1.34-3-3-3S9,10.34,9,12z"/><path d="M8,10V8H5.09C6.47,5.61,9.05,4,12,4c3.72,0,6.85,2.56,7.74,6h2.06c-0.93-4.56-4.96-8-9.8-8C8.73,2,5.82,3.58,4,6.01V4H2v6 H8z"/><path d="M16,14v2h2.91c-1.38,2.39-3.96,4-6.91,4c-3.72,0-6.85-2.56-7.74-6H2.2c0.93,4.56,4.96,8,9.8,8c3.27,0,6.18-1.58,8-4.01V20 h2v-6H16z"/></g></g></g></symbol>
+    <symbol id="iconMic" viewBox="0 0 48 48"><g class="nativeIcon" transform="translate(12 12)"><path d="M0 0h24v24H0z" fill="none"/><path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></g></symbol>
+    <symbol id="iconMicOff" viewBox="0 0 48 48"><g class="nativeIcon" transform="translate(12 12)"><path d="M0 0h24v24H0zm0 0h24v24H0z" fill="none"/><path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"/></g></symbol>
+    <symbol id="iconMicDisabled" viewBox="0 0 48 48"><g opacity=".25"><use href="#iconMic"/></g></symbol>
+    <symbol id="iconFocus" viewBox="0 0 80 80"><circle class="iconThin" cx="40" cy="40" r="26"/><path class="iconThin" d="M40 9v10M40 61v10M9 40h10M61 40h10"/></symbol>
+    <symbol id="iconCheck" viewBox="0 0 48 48"><g class="nativeIcon" transform="translate(12 12)"><path d="M0 0h24v24H0z" fill="none"/><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></g></symbol>
+    <symbol id="iconClose" viewBox="0 0 48 48"><g class="nativeIcon" transform="translate(12 12)"><path d="M0 0h24v24H0z" fill="none"/><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></g></symbol>
+    <symbol id="iconPlay" viewBox="0 0 48 48"><g class="nativeIcon" transform="translate(12 12)"><path d="M0 0h24v24H0z" fill="none"/><path d="M8 5v14l11-7z"/></g></symbol>
+    <symbol id="hitTarget48" viewBox="0 0 48 48"><rect x="1" y="1" width="46" height="46" rx="12" fill="none" stroke="#66a9ff" stroke-opacity=".7" stroke-dasharray="3 3"/></symbol>
+    <symbol id="topBarCompact" viewBox="0 0 360 72"><use href="#iconSettings" x="4" y="12" width="48" height="48"/><g data-role="tap-targets" fill="transparent"><rect x="56" y="12" width="82.666667" height="48"/><rect x="138.666667" y="12" width="82.666667" height="48"/><rect x="221.333333" y="12" width="82.666667" height="48"/></g><use href="#modalityPill" x="56" y="16" width="248" height="40"/><use href="#iconLibrary" x="308" y="12" width="48" height="48"/></symbol>
+
+    <symbol id="modalityPill" viewBox="0 0 250 40" overflow="visible"><use href="#modalityNeutral"/><rect x="85" y="2" width="80" height="36" rx="18" fill="#fff"/><text x="125" y="25" fill="#080808" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="12" font-weight="700">PHOTO</text></symbol>
+    <symbol id="modalityPillDisabled" viewBox="0 0 250 40" overflow="visible"><g opacity=".4"><use href="#modalityPillVideo"/></g></symbol>
+    <symbol id="modalityPillVoiceDisabled" viewBox="0 0 250 40" overflow="visible"><g opacity=".4"><use href="#modalityPillVoice"/></g></symbol>
+    <symbol id="zoomChips" viewBox="0 0 220 40" overflow="visible">
+      <g data-role="tap-targets" fill="transparent"><rect x="3.5" y="-4" width="48" height="48"/><rect x="58.5" y="-4" width="48" height="48"/><rect x="113.5" y="-4" width="48" height="48"/><rect x="168.5" y="-4" width="48" height="48"/></g>
+      <rect x="0" y="0" width="220" height="40" rx="20" fill="#fff" fill-opacity=".12"/>
+      <rect x="57" y="2" width="51" height="36" rx="18" fill="#fff"/>
+      <text x="27.5" y="25" fill="#fff" fill-opacity=".78" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="14">0.5×</text>
+      <text x="82.5" y="25" fill="#080808" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="14" font-weight="700">1×</text>
+      <text x="137.5" y="25" fill="#fff" fill-opacity=".78" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="14">2×</text>
+      <text x="192.5" y="25" fill="#fff" fill-opacity=".78" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="14">5×</text>
+    </symbol>
+    <symbol id="shutterPhoto" viewBox="0 0 80 80"><circle cx="40" cy="40" r="38" fill="none" stroke="#fff" stroke-width="3"/><circle cx="40" cy="40" r="21" fill="#fff"/></symbol>
+    <symbol id="shutterVideoIdle" viewBox="0 0 80 80"><circle cx="40" cy="40" r="38" fill="none" stroke="#EF5350" stroke-width="3"/><circle cx="40" cy="40" r="21" fill="#EF5350"/></symbol>
+    <symbol id="shutterVideoRecording" viewBox="0 0 80 80"><circle cx="40" cy="40" r="38" fill="none" stroke="#EF5350" stroke-width="3"/><rect x="26" y="26" width="28" height="28" rx="6" fill="#EF5350"/></symbol>
+    <symbol id="shutterVoiceIdle" viewBox="0 0 80 80"><circle cx="40" cy="40" r="38" fill="none" stroke="#fff" stroke-width="3"/><use href="#iconMic" x="16" y="16" width="48" height="48"/></symbol>
+    <symbol id="shutterVoiceRecording" viewBox="0 0 80 80"><circle cx="40" cy="40" r="38" fill="none" stroke="#EF5350" stroke-width="3"/><rect x="26" y="26" width="28" height="28" rx="6" fill="#EF5350"/></symbol>
+    <symbol id="recordingPill" viewBox="0 0 150 32"><rect width="150" height="32" rx="16" fill="#D32F2F"/><circle cx="16" cy="16" r="4" fill="#fff"/><text x="29" y="21" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="13" font-weight="600">0:12</text><path d="M92 21v-10M100 21v-16M108 21v-7M116 21v-13" stroke="#fff" stroke-width="3" stroke-linecap="round"/></symbol>
+    <symbol id="voiceWaveform" viewBox="0 0 300 120"><path d="M10 60h280" stroke="#fff" stroke-opacity=".22" stroke-width="2"/><path d="M20 60v-16M34 60v-30M48 60v-50M62 60v-25M76 60v-42M90 60v-14M104 60v-34M118 60v-52M132 60v-24M146 60v-40M160 60v-18M174 60v-48M188 60v-29M202 60v-44M216 60v-22M230 60v-37M244 60v-50M258 60v-28M272 60v-42" stroke="#fff" stroke-width="5" stroke-linecap="round"/></symbol>
+    <symbol id="queueThumbPhoto" viewBox="0 0 56 56"><rect width="56" height="56" rx="8" fill="#416b83"/><circle cx="17" cy="18" r="7" fill="#f0c66b"/><path d="M0 44l18-18 12 10 9-8 17 16z" fill="#a8d0a0"/></symbol>
+    <symbol id="queueThumbVideo" viewBox="0 0 56 56"><rect width="56" height="56" rx="8" fill="#80523c"/><path d="M0 42l18-20 11 10 10-14 17 24z" fill="#dfa968"/><use href="#iconPlay" x="6" y="6" width="44" height="44"/></symbol>
+    <symbol id="queueThumbVoice" viewBox="0 0 56 56"><rect width="56" height="56" rx="8" fill="#1F2A44"/><use href="#iconMic" x="12" y="7" width="32" height="32"/><text x="28" y="49" fill="#fff" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="9">0:08</text></symbol>
+    <symbol id="queueHandleLeft" viewBox="0 0 360 72"><rect x="27" y="22" width="6" height="28" rx="3" fill="#fff" fill-opacity=".48"/></symbol>
+    <symbol id="queueHandleRight" viewBox="0 0 360 72"><rect x="327" y="22" width="6" height="28" rx="3" fill="#fff" fill-opacity=".48"/></symbol>
+    <symbol id="queueHandles" viewBox="0 0 360 72"><use href="#queueHandleLeft"/><use href="#queueHandleRight"/></symbol>
+    <symbol id="queueThumbs" viewBox="0 0 360 72"><use href="#queueThumbPhoto" x="59" y="8" width="56" height="56"/><use href="#queueThumbVideo" x="121" y="8" width="56" height="56"/><use href="#queueThumbVoice" x="183" y="8" width="56" height="56"/><use href="#queueThumbPhoto" x="245" y="8" width="56" height="56"/></symbol>
+    <symbol id="queueItems" viewBox="0 0 360 72"><use href="#queueHandles"/><use href="#queueThumbs"/></symbol>
+    <symbol id="queueStrip" viewBox="0 0 360 72"><use href="#queueItems"/></symbol>
+    <symbol id="queueDivider" viewBox="0 0 4 72"><rect width="4" height="72" rx="2" fill="#fff" fill-opacity=".78"/></symbol>
+    <symbol id="queueCommit" viewBox="0 0 360 72"><use href="#queueThumbs"/><use href="#queueHandleRight"/><rect x="0" y="0" width="72" height="72" fill="url(#commitSwipeFade)"/><use href="#iconCheck" x="6" y="12" width="48" height="48"/></symbol>
+    <symbol id="queueDiscard" viewBox="0 0 360 72"><use href="#queueThumbs"/><use href="#queueHandleLeft"/><rect x="288" y="0" width="72" height="72" fill="url(#discardSwipeFade)"/><use href="#iconClose" x="306" y="12" width="48" height="48"/></symbol>
+    <symbol id="queueSplit" viewBox="0 0 360 72"><use href="#queueHandles"/><use href="#queueThumbPhoto" x="50" y="8" width="56" height="56"/><use href="#queueThumbVideo" x="112" y="8" width="56" height="56"/><rect x="168" y="8" width="24" height="56" rx="8" fill="#66a9ff" fill-opacity=".08"/><use href="#queueThumbVoice" x="192" y="8" width="56" height="56"/><use href="#queueThumbPhoto" x="254" y="8" width="56" height="56"/><use href="#queueDivider" x="178" y="0" width="4" height="72"/></symbol>
+    <symbol id="focusIndicator" viewBox="0 0 80 80"><use href="#iconFocus"/></symbol>
+    <symbol id="bannerUndo" viewBox="0 0 320 48"><rect width="320" height="48" rx="10" fill="#262626"/><text x="16" y="29" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="13">Discarded 2 items</text><text x="278" y="29" fill="#fff" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="13" font-weight="700">Undo</text><rect data-role="tap-target" x="248" width="72" height="48" fill="transparent"/></symbol>
+    <symbol id="bannerSaved" viewBox="0 0 260 48"><rect width="260" height="48" rx="10" fill="#2E7D32"/><text x="130" y="29" fill="#fff" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="13" font-weight="600">Bundle saved</text></symbol>
+    <symbol id="bannerError" viewBox="0 0 300 48"><rect width="300" height="48" rx="10" fill="#5b1f24"/><text x="16" y="29" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="13">Capture failed</text><text x="284" y="29" fill="#fff" text-anchor="end" font-family="Roboto,Arial,sans-serif" font-size="13" font-weight="700">Dismiss</text><rect data-role="tap-target" x="236" width="64" height="48" fill="transparent"/></symbol>
+    <symbol id="tutorial" viewBox="0 0 360 220"><rect width="360" height="220" rx="18" fill="#000" fill-opacity=".82" stroke="#555"/><text x="180" y="42" fill="#fff" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="18" font-weight="700">Gesture Guide</text><text x="180" y="72" fill="#fff" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="14">Swipe the preview to switch modes</text><path d="M120 122h120" stroke="#fff" stroke-width="3" stroke-linecap="round"/><path d="M142 110l-22 12 22 12M218 110l22 12-22 12" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="180" cy="122" r="13" fill="#fff" fill-opacity=".2" stroke="#fff"/><circle cx="180" cy="122" r="5" fill="#fff"/><circle cx="142" cy="174" r="4" fill="#fff"/><circle cx="160" cy="174" r="4" fill="#fff" fill-opacity=".35"/><circle cx="178" cy="174" r="4" fill="#fff" fill-opacity=".35"/><rect data-role="tap-target" x="230" y="150" width="84" height="48" fill="transparent"/><rect x="230" y="155" width="84" height="38" rx="19" fill="#fff"/><text x="272" y="179" fill="#080808" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="13" font-weight="700">Next</text></symbol>
+    <symbol id="gestureSwipeH" viewBox="0 0 180 56"><path d="M28 28h118" class="gestureLine"/><path d="M134 16l16 12-16 12" class="gestureLine"/><circle cx="28" cy="28" r="14" fill="#fff" fill-opacity=".18" stroke="#fff" stroke-width="2"/></symbol>
+    <symbol id="gestureSwipeBoth" viewBox="0 0 180 56"><path d="M20 28h140M32 16L20 28l12 12M148 16l12 12-12 12" class="gestureLine"/><circle cx="90" cy="28" r="14" fill="#555" stroke="#fff" stroke-width="2"/></symbol>
+    <symbol id="gesturePullDown" viewBox="0 0 72 120"><path d="M36 28v62" class="gestureLine"/><path d="M24 78l12 14 12-14" class="gestureLine"/><circle cx="36" cy="28" r="14" fill="#fff" fill-opacity=".18" stroke="#fff" stroke-width="2"/></symbol>
+    <symbol id="gesturePinch" viewBox="0 0 140 90"><path d="M34 28l24 22M106 28L82 50" class="gestureLine"/><path d="M50 22l8 28-28-8M90 22l-8 28 28-8M34 42l-4-18 18 4M92 28l18-4-4 18" class="gestureAccent"/><circle cx="30" cy="24" r="12" fill="#fff" fill-opacity=".18" stroke="#fff" stroke-width="2"/><circle cx="110" cy="24" r="12" fill="#fff" fill-opacity=".18" stroke="#fff" stroke-width="2"/></symbol>
+    <symbol id="gestureTapFocus" viewBox="0 0 96 96"><circle cx="48" cy="48" r="14" fill="#fff" fill-opacity=".18" stroke="#fff" stroke-width="2"/><path d="M48 8v16M48 72v16M8 48h16M72 48h16" class="gestureAccent"/><circle cx="48" cy="48" r="4" fill="#fff"/></symbol>
+    <symbol id="gestureLongPressDrag" viewBox="0 0 180 80"><circle cx="30" cy="40" r="14" fill="#fff" fill-opacity=".18" stroke="#fff" stroke-width="2"/><circle cx="30" cy="40" r="23" fill="none" stroke="#66a9ff" stroke-width="2" stroke-dasharray="4 4"/><path d="M58 40h86" class="gestureLine"/><path d="M70 28L58 40l12 12M132 28l12 12-12 12" class="gestureLine"/></symbol>
+    <symbol id="gestureSplit" viewBox="0 0 220 90"><rect x="18" y="26" width="56" height="42" rx="8" class="gestureBox"/><rect x="146" y="26" width="56" height="42" rx="8" class="gestureBox"/><path d="M110 18v54" class="gestureAccent"/><path d="M98 28l12-12 12 12M98 62l12 12 12-12" class="gestureAccent"/></symbol>
+    <symbol id="gestureLocked" viewBox="0 0 220 52"><rect x="0" y="0" width="220" height="52" rx="26" fill="#fff" fill-opacity=".08"/><rect x="18" y="17" width="18" height="16" rx="3" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="2"/><path d="M22 17v-4a5 5 0 0 1 10 0v4" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="2"/><text x="52" y="32" fill="#fff" fill-opacity=".55" font-family="Roboto,Arial,sans-serif" font-size="13" font-weight="600">RECORDING LOCK</text></symbol>
+
+    <symbol id="sceneLandscapeBase" viewBox="0 0 400 300"><rect width="400" height="300" fill="#9eb8c0"/><rect y="170" width="400" height="130" fill="#b8784d"/><path d="M0 178h400" stroke="#fff" stroke-opacity=".65" stroke-width="3"/><rect x="62" y="54" width="90" height="105" fill="#456274" stroke="#fff" stroke-width="3"/><text x="107" y="105" fill="#fff" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="17" font-weight="700">UP ↑</text><circle cx="300" cy="90" r="39" fill="#f0c66b"/><path d="M235 270l65-90 45 54 24-30 31 66" fill="#5b7e4a"/><path d="M202 30v240M12 150h376" stroke="#fff" stroke-opacity=".25" stroke-dasharray="6 6"/></symbol>
+    <symbol id="sceneLandscapeRear" viewBox="0 0 400 300"><use href="#sceneLandscapeBase"/><text x="200" y="38" fill="#fff" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="16" font-weight="700">REAR / LANDSCAPE</text></symbol>
+    <symbol id="sceneLandscapeFront" viewBox="0 0 400 300"><use href="#sceneLandscapeBase"/><rect x="0" y="0" width="400" height="300" fill="#5d4b76" fill-opacity=".18"/><text x="200" y="38" fill="#fff" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="16" font-weight="700">FRONT / LANDSCAPE</text><circle cx="200" cy="145" r="54" fill="#e0ad8d" stroke="#fff" stroke-width="3"/><path d="M162 138q38-38 76 0M174 169q26 18 52 0" fill="none" stroke="#47333a" stroke-width="5" stroke-linecap="round"/></symbol>
+    <symbol id="scenePortraitBase" viewBox="0 0 300 400"><rect width="300" height="400" fill="#9eb8c0"/><rect y="230" width="300" height="170" fill="#b8784d"/><path d="M0 238h300" stroke="#fff" stroke-opacity=".65" stroke-width="3"/><rect x="39" y="67" width="82" height="116" fill="#456274" stroke="#fff" stroke-width="3"/><text x="80" y="128" fill="#fff" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="17" font-weight="700">UP ↑</text><circle cx="220" cy="112" r="37" fill="#f0c66b"/><path d="M170 370l46-110 36 58 16-35 32 87" fill="#5b7e4a"/><path d="M150 20v360M12 200h276" stroke="#fff" stroke-opacity=".25" stroke-dasharray="6 6"/></symbol>
+    <symbol id="scenePortraitRear" viewBox="0 0 300 400"><use href="#scenePortraitBase"/><text x="150" y="42" fill="#fff" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="16" font-weight="700">REAR / PORTRAIT</text></symbol>
+    <symbol id="scenePortraitFront" viewBox="0 0 300 400"><use href="#scenePortraitBase"/><rect width="300" height="400" fill="#5d4b76" fill-opacity=".18"/><text x="150" y="42" fill="#fff" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="16" font-weight="700">FRONT / PORTRAIT</text><circle cx="150" cy="205" r="55" fill="#e0ad8d" stroke="#fff" stroke-width="3"/><path d="M112 198q38-38 76 0M124 229q26 18 52 0" fill="none" stroke="#47333a" stroke-width="5" stroke-linecap="round"/></symbol>
+
+    <symbol id="modalityPillVideo" viewBox="0 0 250 40" overflow="visible"><use href="#modalityNeutral"/><rect x="1.666667" y="2" width="80" height="36" rx="18" fill="#fff"/><text x="41.666667" y="25" fill="#080808" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="12" font-weight="700">VIDEO</text></symbol>
+    <symbol id="modalityPillVoice" viewBox="0 0 250 40" overflow="visible"><use href="#modalityNeutral"/><rect x="168.333333" y="2" width="80" height="36" rx="18" fill="#fff"/><text x="208.333333" y="25" fill="#080808" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="12" font-weight="700">VOICE</text></symbol>
+    <symbol id="modalityNeutral" viewBox="0 0 250 40" overflow="visible"><rect width="250" height="40" rx="20" fill="#fff" fill-opacity=".14"/><g data-role="tap-targets" fill="transparent"><rect x="0" y="-4" width="83.333333" height="48"/><rect x="83.333333" y="-4" width="83.333333" height="48"/><rect x="166.666667" y="-4" width="83.333333" height="48"/></g><g fill="#fff" fill-opacity=".72" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="12" font-weight="600"><text x="41.666667" y="25">VIDEO</text><text x="125" y="25">PHOTO</text><text x="208.333333" y="25">VOICE</text></g></symbol>
+    <symbol id="sceneVideoLandscapeBase" viewBox="0 0 400 225">
+      <rect width="400" height="225" fill="#9eb8c0"/><rect y="135" width="400" height="90" fill="#b8784d"/>
+      <path d="M0 135h400M200 0v225" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="1"/>
+      <rect x="30" y="70" width="55" height="65" fill="#456274"/><text x="57.5" y="105" text-anchor="middle" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="12">UP ↑</text>
+      <circle cx="345" cy="87" r="25" fill="#f0c66b"/><path d="M300 195l35-60 30 35 15-18 20 43Z" fill="#5b7e4a"/>
+      <path d="M4 20V4h16M380 4h16v16M4 205v16h16M380 221h16v-16" fill="none" stroke="#fff" stroke-width="2"/>
+      <g fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="10" font-weight="700"><text x="8" y="31">TL</text><text x="392" y="31" text-anchor="end">TR</text><text x="8" y="215">BL</text><text x="392" y="215" text-anchor="end">BR</text></g>
+    </symbol>
+    <symbol id="sceneVideoLandscapeRear" viewBox="0 0 400 225"><use href="#sceneVideoLandscapeBase"/><text x="200" y="48" fill="#fff" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="13" font-weight="700">REAR / LANDSCAPE</text></symbol>
+    <symbol id="sceneVideoLandscapeFront" viewBox="0 0 400 225"><use href="#sceneVideoLandscapeBase"/><circle cx="200" cy="132.5" r="34" fill="#e0ad8d" stroke="#fff" stroke-width="2"/><path d="M180 127.5q20-20 40 0M185 147.5q15 12 30 0" fill="none" stroke="#47333a" stroke-width="3" stroke-linecap="round"/><text x="200" y="48" fill="#fff" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="13" font-weight="700">FRONT / LANDSCAPE</text></symbol>
+    <symbol id="sceneVideoPortraitBase" viewBox="0 0 225 400">
+      <rect width="225" height="400" fill="#9eb8c0"/><rect y="235" width="225" height="165" fill="#b8784d"/>
+      <path d="M0 235h225M112.5 0v400" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="1"/>
+      <rect x="30" y="70" width="55" height="65" fill="#456274"/><text x="57.5" y="105" text-anchor="middle" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="12">UP ↑</text>
+      <circle cx="170" cy="87" r="25" fill="#f0c66b"/><path d="M125 370l35-60 30 35 15-18 20 43Z" fill="#5b7e4a"/>
+      <path d="M4 20V4h16M205 4h16v16M4 380v16h16M205 396h16v-16" fill="none" stroke="#fff" stroke-width="2"/>
+      <g fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="10" font-weight="700"><text x="8" y="31">TL</text><text x="217" y="31" text-anchor="end">TR</text><text x="8" y="390">BL</text><text x="217" y="390" text-anchor="end">BR</text></g>
+    </symbol>
+    <symbol id="sceneVideoPortraitRear" viewBox="0 0 225 400"><use href="#sceneVideoPortraitBase"/><text x="112.5" y="48" fill="#fff" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="13" font-weight="700">REAR / PORTRAIT</text></symbol>
+    <symbol id="sceneVideoPortraitFront" viewBox="0 0 225 400"><use href="#sceneVideoPortraitBase"/><circle cx="112.5" cy="220" r="34" fill="#e0ad8d" stroke="#fff" stroke-width="2"/><path d="M92.5 215q20-20 40 0M97.5 235q15 12 30 0" fill="none" stroke="#47333a" stroke-width="3" stroke-linecap="round"/><text x="112.5" y="48" fill="#fff" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="13" font-weight="700">FRONT / PORTRAIT</text></symbol>
+
+    <linearGradient id="deleteGlowHalf" gradientUnits="userSpaceOnUse" x1="0" y1="78" x2="0" y2="96"><stop offset="0" stop-color="#D32F2F" stop-opacity="0"/><stop offset="1" stop-color="#D32F2F" stop-opacity=".35"/></linearGradient>
+    <symbol id="queueDeleteHalf" viewBox="0 0 360 96">
+      <use href="#queueHandles" width="360" height="72"/>
+      <use href="#queueThumbPhoto" x="59" y="8" width="56" height="56"/>
+      <rect x="121" y="8" width="56" height="56" rx="8" fill="none" stroke="#aaa" stroke-opacity=".3" stroke-dasharray="3 3"/>
+      <use href="#queueThumbVideo" x="121" y="28" width="56" height="56" opacity=".75"/>
+      <use href="#queueThumbVoice" x="183" y="8" width="56" height="56"/>
+      <use href="#queueThumbPhoto" x="245" y="8" width="56" height="56"/>
+      <path d="M0 96L0 95.4776L2 95.4259L4 95.3699L6 95.3093L8 95.2438L10 95.1732L12 95.0971L14 95.0153L16 94.9274L18 94.8332L20 94.7324L22 94.6245L24 94.5095L26 94.3868L28 94.2563L30 94.1176L32 93.9704L34 93.8146L36 93.6498L38 93.4758L40 93.2924L42 93.0993L44 92.8964L46 92.6836L48 92.4607L50 92.2276L52 91.9843L54 91.7308L56 91.4670L58 91.1931L60 90.9091L62 90.6152L64 90.3116L66 89.9986L68 89.6764L70 89.3454L72 89.0060L74 88.6586L76 88.3038L78 87.9422L80 87.5743L82 87.2009L84 86.8226L86 86.4403L88 86.0547L90 85.6668L92 85.2774L94 84.8875L96 84.4981L98 84.1103L100 83.7251L102 83.3435L104 82.9667L106 82.5958L108 82.2319L110 81.8761L112 81.5297L114 81.1936L116 80.8690L118 80.5571L120 80.2588L122 79.9751L124 79.7072L126 79.4559L128 79.2222L130 79.0068L132 78.8106L134 78.6343L136 78.4785L138 78.3439L140 78.2310L142 78.1401L144 78.0716L146 78.0258L148 78.0029L150 78.0029L152 78.0258L154 78.0716L156 78.1401L158 78.2310L160 78.3439L162 78.4785L164 78.6343L166 78.8106L168 79.0068L170 79.2222L172 79.4559L174 79.7072L176 79.9751L178 80.2588L180 80.5571L182 80.8690L184 81.1936L186 81.5297L188 81.8761L190 82.2319L192 82.5958L194 82.9667L196 83.3435L198 83.7251L200 84.1103L202 84.4981L204 84.8875L206 85.2774L208 85.6668L210 86.0547L212 86.4403L214 86.8226L216 87.2009L218 87.5743L220 87.9422L222 88.3038L224 88.6586L226 89.0060L228 89.3454L230 89.6764L232 89.9986L234 90.3116L236 90.6152L238 90.9091L240 91.1931L242 91.4670L244 91.7308L246 91.9843L248 92.2276L250 92.4607L252 92.6836L254 92.8964L256 93.0993L258 93.2924L260 93.4758L262 93.6498L264 93.8146L266 93.9704L268 94.1176L270 94.2563L272 94.3868L274 94.5095L276 94.6245L278 94.7324L280 94.8332L282 94.9274L284 95.0153L286 95.0971L288 95.1732L290 95.2438L292 95.3093L294 95.3699L296 95.4259L298 95.4776L300 95.5253L302 95.5691L304 95.6094L306 95.6464L308 95.6803L310 95.7113L312 95.7397L314 95.7655L316 95.7891L318 95.8105L320 95.8300L322 95.8476L324 95.8636L326 95.8781L328 95.8912L330 95.9030L332 95.9136L334 95.9232L336 95.9318L338 95.9395L340 95.9464L342 95.9526L344 95.9581L346 95.9630L348 95.9674L350 95.9713L352 95.9748L354 95.9779L356 95.9806L358 95.9830L360 95.9851L360 96Z" fill="url(#deleteGlowHalf)"/>
+    </symbol>
+  </defs>
+
+  <rect class="bg" width="1440" height="3860"/>
+  <text x="64" y="72" class="pageTitle">Recon / Android capture design system</text>
+  <text x="64" y="102" class="small">Static SVG prototype · 1 unit ≈ 1dp · Android only · capture-first · Google Material Icons / Filled</text>
+
+  <rect x="48" y="140" width="1344" height="210" rx="20" class="panel"/>
+  <text x="72" y="180" class="panelTitle">Tokens</text>
+  <g transform="translate(72 205)">
+    <rect width="74" height="56" rx="10" fill="#000"/><text x="37" y="78" class="small" text-anchor="middle">Canvas</text>
+    <rect x="100" width="74" height="56" rx="10" fill="#fff"/><text x="137" y="78" class="small" text-anchor="middle">Primary</text>
+    <rect x="200" width="74" height="56" rx="10" fill="#EF5350"/><text x="237" y="78" class="small" text-anchor="middle">Record</text>
+    <rect x="300" width="74" height="56" rx="10" fill="#D32F2F"/><text x="337" y="78" class="small" text-anchor="middle">Delete</text>
+    <rect x="400" width="74" height="56" rx="10" fill="#2E7D32"/><text x="437" y="78" class="small" text-anchor="middle">Commit</text>
+    <rect x="500" width="74" height="56" rx="10" fill="#B26A00"/><text x="537" y="78" class="small" text-anchor="middle">Discard</text>
+    <rect x="600" width="74" height="56" rx="10" fill="#1F2A44"/><text x="637" y="78" class="small" text-anchor="middle">Voice</text>
+    <text x="735" y="22" class="token">4dp base · 48dp target · 80dp shutter · 72dp queue</text>
+    <text x="735" y="52" class="small">56dp thumbnails · 24dp glyph · 3dp ring</text>
+    <text x="735" y="78" class="small">6dp gap · 8dp padding · 12dp control rhythm</text>
+  </g>
+
+  <rect x="48" y="390" width="430" height="290" rx="20" class="panel"/>
+  <text x="72" y="430" class="panelTitle">Navigation and mode</text>
+  <use href="#iconSettings" x="76" y="450" width="48" height="48"/><text x="136" y="480" class="small">Settings</text>
+  <use href="#iconLibrary" x="76" y="502" width="48" height="48"/><text x="136" y="532" class="small">Bundle library</text>
+  <use href="#modalityPill" x="72" y="564" width="250" height="40"/><text x="336" y="589" class="small">Selected</text>
+  <use href="#modalityPillDisabled" x="72" y="616" width="250" height="40"/><text x="336" y="641" class="small">Locked</text>
+
+  <rect x="500" y="390" width="430" height="290" rx="20" class="panel"/>
+  <text x="524" y="430" class="panelTitle">Camera controls</text>
+  <use href="#zoomChips" x="524" y="458" width="220" height="40"/><text x="524" y="518" class="small">Zoom presets</text>
+  <use href="#iconFlashOff" x="536" y="548" width="48" height="48"/><use href="#iconFlashAuto" x="612" y="548" width="48" height="48"/><use href="#iconFlashOn" x="688" y="548" width="48" height="48"/><text x="524" y="620" class="small">Flash off · auto · on</text>
+  <use href="#iconMic" x="770" y="548" width="48" height="48"/><use href="#iconLens" x="846" y="548" width="48" height="48"/>
+  <text x="770" y="620" class="small">Mic · lens flip</text>
+
+  <rect x="952" y="390" width="440" height="290" rx="20" class="panel"/>
+  <text x="976" y="430" class="panelTitle">Shutter family</text>
+  <use href="#shutterPhoto" x="980" y="462" width="80" height="80"/><use href="#shutterVideoIdle" x="1080" y="462" width="80" height="80"/><use href="#shutterVideoRecording" x="1180" y="462" width="80" height="80"/><use href="#shutterVoiceIdle" x="1280" y="462" width="80" height="80"/>
+  <use href="#shutterVoiceRecording" x="980" y="560" width="80" height="80"/>
+  <text x="1080" y="586" class="small">Top: photo · video idle</text>
+  <text x="1080" y="610" class="small">video recording · voice idle</text>
+  <text x="1080" y="634" class="small">Bottom: voice recording</text>
+
+  <rect x="48" y="720" width="1344" height="330" rx="20" class="panel"/>
+  <text x="72" y="760" class="panelTitle">Queue: swipe states and split</text>
+  <text x="72" y="782" class="tiny">Colored edge zones replace the active handle; their fade points toward travel.</text>
+  <use href="#queueStrip" x="72" y="790" width="360" height="72"/><use href="#queueCommit" x="72" y="878" width="360" height="72"/><use href="#queueDiscard" x="72" y="966" width="360" height="72"/>
+  <use href="#queueSplit" x="520" y="790" width="360" height="72"/>
+  <text x="520" y="884" class="small">24dp split gap between centered item groups</text>
+  <text x="520" y="910" class="tiny">Divider centers in the gap; stable edge gutters stay clear.</text>
+
+  <use href="#queueDeleteHalf" x="520" y="930" width="360" height="96"/>
+  <text x="912" y="954" class="small">Delete drag: 20dp down / 50% progress</text>
+  <text x="912" y="980" class="tiny">Thumbnail alpha .75 · 18dp bottom glow · peak alpha .35</text>
+  <text x="912" y="1006" class="tiny">Dashed outline = initial slot; release below 40dp cancels.</text>
+
+  <rect x="48" y="1080" width="650" height="320" rx="20" class="panel"/>
+  <text x="72" y="1120" class="panelTitle">Recording and voice</text>
+  <use href="#recordingPill" x="72" y="1150" width="150" height="32"/><text x="238" y="1172" class="small">Video timer + audio state</text>
+  <use href="#voiceWaveform" x="72" y="1210" width="300" height="120"/><text x="396" y="1270" class="small">Voice waveform</text>
+  <use href="#iconMic" x="456" y="1150" width="48" height="48"/><use href="#iconMicOff" x="518" y="1150" width="48" height="48"/><use href="#iconMicDisabled" x="580" y="1150" width="48" height="48"/>
+  <text x="456" y="1222" class="small">Mic enabled · muted · disabled</text>
+  <rect x="72" y="1350" width="24" height="24" rx="12" fill="#EF5350"/><text x="108" y="1368" class="small">Live recording</text>
+
+  <rect x="720" y="1080" width="672" height="320" rx="20" class="panel"/>
+  <text x="744" y="1120" class="panelTitle">Focus and touch target</text>
+  <use href="#focusIndicator" x="760" y="1160" width="80" height="80"/>
+  <text x="900" y="1192" class="small">Tap-to-focus indicator</text>
+  <use href="#hitTarget48" x="900" y="1220" width="48" height="48"/><text x="960" y="1250" class="small">48dp target guide</text>
+  <text x="760" y="1310" class="small">Focus is preview feedback.</text>
+  <text x="760" y="1340" class="small">40dp pills include 48dp tap bounds (transparent).</text>
+
+  <rect x="48" y="1420" width="650" height="280" rx="20" class="panel"/>
+  <text x="72" y="1460" class="panelTitle">Feedback banners</text>
+  <use href="#bannerUndo" x="72" y="1490" width="320" height="48"/><use href="#bannerSaved" x="72" y="1550" width="260" height="48"/><use href="#bannerError" x="72" y="1610" width="300" height="48"/>
+
+  <rect x="720" y="1420" width="672" height="300" rx="20" class="panel"/>
+  <text x="744" y="1460" class="panelTitle">Tutorial and disabled states</text>
+  <use href="#tutorial" x="744" y="1476" width="360" height="220"/>
+  <text x="1128" y="1540" class="small">Black scrim: 82%</text><text x="1128" y="1570" class="small">All pointers consumed</text><text x="1128" y="1600" class="small">Primary CTA: white</text>
+
+  <rect x="48" y="1740" width="1344" height="730" rx="20" class="panel"/>
+  <text x="72" y="1780" class="panelTitle">Vector camera-direction test scenes</text>
+  <text x="72" y="1810" class="small">Upright text, horizon, asymmetric object, and grid make orientation/crop/distortion errors visible.</text>
+  <g transform="translate(72 1850)"><rect width="300" height="225" rx="12" class="panel2"/><use href="#sceneLandscapeRear" width="300" height="225"/></g>
+  <g transform="translate(410 1850)"><rect width="300" height="225" rx="12" class="panel2"/><use href="#sceneLandscapeFront" width="300" height="225"/></g>
+  <g transform="translate(748 1850)"><rect width="225" height="300" rx="12" class="panel2"/><use href="#scenePortraitRear" width="225" height="300"/></g>
+  <g transform="translate(1011 1850)"><rect width="225" height="300" rx="12" class="panel2"/><use href="#scenePortraitFront" width="225" height="300"/></g>
+  <text x="72" y="2210" class="small">REAR / LANDSCAPE</text><text x="410" y="2210" class="small">FRONT / LANDSCAPE</text><text x="748" y="2210" class="small">REAR / PORTRAIT</text><text x="1011" y="2210" class="small">FRONT / PORTRAIT</text>
+  <text x="72" y="2280" class="small">Preview rule: preserve the selected capture aspect ratio. FIT_CENTER shows the full frame; FILL_CENTER is reserved for intentional crop.</text>
+  <text x="72" y="2320" class="small">Layout rule: window bounds decide placement; camera sensor metadata plus display rotation decide image direction.</text>
+  <text x="72" y="2360" class="small">Fold policy: rotation continues in the same recording; fold/unfold finalizes once before the next configuration.</text>
+
+  <rect x="48" y="2510" width="1344" height="640" rx="20" class="panel"/>
+  <text x="72" y="2550" class="panelTitle">Gesture UX / interaction state model</text>
+  <text x="72" y="2580" class="small">The arrows describe input zones and the resulting state. Prototype annotations are not new in-app badges.</text>
+
+  <g transform="translate(72 2610)">
+    <rect width="400" height="190" rx="16" class="panel2"/>
+    <use href="#gestureSwipeBoth" x="32" y="28" width="150" height="47"/>
+    <text x="210" y="54" class="label">Preview swipe ↔</text>
+    <text x="32" y="105" class="small">Idle only · changes VIDEO / PHOTO / VOICE</text>
+    <text x="32" y="130" class="small">Pill tap is the direct-access fallback.</text>
+    <text x="32" y="160" class="small">Release threshold or velocity commits.</text>
+  </g>
+  <g transform="translate(520 2610)">
+    <rect width="400" height="190" rx="16" class="panel2"/>
+    <use href="#gestureTapFocus" x="36" y="25" width="72" height="72"/>
+    <use href="#gesturePinch" x="132" y="20" width="112" height="72"/>
+    <text x="32" y="125" class="label">Tap focus · pinch zoom</text>
+    <text x="32" y="153" class="small">Preview observes taps without starving</text>
+    <text x="32" y="176" class="small">the one-finger modality swipe.</text>
+  </g>
+  <g transform="translate(968 2610)">
+    <rect width="400" height="190" rx="16" class="panel2"/>
+    <use href="#gestureSwipeH" x="28" y="28" width="150" height="47"/>
+    <g transform="translate(370 0) scale(-1 1)"><use href="#gestureSwipeH" x="0" y="28" width="150" height="47"/></g>
+    <text x="32" y="105" class="label">Queue edge swipes</text>
+    <text x="32" y="133" class="small">Left edge → right: commit green.</text>
+    <text x="32" y="158" class="small">Right edge → left: discard amber + undo.</text>
+  </g>
+
+  <g transform="translate(72 2820)">
+    <rect width="400" height="190" rx="16" class="panel2"/>
+    <use href="#gesturePullDown" x="42" y="20" width="45" height="75"/>
+    <text x="125" y="54" class="label">Pull thumbnail down</text>
+    <text x="32" y="120" class="small">One item only · red delete glow.</text>
+    <text x="32" y="148" class="small">Cancel before threshold; release to delete.</text>
+  </g>
+  <g transform="translate(520 2820)">
+    <rect width="400" height="190" rx="16" class="panel2"/>
+    <use href="#gestureLongPressDrag" x="28" y="24" width="180" height="80"/>
+    <text x="32" y="132" class="label">Long-press + drag</text>
+    <text x="32" y="160" class="small">Drag left or right; slot snaps on release.</text>
+  </g>
+  <g transform="translate(968 2820)">
+    <rect width="400" height="190" rx="16" class="panel2"/>
+    <use href="#gestureSplit" x="24" y="18" width="190" height="78"/>
+    <text x="240" y="54" class="label">Gap pull</text>
+    <text x="240" y="80" class="small">↓ split</text>
+    <text x="240" y="104" class="small">↑ remove</text>
+    <text x="32" y="142" class="small">Gap starts split; thumbnail starts delete.</text>
+  </g>
+
+  <use href="#gestureLocked" x="72" y="3040" width="220" height="52"/>
+  <text x="316" y="3073" class="small">While recording: mode, queue, lens, flash, and mic controls lock. Stop remains available.</text>
+  <text x="72" y="3118" class="small">Rotation updates the active recording in place. Fold/unfold stops and finalizes once, then rebinds the next configuration.</text>
+
+  <rect x="48" y="3190" width="1344" height="610" rx="20" class="panel"/>
+  <text x="72" y="3230" class="panelTitle">Recording states / composed control reference</text>
+  <text x="72" y="3260" class="small">State assemblies, not window-layout artboards. Selected mode stays visible; Stop stays enabled while queue actions lock.</text>
+  <rect x="72" y="3280" width="600" height="480" rx="16" class="panel2"/>
+  <rect x="744" y="3280" width="624" height="480" rx="16" class="panel2"/>
+  <text x="96" y="3310" class="label">VIDEO recording</text>
+  <text x="768" y="3310" class="label">VOICE recording</text>
+  <use href="#modalityPillDisabled" x="247" y="3332" width="250" height="40"/>
+  <use href="#modalityPillVoiceDisabled" x="931" y="3332" width="250" height="40"/>
+  <use href="#recordingPill" x="297" y="3412" width="150" height="32"/>
+  <text x="372" y="3488" class="small" text-anchor="middle">Live camera preview remains active.</text>
+  <use href="#voiceWaveform" x="906" y="3396" width="300" height="120"/>
+  <use href="#iconMicDisabled" x="248" y="3550" width="48" height="48"/>
+  <use href="#shutterVideoRecording" x="332" y="3534" width="80" height="80"/>
+  <g opacity=".25"><use href="#iconLens" x="448" y="3550" width="48" height="48"/></g>
+  <use href="#shutterVoiceRecording" x="1016" y="3534" width="80" height="80"/>
+  <g opacity=".25"><use href="#queueStrip" x="192" y="3648" width="360" height="72"/><use href="#queueStrip" x="876" y="3648" width="360" height="72"/></g>
+  <text x="96" y="3742" class="tiny">Mic / lens locked · Stop active · queued media retained</text>
+  <text x="768" y="3742" class="tiny">Camera controls hidden · Stop active · queued media retained</text>
+</svg>
