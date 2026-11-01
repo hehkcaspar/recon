@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="576" viewBox="0 0 360 576">
+  <title>Recon Android capture — foldable cover screen</title>
+  <desc>Compact cover-screen prototype using the current Recon hierarchy and a bounded 3:4 preview. Preview swipe switches mode while idle; tap focuses; pinch zooms; queue edges commit/discard; gap pulls split/unsplit. Top safe inset 20, bottom safe inset 12. Zoom has a 48dp invisible hit area.</desc>
+  <rect width="360" height="576" fill="#080808"/>
+  <style>
+      @font-face { font-family:Roboto; src:url("assets/Roboto.ttf") format("truetype"); font-weight:100 900; font-style:normal; font-display:block; }
+    .small{fill:#aaa;font-family:Roboto,Arial,sans-serif;font-size:10px}
+    .guide{fill:none;stroke:#66a9ff;stroke-opacity:.24;stroke-dasharray:4 4}
+  </style>
+
+  <!-- cover safe area and compact top bar -->
+  <rect x="0" y="0" width="360" height="20" fill="#080808"/>
+  <use href="recon-capture-design-system.svg#topBarCompact" x="0" y="8" width="360" height="72"/>
+
+  <!-- The cover cannot fit a full-width 3:4 slab plus all controls, so the preview is reduced, not cropped. -->
+  <rect x="75" y="76" width="210" height="280" rx="4" fill="#141414"/>
+  <use href="recon-capture-design-system.svg#scenePortraitRear" x="75" y="76" width="210" height="280"/>
+
+  <use href="recon-capture-design-system.svg#zoomChips" x="70" y="360" width="220" height="40"/>
+  <use href="recon-capture-design-system.svg#iconFlashAuto" x="79" y="424" width="48" height="48"/>
+  <use href="recon-capture-design-system.svg#shutterPhoto" x="140" y="408" width="80" height="80"/>
+  <use href="recon-capture-design-system.svg#iconLens" x="233" y="424" width="48" height="48"/>
+
+
+
+  <use href="recon-capture-design-system.svg#queueStrip" x="0" y="492" width="360" height="72"/>
+  <path d="M4 20h352M4 564h352" class="guide"/>
+  <rect x="130" y="568" width="100" height="4" rx="2" fill="#fff" fill-opacity=".45"/>
+</svg>

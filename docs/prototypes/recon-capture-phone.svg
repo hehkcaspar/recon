@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="800" viewBox="0 0 360 800">
+  <title>Recon Android capture — traditional phone</title>
+  <desc>Compact 360 by 800 logical viewport, based on the current Recon capture UI.</desc>
+  <rect width="360" height="800" fill="#080808"/>
+  <style>
+      @font-face { font-family:Roboto; src:url("assets/Roboto.ttf") format("truetype"); font-weight:100 900; font-style:normal; font-display:block; }
+    .small{fill:#aaa;font-family:Roboto,Arial,sans-serif;font-size:11px}
+    .guide{fill:none;stroke:#66a9ff;stroke-opacity:.24;stroke-dasharray:4 4}
+    .white{fill:#fff}
+  </style>
+
+  <!-- status and top bar -->
+  <rect x="0" y="0" width="360" height="24" fill="#080808"/>
+  <use href="recon-capture-design-system.svg#topBarCompact" x="0" y="12" width="360" height="72"/>
+
+  <!-- current compact 3:4 capture slab -->
+  <rect x="45" y="92" width="270" height="360" rx="4" fill="#141414"/>
+  <use href="recon-capture-design-system.svg#scenePortraitRear" x="45" y="92" width="270" height="360"/>
+  <use href="recon-capture-design-system.svg#focusIndicator" x="185" y="232" width="80" height="80"/>
+
+  <use href="recon-capture-design-system.svg#zoomChips" x="70" y="474" width="220" height="40"/>
+
+  <!-- three-slot control row -->
+  <use href="recon-capture-design-system.svg#iconFlashAuto" x="74" y="535" width="48" height="48"/>
+  <use href="recon-capture-design-system.svg#shutterPhoto" x="140" y="519" width="80" height="80"/>
+  <use href="recon-capture-design-system.svg#iconLens" x="238" y="535" width="48" height="48"/>
+
+  <!-- gesture map: annotated affordances, not additional product chrome -->
+  <g opacity=".78">
+    <rect x="10" y="612" width="340" height="76" rx="12" fill="none" stroke="#66a9ff" stroke-opacity=".45" stroke-dasharray="4 4"/>
+    <use href="recon-capture-design-system.svg#gestureSwipeBoth" x="22" y="626" width="92" height="29"/>
+    <text x="124" y="646" class="small">preview swipe ↔ mode</text>
+    <use href="recon-capture-design-system.svg#gesturePinch" x="250" y="620" width="70" height="45"/>
+    <text x="22" y="678" class="small">tap = focus · queue edges = commit / discard · gap ↓/↑ = split</text>
+  </g>
+
+  <!-- queue is pinned above the navigation safe area -->
+  <use href="recon-capture-design-system.svg#queueStrip" x="0" y="706" width="360" height="72"/>
+  <rect x="0" y="778" width="360" height="22" fill="#080808"/>
+  <rect x="130" y="786" width="100" height="4" rx="2" fill="#fff" fill-opacity=".45"/>
+
+  <!-- safe-area annotations are intentionally outside the product UI language -->
+  <path d="M4 24h352M4 778h352" class="guide"/>
+
+</svg>
