@@ -75,8 +75,9 @@
     <symbol id="queueThumbPhoto" viewBox="0 0 56 56"><rect width="56" height="56" rx="8" fill="#416b83"/><circle cx="17" cy="18" r="7" fill="#f0c66b"/><path d="M0 44l18-18 12 10 9-8 17 16z" fill="#a8d0a0"/></symbol>
     <symbol id="queueThumbVideo" viewBox="0 0 56 56"><rect width="56" height="56" rx="8" fill="#80523c"/><path d="M0 42l18-20 11 10 10-14 17 24z" fill="#dfa968"/><use href="#iconPlay" x="6" y="6" width="44" height="44"/></symbol>
     <symbol id="queueThumbVoice" viewBox="0 0 56 56"><rect width="56" height="56" rx="8" fill="#1F2A44"/><use href="#iconMic" x="12" y="7" width="32" height="32"/><text x="28" y="49" fill="#fff" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="9">0:08</text></symbol>
-    <symbol id="queueHandleLeft" viewBox="0 0 360 72"><rect x="27" y="22" width="6" height="28" rx="3" fill="#fff" fill-opacity=".48"/></symbol>
-    <symbol id="queueHandleRight" viewBox="0 0 360 72"><rect x="327" y="22" width="6" height="28" rx="3" fill="#fff" fill-opacity=".48"/></symbol>
+    <symbol id="queueEdgeHandle" viewBox="0 0 6 28"><rect width="6" height="28" rx="3" fill="#fff" fill-opacity=".48"/></symbol>
+    <symbol id="queueHandleLeft" viewBox="0 0 360 72"><use href="#queueEdgeHandle" x="27" y="22" width="6" height="28"/></symbol>
+    <symbol id="queueHandleRight" viewBox="0 0 360 72"><use href="#queueEdgeHandle" x="327" y="22" width="6" height="28"/></symbol>
     <symbol id="queueHandles" viewBox="0 0 360 72"><use href="#queueHandleLeft"/><use href="#queueHandleRight"/></symbol>
     <symbol id="queueThumbs" viewBox="0 0 360 72"><use href="#queueThumbPhoto" x="59" y="8" width="56" height="56"/><use href="#queueThumbVideo" x="121" y="8" width="56" height="56"/><use href="#queueThumbVoice" x="183" y="8" width="56" height="56"/><use href="#queueThumbPhoto" x="245" y="8" width="56" height="56"/></symbol>
     <symbol id="queueItems" viewBox="0 0 360 72"><use href="#queueHandles"/><use href="#queueThumbs"/></symbol>
@@ -96,6 +97,7 @@
     <symbol id="gesturePinch" viewBox="0 0 140 90"><path d="M34 28l24 22M106 28L82 50" class="gestureLine"/><path d="M50 22l8 28-28-8M90 22l-8 28 28-8M34 42l-4-18 18 4M92 28l18-4-4 18" class="gestureAccent"/><circle cx="30" cy="24" r="12" fill="#fff" fill-opacity=".18" stroke="#fff" stroke-width="2"/><circle cx="110" cy="24" r="12" fill="#fff" fill-opacity=".18" stroke="#fff" stroke-width="2"/></symbol>
     <symbol id="gestureTapFocus" viewBox="0 0 96 96"><circle cx="48" cy="48" r="14" fill="#fff" fill-opacity=".18" stroke="#fff" stroke-width="2"/><path d="M48 8v16M48 72v16M8 48h16M72 48h16" class="gestureAccent"/><circle cx="48" cy="48" r="4" fill="#fff"/></symbol>
     <symbol id="gestureLongPressDrag" viewBox="0 0 180 80"><path d="M20 40h42M118 40h42M32 28L20 40l12 12M148 28l12 12-12 12" class="gestureLine"/><circle cx="90" cy="40" r="14" fill="#fff" fill-opacity=".18" stroke="#fff" stroke-width="2"/><circle cx="90" cy="40" r="23" fill="none" stroke="#66a9ff" stroke-width="2" stroke-dasharray="4 4"/></symbol>
+    <symbol id="gestureQueueEdgeSwipe" viewBox="0 0 150 48"><use href="#queueEdgeHandle" x="13" y="10" width="6" height="28"/><path d="M28 24h104M120 12l12 12-12 12" class="gestureLine"/></symbol>
     <symbol id="gestureSplit" viewBox="0 0 220 90"><rect x="18" y="26" width="56" height="42" rx="8" class="gestureBox"/><rect x="146" y="26" width="56" height="42" rx="8" class="gestureBox"/><path d="M110 18v54" class="gestureAccent"/><path d="M98 28l12-12 12 12M98 62l12 12 12-12" class="gestureAccent"/></symbol>
     <symbol id="gestureLocked" viewBox="0 0 220 52"><rect x="0" y="0" width="220" height="52" rx="26" fill="#fff" fill-opacity=".08"/><rect x="18" y="17" width="18" height="16" rx="3" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="2"/><path d="M22 17v-4a5 5 0 0 1 10 0v4" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="2"/><text x="52" y="32" fill="#fff" fill-opacity=".55" font-family="Roboto,Arial,sans-serif" font-size="13" font-weight="600">RECORDING LOCK</text></symbol>
 
@@ -258,8 +260,8 @@
   </g>
   <g transform="translate(968 2610)">
     <rect width="400" height="190" rx="16" class="panel2"/>
-    <use href="#gestureSwipeH" x="28" y="28" width="150" height="47"/>
-    <g transform="translate(370 0) scale(-1 1)"><use href="#gestureSwipeH" x="0" y="28" width="150" height="47"/></g>
+    <use href="#gestureQueueEdgeSwipe" x="30" y="28" width="150" height="48"/>
+    <g transform="translate(370 0) scale(-1 1)"><use href="#gestureQueueEdgeSwipe" x="0" y="28" width="150" height="48"/></g>
     <text x="32" y="105" class="label">Queue edge swipes</text>
     <text x="32" y="133" class="small">Left edge → right: commit green.</text>
     <text x="32" y="158" class="small">Right edge → left: discard amber + undo.</text>

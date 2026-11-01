@@ -51,8 +51,9 @@
 <symbol id="shared-queueThumbPhoto" viewBox="0 0 56 56"><rect width="56" height="56" rx="8" fill="#416b83"/><circle cx="17" cy="18" r="7" fill="#f0c66b"/><path d="M0 44l18-18 12 10 9-8 17 16z" fill="#a8d0a0"/></symbol>
 <symbol id="shared-queueThumbVideo" viewBox="0 0 56 56"><rect width="56" height="56" rx="8" fill="#80523c"/><path d="M0 42l18-20 11 10 10-14 17 24z" fill="#dfa968"/><use href="#shared-iconPlay" x="6" y="6" width="44" height="44"/></symbol>
 <symbol id="shared-queueThumbVoice" viewBox="0 0 56 56"><rect width="56" height="56" rx="8" fill="#1F2A44"/><use href="#shared-iconMic" x="12" y="7" width="32" height="32"/><text x="28" y="49" fill="#fff" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="9">0:08</text></symbol>
-<symbol id="shared-queueHandleLeft" viewBox="0 0 360 72"><rect x="27" y="22" width="6" height="28" rx="3" fill="#fff" fill-opacity=".48"/></symbol>
-<symbol id="shared-queueHandleRight" viewBox="0 0 360 72"><rect x="327" y="22" width="6" height="28" rx="3" fill="#fff" fill-opacity=".48"/></symbol>
+<symbol id="shared-queueEdgeHandle" viewBox="0 0 6 28"><rect width="6" height="28" rx="3" fill="#fff" fill-opacity=".48"/></symbol>
+<symbol id="shared-queueHandleLeft" viewBox="0 0 360 72"><use href="#shared-queueEdgeHandle" x="27" y="22" width="6" height="28"/></symbol>
+<symbol id="shared-queueHandleRight" viewBox="0 0 360 72"><use href="#shared-queueEdgeHandle" x="327" y="22" width="6" height="28"/></symbol>
 <symbol id="shared-queueHandles" viewBox="0 0 360 72"><use href="#shared-queueHandleLeft"/><use href="#shared-queueHandleRight"/></symbol>
 <symbol id="shared-queueThumbs" viewBox="0 0 360 72"><use href="#shared-queueThumbPhoto" x="59" y="8" width="56" height="56"/><use href="#shared-queueThumbVideo" x="121" y="8" width="56" height="56"/><use href="#shared-queueThumbVoice" x="183" y="8" width="56" height="56"/><use href="#shared-queueThumbPhoto" x="245" y="8" width="56" height="56"/></symbol>
 <symbol id="shared-queueItems" viewBox="0 0 360 72"><use href="#shared-queueHandles"/><use href="#shared-queueThumbs"/></symbol>

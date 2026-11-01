@@ -38,6 +38,10 @@ Independent GPT-6.1-SOL review: **PASS**, Erdos (`01a19811-a538-7a93-bf5c-d858ee
 
 Moved the long-press hold marker to the midpoint between symmetric left/right arrows, matching the preview-swipe diagram. Preserved the dashed hold halo and left equal clearance between it and each arrow shaft. Gesture meaning and screen layouts are unchanged. All six files pass HTTP/isolated-file/image rendering, XML and freshness checks; 325 references resolve and all five screen/annotation PNGs match the preceding commit. Independent GPT-6.1-SOL review: **PASS**, Tesla (`01a19815-55bd-7032-8c9c-345cfb7935f4`), after inspecting the PNG and detail crop for symmetry, spacing, gesture meaning and clipping. No actionable findings remain; verified before commit.
 
+## Queue edge-swipe diagram follow-up
+
+Replaced generic circular gesture origins with the actual rounded 6 × 28 neutral handle, shared by the queue and diagram through one symbol. Inward arrows are mirrored with symmetric placement; colored active swipers continue to replace the handle in the separate state specimens. All six SVGs pass HTTP/isolated-file/image rendering, XML and freshness checks; 338 references resolve, and all five screen/annotation PNGs match the preceding commit. Independent GPT-6.1-SOL review: **PASS**, Laplace (`01a19816-e665-7ec0-a670-fa6d122c74b4`), after inspecting the full PNG and exact card crop for handle consistency, inward direction, symmetry, label legibility and clipping. No actionable findings; verified before commit.
+
 ## Initial batch gates
 
 Commit workflow: complete a batch, validate it, obtain independent review, resolve findings, then commit before starting the next batch. For this initial correction run, commits were recorded afterward from the final reviewed files and grouped by batch scope; they do not reconstruct the intermediate review snapshots. Shared components therefore include the final integration corrections in the design-system commit.
