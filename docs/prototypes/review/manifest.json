@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-01T17:06:00.396Z",
+  "generatedAt": "2026-11-01T17:07:53.637Z",
   "renderer": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
   "referencesValidated": 325,
   "portability": "Self-contained symbols and Roboto. Isolated file must match HTTP exactly. Img allows only compositor rounding: max channel delta 8/255 and mean pixel delta 0.05/255.",
@@ -7,10 +7,10 @@
     "recon-capture-design-system.svg": {
       "width": 1440,
       "height": 3860,
-      "svgSha256": "edd382227baca48890cfa2eee4224002d302fc65bbefdf7515e94740cd76cf85",
-      "pngSha256": "26698c415da47510182802def392c92ec4b5147c8d8c538e0657bf0efbb00e35",
-      "filePngSha256": "26698c415da47510182802def392c92ec4b5147c8d8c538e0657bf0efbb00e35",
-      "imagePngSha256": "a35179a2725d0a508a55dc24bcdcc6c112c6e20addf8b28b3d8995e1a70bd7f6",
+      "svgSha256": "6ac14a398b851aa2d03ec0a9df783a5592a814f8e2526d309ba9ddb83961d47b",
+      "pngSha256": "56ed456b9a2dc20e400cca70a46b5cec58956012e980b41945000bd72282bbc9",
+      "filePngSha256": "56ed456b9a2dc20e400cca70a46b5cec58956012e980b41945000bd72282bbc9",
+      "imagePngSha256": "aac94827d3ba853bf8effecae9400c45e7a6b70831e56068c5d2b6e6bbe75b27",
       "imageContextDifference": {
         "maxChannelDelta": 4,
         "changedPixels": 18010,

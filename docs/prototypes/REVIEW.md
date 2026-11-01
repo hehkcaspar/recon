@@ -34,6 +34,10 @@ Initial independent review found one additional imbalance: the draft photo cente
 
 Independent GPT-6.1-SOL review: **PASS**, Erdos (`01a19811-a538-7a93-bf5c-d858ee3f460f`). The reviewer inspected all six final PNGs and confirmed the corrected shutter family is balanced, microphone sizing and banner alignment are sound, and no actionable findings remain. All six SVGs pass HTTP/isolated-file/image rendering, 325 references resolve, and all 288,000 phone/annotation pixels match. Screen layout markup outside generated shared definitions is unchanged; XML, bundler freshness and whitespace checks pass. This follow-up is verified before commit.
 
+## Centered long-press diagram follow-up
+
+Moved the long-press hold marker to the midpoint between symmetric left/right arrows, matching the preview-swipe diagram. Preserved the dashed hold halo and left equal clearance between it and each arrow shaft. Gesture meaning and screen layouts are unchanged. All six files pass HTTP/isolated-file/image rendering, XML and freshness checks; 325 references resolve and all five screen/annotation PNGs match the preceding commit. Independent GPT-6.1-SOL review: **PASS**, Tesla (`01a19815-55bd-7032-8c9c-345cfb7935f4`), after inspecting the PNG and detail crop for symmetry, spacing, gesture meaning and clipping. No actionable findings remain; verified before commit.
+
 ## Initial batch gates
 
 Commit workflow: complete a batch, validate it, obtain independent review, resolve findings, then commit before starting the next batch. For this initial correction run, commits were recorded afterward from the final reviewed files and grouped by batch scope; they do not reconstruct the intermediate review snapshots. Shared components therefore include the final integration corrections in the design-system commit.

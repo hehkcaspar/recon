@@ -69,6 +69,8 @@ The phone's removed explanation panel contributes no layout space. The recovered
 
 The prototype intentionally replaces the legacy queue's active edge-handle decoration with the colored swiper. No neutral handle is drawn beneath an active check/close control. The idle queue has no background bar. Queue and focus examples are separate.
 
+The long-press/reorder diagram centers the hold marker between equal left/right arrows, matching the preview-swipe diagram's directional convention. Its dashed halo distinguishes holding from immediate swiping; the arrow shafts stop outside the halo so the hold marker stays legible.
+
 The delete-state specimen shows a 20-unit downward drag at 50% progress: only the dragged video thumbnail moves, to y28 from y8, with alpha 0.75. A dashed outline marks its original slot as an annotation. As in `QueueThumbnail.kt`, progress is `clamp(dragY / 40, 0, 1)` and thumbnail alpha is `clamp(1 - dragY / 80, 0.3, 1)`; deletion commits on release after exceeding 40 units. The usable-screen-bottom glow follows `DeleteGlow`: height 18, Gaussian sigma 56 centered beneath the dragged thumbnail, vertical transparent-to-`#D32F2F` gradient with maximum alpha `0.7 × progress` (0.35 in this specimen). The glow stays above system navigation insets. The specimen's baseline represents that usable bottom, not an extra queue background.
 
 The design sheet also includes composed VIDEO and VOICE recording references: the active mode stays selected but locked; timer/waveform and Stop remain visible; existing queued media stays visible but disabled. Voice hides the camera side controls. These are state assemblies, not extra device layouts. Feedback banners occupy the queue overlay slot without pushing the shutter or queue downward.
