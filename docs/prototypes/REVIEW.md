@@ -155,3 +155,7 @@ Evidence refreshed at **2026-11-02T02:53:40.917Z**: 36 geometry fixtures pass; 7
 The reviewer initially observed incomplete exception metadata while the audit was still running. The final renderer now exits successfully with source/direct/image hashes pinned and recorded. Reassessment found all 301 above-delta8 residual pixels unchanged; 32 lower-difference pixels changed with new maximum4. The design-system strict result stays false under its exact documented curve-edge exception. No Kotlin or runtime changes.
 
 Final evidence gate independently cleared by Hegel: hashes match the visual-review snapshot and raster pins; all eight artifacts report portability passed with the design-system strict exception explicitly retained.
+
+## Fractional zoom label — 2026-11-01
+
+**PASS**, independently reviewed by GPT-6.1-SOL Gauss (`01a19a49-0e35-7172-8687-9ec136ce32ca`). Changed displayed `0.5` to `.5` in horizontal, vertical and continuous zoom variants; numeric ratio and accessible full-value meaning are unchanged. Cover and inner renders remain centered, legible and unclipped. All eight render sets refreshed, 36 geometry fixtures valid and 708 references resolved. The exact raster exception was repinned after confirming zero changed document-minus-image residual pixels; strict result remains explicitly false for the same curve-edge exception.

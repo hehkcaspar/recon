@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-02T02:53:40.917Z",
+  "generatedAt": "2026-11-02T03:25:00.200Z",
   "renderer": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
   "referencesValidated": 708,
   "portability": "Self-contained symbols and Roboto. Isolated file must match HTTP exactly. Img allows only compositor rounding: max channel delta 8/255 and mean pixel delta 0.05/255.",
@@ -7,10 +7,10 @@
     "recon-capture-design-system.svg": {
       "width": 1440,
       "height": 7360,
-      "svgSha256": "24f665fa8523b753f31e9f7292d371cf7798c55a1074407317ce751d4a51a496",
-      "pngSha256": "baef2e9811c677b2655d95d9f9fe3a10da1894db8fb4e6b0c3c1e543d5952be1",
-      "filePngSha256": "baef2e9811c677b2655d95d9f9fe3a10da1894db8fb4e6b0c3c1e543d5952be1",
-      "imagePngSha256": "c8ea3cc76691ff4fa60a8a1f17d35a2496977e901e7edb6ac0a90a7a703dda5d",
+      "svgSha256": "5e4161c094e7c20667af910115f690cd5a1717995a155bd9e1e91e2eb29483b7",
+      "pngSha256": "d40bf43a9cc90e98e3859f7ae5be2706fc05ab5513a25aed55e31562ea34afd4",
+      "filePngSha256": "d40bf43a9cc90e98e3859f7ae5be2706fc05ab5513a25aed55e31562ea34afd4",
+      "imagePngSha256": "059d025b95c001274e6aa0553f9639a6118536413c4cbee509d276c5f5fa3709",
       "imageContextDifference": {
         "maxChannelDelta": 81,
         "changedPixels": 23529,
@@ -23,10 +23,10 @@
     "recon-capture-phone.svg": {
       "width": 360,
       "height": 800,
-      "svgSha256": "c440d7851654175c1037a66939d88b5f1ef7a77f8d4f3f5333c19d95ec39dda7",
-      "pngSha256": "6725d4f0b6e50def872f482712ad6c42e56fc53d21c0cbc991366bbb96389c16",
-      "filePngSha256": "6725d4f0b6e50def872f482712ad6c42e56fc53d21c0cbc991366bbb96389c16",
-      "imagePngSha256": "6725d4f0b6e50def872f482712ad6c42e56fc53d21c0cbc991366bbb96389c16",
+      "svgSha256": "a7f8d7ff4b9dd6f955d39dc74aae5f477c74490929dda1868177feca3aca4d91",
+      "pngSha256": "089badaa3c2d35824b6af2c283d227a91f9701980f5e4cb595cb16f33d27ef2d",
+      "filePngSha256": "089badaa3c2d35824b6af2c283d227a91f9701980f5e4cb595cb16f33d27ef2d",
+      "imagePngSha256": "089badaa3c2d35824b6af2c283d227a91f9701980f5e4cb595cb16f33d27ef2d",
       "imageContextDifference": {
         "maxChannelDelta": 0,
         "changedPixels": 0,
@@ -39,10 +39,10 @@
     "recon-capture-phone-annotated.svg": {
       "width": 960,
       "height": 920,
-      "svgSha256": "cd9620cd1bc0ee7d423cb1776c75126f08a46494fbc88956b8dcf88a9a7673be",
-      "pngSha256": "d9108787fad45b7dd293b3b8e0bb4282222419b3111d3847e7e005dfe2b1ee69",
-      "filePngSha256": "d9108787fad45b7dd293b3b8e0bb4282222419b3111d3847e7e005dfe2b1ee69",
-      "imagePngSha256": "d9108787fad45b7dd293b3b8e0bb4282222419b3111d3847e7e005dfe2b1ee69",
+      "svgSha256": "268fb036188144be87b3d1c21179dae0bdade347960c8423a072bee2aedccaf5",
+      "pngSha256": "450400784b5033500dd5a0f11313fe44a6bae60fa846fa52d02aee5fc931dd24",
+      "filePngSha256": "450400784b5033500dd5a0f11313fe44a6bae60fa846fa52d02aee5fc931dd24",
+      "imagePngSha256": "450400784b5033500dd5a0f11313fe44a6bae60fa846fa52d02aee5fc931dd24",
       "imageContextDifference": {
         "maxChannelDelta": 0,
         "changedPixels": 0,
@@ -55,10 +55,10 @@
     "recon-capture-cover.svg": {
       "width": 360,
       "height": 576,
-      "svgSha256": "966097a405c48add8d5a444149ab7f0548645d0c115a06e2966558ac01980292",
-      "pngSha256": "cf11d1e001c6e5367c9d431b44bc4141351dd3b2fd1452dff61eb8cdde2b05b0",
-      "filePngSha256": "cf11d1e001c6e5367c9d431b44bc4141351dd3b2fd1452dff61eb8cdde2b05b0",
-      "imagePngSha256": "cf11d1e001c6e5367c9d431b44bc4141351dd3b2fd1452dff61eb8cdde2b05b0",
+      "svgSha256": "f9dea52e8f09044a7a566ca0093be0d612efde9c8e5e6631c147f5ba4bf78204",
+      "pngSha256": "f9b0d6ac14229f45b5645e6a804559789ed73b4e6b89edefe3638c039a185044",
+      "filePngSha256": "f9b0d6ac14229f45b5645e6a804559789ed73b4e6b89edefe3638c039a185044",
+      "imagePngSha256": "f9b0d6ac14229f45b5645e6a804559789ed73b4e6b89edefe3638c039a185044",
       "imageContextDifference": {
         "maxChannelDelta": 0,
         "changedPixels": 0,
@@ -71,10 +71,10 @@
     "recon-capture-fold8-inner.svg": {
       "width": 2040,
       "height": 2180,
-      "svgSha256": "e616a7d45acd3efffc55619ec81a6734d53c61396123dfadbe009c4b05ef460d",
-      "pngSha256": "93129381e887ea495b558abf4f377b3195658a4faed39e139c9b17aaba184b47",
-      "filePngSha256": "93129381e887ea495b558abf4f377b3195658a4faed39e139c9b17aaba184b47",
-      "imagePngSha256": "93129381e887ea495b558abf4f377b3195658a4faed39e139c9b17aaba184b47",
+      "svgSha256": "a806c89a6b37a5891a338519a6616aa4d88cfedf14bc4aabe2f0e415575aa59a",
+      "pngSha256": "f037e8bcf1b0abbee5abbcc561dd5e832f829201c88924c81844e77a83d2445e",
+      "filePngSha256": "f037e8bcf1b0abbee5abbcc561dd5e832f829201c88924c81844e77a83d2445e",
+      "imagePngSha256": "f037e8bcf1b0abbee5abbcc561dd5e832f829201c88924c81844e77a83d2445e",
       "imageContextDifference": {
         "maxChannelDelta": 0,
         "changedPixels": 0,
@@ -87,10 +87,10 @@
     "recon-capture-fold8-ultra-inner.svg": {
       "width": 2040,
       "height": 4300,
-      "svgSha256": "af1cd0de3009d010ff17d9b4d48ff501cfab698632a548de963436352192fcd0",
-      "pngSha256": "442a1d4c00ea9cf9cb48bc10f4d99e665153b38e6b0705e121f06baaf7b7dc78",
-      "filePngSha256": "442a1d4c00ea9cf9cb48bc10f4d99e665153b38e6b0705e121f06baaf7b7dc78",
-      "imagePngSha256": "442a1d4c00ea9cf9cb48bc10f4d99e665153b38e6b0705e121f06baaf7b7dc78",
+      "svgSha256": "c7c489f43b4d0506410288a8aed8509f50bbba59a2470d8e6d05d47fe93b1fde",
+      "pngSha256": "948a184adf6bead4370121706551a268bd2c5485f2f9d4b582d2ee10d946361c",
+      "filePngSha256": "948a184adf6bead4370121706551a268bd2c5485f2f9d4b582d2ee10d946361c",
+      "imagePngSha256": "948a184adf6bead4370121706551a268bd2c5485f2f9d4b582d2ee10d946361c",
       "imageContextDifference": {
         "maxChannelDelta": 0,
         "changedPixels": 0,
@@ -103,10 +103,10 @@
     "recon-capture-layout-checks.svg": {
       "width": 2040,
       "height": 3670,
-      "svgSha256": "d868088c9a97a17d8b35a1ab8f30aa1d9287a65227ea1ae97829cc8989abccdb",
-      "pngSha256": "3211153510cf8c11e06a84682cf44523517ae9ce7c93d2448ec9d96e5b1c5fd6",
-      "filePngSha256": "3211153510cf8c11e06a84682cf44523517ae9ce7c93d2448ec9d96e5b1c5fd6",
-      "imagePngSha256": "3211153510cf8c11e06a84682cf44523517ae9ce7c93d2448ec9d96e5b1c5fd6",
+      "svgSha256": "4a5f105d6ac04602ceb74f4408a081d0d2bfec34c8655aef23e8093ec377ad15",
+      "pngSha256": "58e3814d080fdfae0f3536eb898ae37072e89c6fbf47d87f2d2c7f37ac148d1f",
+      "filePngSha256": "58e3814d080fdfae0f3536eb898ae37072e89c6fbf47d87f2d2c7f37ac148d1f",
+      "imagePngSha256": "58e3814d080fdfae0f3536eb898ae37072e89c6fbf47d87f2d2c7f37ac148d1f",
       "imageContextDifference": {
         "maxChannelDelta": 0,
         "changedPixels": 0,
@@ -119,10 +119,10 @@
     "recon-capture-aspect-ratios.svg": {
       "width": 2040,
       "height": 4960,
-      "svgSha256": "e5bff0aefb93bab685736aac8b148d0ff1f1685d6efdd1c67bc3e78f0fbcc56f",
-      "pngSha256": "4299652afff3d1d34f48251090e39e1f0aa6585c5e45b40cb00770aa1709c14f",
-      "filePngSha256": "4299652afff3d1d34f48251090e39e1f0aa6585c5e45b40cb00770aa1709c14f",
-      "imagePngSha256": "4299652afff3d1d34f48251090e39e1f0aa6585c5e45b40cb00770aa1709c14f",
+      "svgSha256": "4f587fa26d5d42a0f4635df319361e0d5a5e8ca18387fc8bdf53c1b8fc28d0a7",
+      "pngSha256": "3b8051cda8dc5133275cd148e5a4cf2c59b663771051c9c0f8bcaa9d24c9a8cd",
+      "filePngSha256": "3b8051cda8dc5133275cd148e5a4cf2c59b663771051c9c0f8bcaa9d24c9a8cd",
+      "imagePngSha256": "3b8051cda8dc5133275cd148e5a4cf2c59b663771051c9c0f8bcaa9d24c9a8cd",
       "imageContextDifference": {
         "maxChannelDelta": 0,
         "changedPixels": 0,
