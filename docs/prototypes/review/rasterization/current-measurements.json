@@ -1,9 +1,9 @@
 {
   "dimensions": [
     1440,
-    7360
+    8280
   ],
-  "pixelsOver8": 301,
+  "pixelsOver8": 320,
   "pixelsOver32": 55,
   "max": 81,
   "maxAt": [
@@ -40,27 +40,149 @@
       "zeroError": 2893,
       "bestNonzeroError": 85189,
       "directCropIdenticalToPrevious": true
+    },
+    {
+      "region": [
+        193,
+        7588,
+        56,
+        56
+      ],
+      "centroidDelta": [
+        0.0019024434276389002,
+        -0.0006611310145672178
+      ],
+      "zeroError": 150,
+      "bestNonzeroError": 22920,
+      "directCropIdenticalToPrevious": null
+    },
+    {
+      "region": [
+        1010,
+        7488,
+        56,
+        56
+      ],
+      "centroidDelta": [
+        0.0011290980273770401,
+        -0.0017142128499472165
+      ],
+      "zeroError": 61,
+      "bestNonzeroError": 11864,
+      "directCropIdenticalToPrevious": null
     }
   ],
-  "svgSha256": "ad33141894d4c365780ecd052bcc6d080e716299c3f797c50368fdff18bc30ca",
-  "directPngSha256": "8f2a8d0dfd3481cdf190357316b419870e5e5bbc6c829f4e9970ba559aa4aec9",
-  "imagePngSha256": "79adb69a08fbe48a0eefc152dec34f0eb2a6c00eda447458f0157bb54a10c3d5",
-  "zoomSizeAudit": {
-    "differentResidualPixels": 32,
-    "changedAbove8Pixels": 0,
-    "maxNewResidualAtChangedPixel": 4,
-    "comparedAgainstSourceSha256": "517e78f5473b3cf566e58de5c9565eeababc67ac2c72a00df56046c4f895e098"
+  "svgSha256": "088332cb25e2d9da94e37a3f4a5272d45dce724b4284ef09574a27fa8aff34f6",
+  "pngSha256": "e5217be599dbf569ea116156688baae16a862c73d3fae49f4ed56125ef622669",
+  "imagePngSha256": "9d2d5c6a7299e561c59ca943cbdf27207cbbe950b66d485906f655b25569ace0",
+  "imageContextDifference": {
+    "maxChannelDelta": 81,
+    "changedPixels": 33812,
+    "meanPixelDelta": 0.0035834339774557166
   },
-  "fractionalLabelAudit": {
-    "differentResidualPixels": 0,
-    "changedAbove8Pixels": 0,
-    "maxNewResidualAtChangedPixel": 0,
-    "comparedAgainstSourceSha256": "24f665fa8523b753f31e9f7292d371cf7798c55a1074407317ce751d4a51a496"
-  },
-  "tapFocusAudit": {
-    "differentResidualPixels": 0,
-    "changedAbove8Pixels": 0,
-    "maxNewResidualAtChangedPixel": 0,
-    "comparedAgainstSourceSha256": "5e4161c094e7c20667af910115f690cd5a1717995a155bd9e1e91e2eb29483b7"
+  "overflowResidualAudit": {
+    "changedResiduals": 383,
+    "newOver8": 0,
+    "maxNew": 1,
+    "addedMax": 21,
+    "addedOver8": 19,
+    "addedChanged": 10186,
+    "peaks": [
+      [
+        306,
+        7490,
+        9
+      ],
+      [
+        1011,
+        7490,
+        20
+      ],
+      [
+        301,
+        7543,
+        12
+      ],
+      [
+        1017,
+        7543,
+        9
+      ],
+      [
+        212,
+        7615,
+        9
+      ],
+      [
+        229,
+        7615,
+        14
+      ],
+      [
+        884,
+        7615,
+        9
+      ],
+      [
+        901,
+        7615,
+        14
+      ],
+      [
+        214,
+        7619,
+        15
+      ],
+      [
+        227,
+        7619,
+        9
+      ],
+      [
+        886,
+        7619,
+        15
+      ],
+      [
+        899,
+        7619,
+        9
+      ],
+      [
+        215,
+        7620,
+        21
+      ],
+      [
+        226,
+        7620,
+        13
+      ],
+      [
+        887,
+        7620,
+        21
+      ],
+      [
+        898,
+        7620,
+        13
+      ],
+      [
+        225,
+        7621,
+        11
+      ],
+      [
+        897,
+        7621,
+        11
+      ],
+      [
+        1016,
+        7743,
+        9
+      ]
+    ]
   }
 }

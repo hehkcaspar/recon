@@ -4,7 +4,7 @@ Static SVG reference, revised 2026-11-01. Android application code is unchanged.
 
 ## Read and view
 
-1. [Design system](recon-capture-design-system.svg) and [component behavior contract](COMPONENT-CONTRACT.md): reusable controls, queue states, gestures, feedback and recording; the canonical sheet is 1440 × 7360.
+1. [Design system](recon-capture-design-system.svg) and [component behavior contract](COMPONENT-CONTRACT.md): reusable controls, queue states, gestures, feedback and recording; the canonical sheet is 1440 × 8280.
 2. [Phone](recon-capture-phone.svg), [cover](recon-capture-cover.svg), [external phone annotations](recon-capture-phone-annotated.svg).
 3. [Fold8 inner](recon-capture-fold8-inner.svg): four PHOTO artboards; corrected wide-window/tall-frame and tall-window/wide-frame compositions, rear and front.
 4. [Fold8 Ultra inner](recon-capture-fold8-ultra-inner.svg): the same pose study for PHOTO and VIDEO on near-square windows.
@@ -33,7 +33,7 @@ One SVG unit is one logical dp-like unit. Device names describe comparison scena
 | Shutter | 80 × 80; centered 3-unit white ring with radius 38.5 |
 | Inner fills | PHOTO 64; VIDEO idle 42; recording stop 28; VOICE idle white disk 58 with black mic glyph box 32 |
 | Queue | Height 72; thumbnail 56; padding 8 vertically; ordinary gap 6 |
-| Queue capacity | 312-wide / three visible items on compact screens; 360-wide / four on inner screens |
+| Queue capacity | Short queues: 312-wide / three centered items; 360-wide / four. Overflow adds fading partial tiles. |
 | Divider | 4 wide, centered in a 24-unit expanded gap; never covers an item |
 | Mode | 250 × 40 horizontal text row at (window width / 2 − 125, 28); three equal 83⅓ × 48 targets spanning y24–72; selected label white / weight 700; no underline |
 | Zoom | 28-unit selected circle; 12sp labels; visible surface 176 × 32 or 32 × 176; independent 48 × 48 targets at 48-unit pitch |
@@ -42,7 +42,7 @@ One SVG unit is one logical dp-like unit. Device names describe comparison scena
 | Queue gesture runway | 48 below the strip, in addition to the actual bottom inset |
 | Spacing | 4-unit base; mode top = 28; horizontal zoom slot top = shutter top − 52 (surface inset 4); queue top = shutter top + 92 |
 
-[layout-geometry.json](layout-geometry.json) records exact bounds for all 36 screen fixtures. It is generated from [layout-screens.mjs](layout-screens.mjs), which also validates frame ratios, target separation, screen bounds and downward queue travel.
+[layout-geometry.json](layout-geometry.json) records exact bounds for all 40 screen fixtures. It is generated from [layout-screens.mjs](layout-screens.mjs), which also validates frame ratios, target separation, screen bounds and downward queue travel.
 
 | Screen | Upright PHOTO frame | Dock / queue |
 | --- | --- | --- |
@@ -68,7 +68,7 @@ Short-cover feedback uses host (16,92), width 328: compact Undo is 48 high and t
 - Preview: tap focuses, pinch zooms, horizontal swipe changes idle mode. A pinch cannot also focus or switch mode.
 - Queue: left handle inward commits; right handle inward discards; colored swiper replaces that handle. Fades point toward travel. Other handle remains neutral.
 - Item pull-down deletes; long-press plus horizontal drag reorders; gap down/up splits/unsplits. Queue remains horizontal when the device rotates.
-- Initial visible region owns the gesture until release/cancel. Expanded split gaps must not steal thumbnail input. Ordinary narrow-gap gestures are shortcuts, not accessible tap targets.
+- Fixed handles win initial hit testing over any overflowing media underneath. Outside those targets, the initial item/gap region owns the gesture until release/cancel. Expanded split gaps must not steal thumbnail input. Ordinary narrow-gap gestures are shortcuts, not accessible tap targets.
 - A deliberate release commits an armed mutation. Cancellation, reversal below threshold, interrupted input or recording lock restores the prior state. Velocity alone must not discard media.
 - Selected-item actions provide Remove, Move earlier/later and Split after/Remove split without precise dragging. Preserve semantic actions for screen readers.
 - During recording, disable mutating pointer handlers and accessibility actions, not just opacity. Stop stays enabled; queued media stays visible.
@@ -89,7 +89,7 @@ node docs/prototypes/render-review.mjs
 
 Edit screen geometry in `layout-screens.mjs`, shared symbols in the design-system SVG, and external phone callouts in `build-standalone.mjs`. Do not edit generated symbol blocks or font data. The bundler embeds only used shared definitions with scoped IDs.
 
-The renderer checks eight SVGs in HTTP, isolated local-file and HTML-image contexts, with source/PNG hashes in `review/manifest.json`. Local-file output must equal HTTP. Image-context antialiasing normally allows max channel delta 8/255 and mean pixel delta 0.05/255. One exact design-system source/direct-PNG/image-PNG hash triple has a documented [curve-edge rasterization exception](review/rasterization/README.md): 301 of 10,598,400 pixels exceed delta8; the manifest explicitly records that the strict image-context check is false. Any changed source or raster invalidates the exception. The annotation sheet must contain the exact 288,000 phone pixels. Independent visual review supplements these structural checks. Android touch arbitration, camera output, accessibility and hand reach still require runtime testing.
+The renderer checks eight SVGs in HTTP, isolated local-file and HTML-image contexts, with source/PNG hashes in `review/manifest.json`. Local-file output must equal HTTP. Image-context antialiasing normally allows max channel delta 8/255 and mean pixel delta 0.05/255. One exact design-system source/direct-PNG/image-PNG hash triple has a documented [curve-edge rasterization exception](review/rasterization/README.md): 320 of 11,923,200 pixels exceed delta8; the manifest explicitly records that the strict image-context check is false. Any changed source or raster invalidates the exception. The annotation sheet must contain the exact 288,000 phone pixels. Independent visual review supplements these structural checks. Android touch arbitration, camera output, accessibility and hand reach still require runtime testing.
 
 ## Assets
 
@@ -98,3 +98,7 @@ Icons use [Google Material Icons](https://github.com/google/material-design-icon
 ## Archived references
 
 User-provided [iPhone Duo cover/unfolded references](../references/iphone-duo-camera/README.md) and [traditional iPhone camera reference](../references/traditional-iphone-camera/README.md) are archived in `docs/references/` alongside the [Samsung Fold8 references](../references/samsung-fold8-camera/README.md). These visual references do not establish runtime geometry, optics, orientation metadata or an iOS implementation scope.
+
+### Long-queue edge behavior
+
+The component sheet now includes 312dp and 360dp overflow states: start, middle, end, split, commit and discard. Media fades to transparency underneath fixed handles; there is no queue background bar. Handles retain 48 × 48dp input regions and win initial hit testing over underlying thumbnails/gaps. An existing item gesture never turns into an edge action. Endpoint padding keeps the first/last item fully reachable. Four full-size cover fixtures in `recon-capture-layout-checks.svg` show these states over the camera preview. See `COMPONENT-CONTRACT.md` for exact mask, spacing and ownership geometry. Runtime pointer/accessibility arbitration remains implementation work.

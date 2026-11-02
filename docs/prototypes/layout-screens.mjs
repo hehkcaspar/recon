@@ -59,9 +59,10 @@ function screen({id,w,h,tall=true,front=false,video=false,shell='bottom',hand='c
  if(front&&!video){out=out.replace(/(<use href="#shared-iconFlashOff"[^>]*)(\/>)$/, '$1 opacity=".38"$2');targets.pop();}
  control(video?'shutterVideoIdle':'shutterPhoto',cx-40,shutterY,80,80);
  control('iconLens',cx+72,shutterY+16);
- out+=use(compact?(queue==='split'?'queueCompactSplit':'queueCompact'):(queue==='split'?'queueSplit':'queueStrip'),qX,qY,qWidth,72,'data-role="queue"');
+ const queueSymbol=queue.startsWith('long-')?(compact?'queueCompactLong':'queueLong')+queue.slice(5):(compact?(queue==='split'?'queueCompactSplit':'queueCompact'):(queue==='split'?'queueSplit':'queueStrip'));
+ out+=use(queueSymbol,qX,qY,qWidth,72,'data-role="queue"');
  out+=`<rect x="${w/2-50}" y="${h-12}" width="100" height="4" rx="2" fill="#fff" fill-opacity=".45"/>`;
- const record={id,w,h,compact,overlay,shell,hand,frame:ratio===1?'square':ratio<1?'tall':'wide',camera:front?'front':'rear',zoomAxis:verticalZoom?'vertical':'horizontal',mode:video?'video':'photo',preview:Object.fromEntries(Object.entries(p).map(([k,v])=>[k,n(v)])),ratio,queue:{x:qX,y:qY,w:qWidth,h:72},safe:{top:24,bottom:24,side:24},travel:48,targets};
+ const record={id,w,h,compact,overlay,shell,hand,frame:ratio===1?'square':ratio<1?'tall':'wide',camera:front?'front':'rear',zoomAxis:verticalZoom?'vertical':'horizontal',mode:video?'video':'photo',preview:Object.fromEntries(Object.entries(p).map(([k,v])=>[k,n(v)])),ratio,queue:{x:qX,y:qY,w:qWidth,h:72,symbol:queueSymbol},safe:{top:24,bottom:24,side:24},travel:48,targets};
  for(const t of targets){if(t.x<0||t.y<24||t.x+t.w>w||t.y+t.h>h-24)throw Error(`Unsafe target ${id} ${t.symbol}`);if(!overlay&&targetsOverlap(t,p))throw Error(`Preview/control overlap ${id} ${t.symbol}`);}
  for(let i=0;i<targets.length;i++)for(let j=i+1;j<targets.length;j++)if(targetsOverlap(targets[i],targets[j]))throw Error(`Overlapping targets ${id}`);
  if(qX<24||qX+qWidth>w-24||qY+72+48>h-24)throw Error(`Unsafe queue ${id}`);
@@ -138,7 +139,13 @@ for(const [i,banner] of ['bannerUndo','bannerErrorLarge'].entries()){
  const x=32+i*424;body+=`<g transform="translate(${x} 3020)">${screen({id:`cover-feedback-${i}`,w:360,h:576,compact:true,overlay:true})}${use(banner,16,92,328,i?160:48)}</g>`;
  body+=text(x,3624,i?'2× text / stacked dismiss action':'Undo / compact message',17,'#fff');
 }
-await save('recon-capture-layout-checks.svg',document(2040,3670,'Recon layout validation fixtures',body));
+body+=text(32,3720,'Long queue / same cover layout, fixed handles above fading media',24,'#fff');
+body+=text(32,3752,'All four states are clean 360 × 576 app views. Explanatory captions stay outside the viewport.');
+for(const [i,state] of ['Start','Middle','End','Split'].entries()){
+ const x=32+i*488;body+=`<g transform="translate(${x} 3784)">${screen({id:`cover-queue-${state.toLowerCase()}`,w:360,h:576,compact:true,overlay:true,queue:`long-${state}`})}</g>`;
+ body+=text(x,4390,`${state} / 48dp edge targets unchanged`,16,'#fff');
+}
+await save('recon-capture-layout-checks.svg',document(2040,4440,'Recon layout validation fixtures',body));
 // Common output ratios are fixtures, not a new in-app aspect selector.
 let ratiosBody=text(32,42,'Common framing / phone, cover and inner-window layout',28,'#fff');
 ratiosBody+=text(32,72,'4:3 family, 16:9 family, square and variable Full-style output. Selected output crop is distinct from extra preview-fitting crop.');
@@ -186,3 +193,27 @@ for(const id of ['queueStrip','queueSplit','queueCompact','queueCompactSplit']){
  for(const a of bounds.filter(b=>b.kind==='edge'))for(const b of bounds.filter(b=>b.kind==='item'))if(targetsOverlap(a,b))throw Error(`Queue edge/item overlap: ${id}`);
 }
 console.log(`${records.length} screen geometries validated: ratios, target separation, bounds, queue travel and nested split ownership.`);
+
+// Overflow allows visual overlap, but edge ownership has priority on pointer-down.
+// Once selected, that owner lasts for the whole sequence (runtime acceptance still required).
+for(const [prefix,w] of [['queueLong',360],['queueCompactLong',312]]){
+ for(const state of ['Start','Middle','End','Split','Commit','Discard']){
+  const id=prefix+state,source=symbols.get(id),bounds=queueBounds(id);
+  const edges=bounds.filter(b=>b.kind==='edge'),items=bounds.filter(b=>b.kind==='item');
+  if(edges.length!==2||!edges.some(b=>b.x===0&&b.y===12&&b.w===48&&b.h===48)||!edges.some(b=>b.x===w-48&&b.y===12&&b.w===48&&b.h===48))throw Error(`Overflow edge target changed: ${id}`);
+  if(!source.startsWith('<use href="#'+prefix))throw Error(`Overflow media must paint before handles: ${id}`);
+  const media=symbols.get(prefix+(['Commit','Discard'].includes(state)?'Middle':state)+'Media');
+  if(!media.includes(`mask="url(#${prefix}Mask)"`))throw Error(`Overflow mask missing: ${id}`);
+  const contains=(b,x,y)=>x>=b.x&&x<b.x+b.w&&y>=b.y&&y<b.y+b.h;
+  const owner=(x,y)=>edges.some(b=>contains(b,x,y))?'edge':items.some(b=>contains(b,x,y))?'item':'gap';
+  for(const edge of edges)for(const item of items){
+   if(!targetsOverlap(edge,item))continue;
+   const x=(Math.max(edge.x,item.x)+Math.min(edge.x+48,item.x+56))/2;
+   if(owner(x,36)!=='edge')throw Error(`Overflow thumbnail stole handle: ${id}`);
+  }
+  if(state==='Start'&&items[0].x!==56)throw Error(`First item inaccessible: ${id}`);
+  if(state==='End'&&items.at(-1).x+56!==w-56)throw Error(`Last item inaccessible: ${id}`);
+  if(state==='Split'&&items[3].x-(items[2].x+56)!==24)throw Error(`Overflow split gap changed: ${id}`);
+ }
+}
+console.log('12 overflow states validated: invariant edge zones, media masks, endpoint access, split spacing and initial-owner priority.');

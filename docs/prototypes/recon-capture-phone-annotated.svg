@@ -86,7 +86,7 @@
     <text x="440" y="548">Thumbnail ↓ pull down to delete one item</text>
     <text x="440" y="576">Long-press + drag ↔ to reorder</text>
     <text x="440" y="604">Gap ↓ split · gap ↑ remove divider</text>
-    <text x="440" y="632">3 visible items; scroll for more. Edge swiper replaces handle.</text>
+    <text x="440" y="632">Long queues fade under fixed handles; scroll for more.</text>
     <text x="440" y="760">Notes and leader lines never enter the app viewport.</text>
     <text x="440" y="788">24-unit safe insets + 48-unit queue travel (fixtures).</text>
     <text x="440" y="816">Scene text/grid are camera test content, not app UI.</text>

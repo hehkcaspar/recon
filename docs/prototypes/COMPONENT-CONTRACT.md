@@ -1,6 +1,6 @@
 # Recon capture components
 
-This is a **proposed static design contract for later Android implementation**, paired with the 1440 × 7360 canonical `recon-capture-design-system.svg`. It is not evidence that the existing Kotlin implements these states. Mode symbols now use the `modeStrip*` names; all generated consumers are rebuilt from shared definitions.
+This is a **proposed static design contract for later Android implementation**, paired with the 1440 × 8280 canonical `recon-capture-design-system.svg`. It is not evidence that the existing Kotlin implements these states. Mode symbols now use the `modeStrip*` names; all generated consumers are rebuilt from shared definitions.
 
 ## Geometry and queue families
 
@@ -18,16 +18,25 @@ All interactive specimens are at 1:1 dp-like units. Only camera-scene comparison
 | Compact queue | `queueCompact`, 312 × 72; thumbnails x66, 128, 190, y8; all 56 × 56 |
 | Compact edge targets | x0 and x264, y12; each 48 × 48; centers x24 and x288; 6 × 28 handles x21 and x285, y22 |
 | Compact split | `queueCompactSplit`; thumbnails x57, 119, 199; gap x175–199; divider x185, width 4 |
-| Ordinary / expanded gap | 6dp / 24dp; divider remains centered; outer edge targets never overlap thumbnails |
+| Ordinary / expanded gap | 6dp / 24dp; divider remains centered; short queues keep thumbnails outside edge targets; overflowing media may paint underneath, with edge input priority |
 | Queue clearance | 72dp strip + 48dp downward travel + actual bottom navigation safe area; 24dp is the illustrated safe area |
 
 For the 360dp compact screen, place the 312dp queue at x24 and y=`height − 144`: this leaves 48dp travel and 24dp illustrative bottom safety. Actual system gesture insets can require more room. Queue starts and drag corridors must remain inside the usable region; a component does not certify system-inset safety.
 
 Controls may overlay the preview. The revised cover composition uses a full-width 360 × 480 preview at y72, with controls over a bottom contrast gradient; this contract does not require all controls to sit outside camera content. Overlay controls and queue gestures have input priority over preview focus, pinch and mode swipe wherever their regions intersect. Preserve the queue's 72dp strip, 48dp travel corridor and 24dp illustrative bottom safety, and keep overlay controls legible against changing camera content. A control gesture must not also operate the preview underneath.
 
-Both queues have **no background bar**. Compact Commit/Discard variants replace only the initiating handle with the corresponding colored swiper, retain the opposite handle, and fade inward in the direction of travel. Full variants retain their larger fade regions but use the same disjoint edge targets and centered glyph slots. The compact split has a 6dp first gap and a 24dp second gap; all three items remain fully visible.
+Both queues have **no background bar**. Compact Commit/Discard variants replace only the initiating handle with the corresponding colored swiper, retain the opposite handle, and fade inward in the direction of travel. Full variants retain their larger fade regions but use the same fixed edge targets and centered glyph slots. The compact split has a 6dp first gap and a 24dp second gap; all three items remain fully visible.
 
-Three visible items are a viewport, not a queue limit. Scroll the thumbnail tray horizontally for additional items; keep edge targets fixed and chronology left-to-right. The sheet's “3 of 5 / scroll” caption is an external explanation, not a new mandatory product badge. Empty queues keep subdued handles with no enabled queue actions; a single item is centered at x128 in the compact family.
+Three visible items describe the compact **short-queue** composition, not a queue limit. Short queues remain centered. Long queues scroll horizontally in chronological order, with partial thumbnails extending under stationary handles. `queueLong{Start,Middle,End,Split,Commit,Discard}` (360dp) and `queueCompactLong…` (312dp) are 1:1 reference states; `queueCompactOverflow` aliases the compact middle state.
+
+- Apply an **alpha mask to media and dividers only**, not a black overlay: transparent from the outer edge to 24dp, ramp to fully visible at 56dp; mirror at the right edge. Nothing paints a queue background bar. Keep handles/swipers above this masked layer and outside its mask.
+- At the start, the first tile begins at x56. At the end, the final tile ends at x=`width − 56`. These 8dp clearances beyond the edge hit zones make both endpoint tiles fully reachable. The examples use six items: 366dp total media width plus 112dp endpoint padding. A split adds 18dp to replace a 6dp gap with 24dp; the 4dp divider is centered in that gap and scrolls with it.
+- Start shows fading continuation on the right; middle on both sides; end on the left. Endpoints have no hidden content on their finished side. All thumbnails remain 56dp and ordinary gaps 6dp. No permanent overflow count or arrows appear inside the app.
+- **Input priority does not follow opacity.** The left edge target remains `[0,48) × [12,60)`; right remains `[width−48,width) × [12,60)`. Any initial contact in either target belongs exclusively to that handle, even over a visible tile or divider. Subtract these rectangles from effective item/gap hit regions and accessibility hit bounds. Do not enlarge the targets to the full 72dp strip height. Handle taps retain their existing behavior; the swipe thresholds are unchanged.
+- Resolve the initial owner before recognizing scroll, long-press reorder, delete or split. A tray-owned gesture stays tray-owned when it crosses an edge zone; a handle-owned gesture never scrolls or selects media. Freeze tray scrolling during a handle swipe. Commit/discard replaces only that handle; the opposite remains visible. Queue actions still affect the whole queue, not only visible items.
+- Fully obscured/offscreen items must not expose overlapping on-screen accessibility targets. Scroll them into the central region before interaction; preserve access to all items through normal accessible list scrolling. Reorder auto-scroll may continue for an already-owned item without activating an edge action.
+
+Empty queues keep subdued handles with no enabled queue actions; a single item is centered at x128 in the compact family. Screen examples for start/middle/end/split appear in the layout-check sheet over the actual cover preview; all explanatory labels stay outside app viewports.
 
 ## Mode and zoom placement and meaning
 
@@ -55,7 +64,7 @@ Preview swipes and pinch gestures must not also trigger focus. Existing overlay 
 
 ## Input, release and cancellation
 
-The initial **visible** zone owns a contact sequence until completion or cancellation. Thumbnail starts cannot be stolen by a divider lane or edge target. Do not expand a 6dp gap into neighboring thumbnail hit regions. One queue mutation at a time. Horizontal tray scrolling, downward deletion, long-press reorder and edge swipes must arbitrate before claiming the gesture. Once two pointers participate in preview zoom, the sequence cannot also focus, change mode or mutate the queue.
+The initial **hit-tested** zone owns a contact sequence until completion or cancellation. Fixed handle zones take priority over overflowing media beneath them. Outside those zones, thumbnail starts cannot subsequently be stolen by a divider lane or edge target. Do not expand a 6dp gap into neighboring thumbnail hit regions. One queue mutation at a time. Horizontal tray scrolling, downward deletion, long-press reorder and edge swipes must arbitrate before claiming the gesture. Once two pointers participate in preview zoom, the sequence cannot also focus, change mode or mutate the queue.
 
 | Action | Proposed completion | Cancellation / reversal |
 | --- | --- | --- |

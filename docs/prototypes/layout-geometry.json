@@ -24,7 +24,8 @@
         "x": 24,
         "y": 656,
         "w": 312,
-        "h": 72
+        "h": 72,
+        "symbol": "queueCompact"
       },
       "safe": {
         "top": 24,
@@ -142,7 +143,8 @@
         "x": 24,
         "y": 432,
         "w": 312,
-        "h": 72
+        "h": 72,
+        "symbol": "queueCompact"
       },
       "safe": {
         "top": 24,
@@ -260,7 +262,8 @@
         "x": 576,
         "y": 576,
         "w": 360,
-        "h": 72
+        "h": 72,
+        "symbol": "queueStrip"
       },
       "safe": {
         "top": 24,
@@ -378,7 +381,8 @@
         "x": 576,
         "y": 576,
         "w": 360,
-        "h": 72
+        "h": 72,
+        "symbol": "queueStrip"
       },
       "safe": {
         "top": 24,
@@ -468,7 +472,8 @@
         "x": 180,
         "y": 816,
         "w": 360,
-        "h": 72
+        "h": 72,
+        "symbol": "queueStrip"
       },
       "safe": {
         "top": 24,
@@ -586,7 +591,8 @@
         "x": 180,
         "y": 816,
         "w": 360,
-        "h": 72
+        "h": 72,
+        "symbol": "queueStrip"
       },
       "safe": {
         "top": 24,
@@ -676,7 +682,8 @@
         "x": 576,
         "y": 720,
         "w": 360,
-        "h": 72
+        "h": 72,
+        "symbol": "queueStrip"
       },
       "safe": {
         "top": 24,
@@ -794,7 +801,8 @@
         "x": 576,
         "y": 720,
         "w": 360,
-        "h": 72
+        "h": 72,
+        "symbol": "queueStrip"
       },
       "safe": {
         "top": 24,
@@ -884,7 +892,8 @@
         "x": 252,
         "y": 816,
         "w": 360,
-        "h": 72
+        "h": 72,
+        "symbol": "queueStrip"
       },
       "safe": {
         "top": 24,
@@ -1002,7 +1011,8 @@
         "x": 252,
         "y": 816,
         "w": 360,
-        "h": 72
+        "h": 72,
+        "symbol": "queueStrip"
       },
       "safe": {
         "top": 24,
@@ -1092,7 +1102,8 @@
         "x": 576,
         "y": 720,
         "w": 360,
-        "h": 72
+        "h": 72,
+        "symbol": "queueStrip"
       },
       "safe": {
         "top": 24,
@@ -1210,7 +1221,8 @@
         "x": 576,
         "y": 720,
         "w": 360,
-        "h": 72
+        "h": 72,
+        "symbol": "queueStrip"
       },
       "safe": {
         "top": 24,
@@ -1307,7 +1319,8 @@
         "x": 252,
         "y": 816,
         "w": 360,
-        "h": 72
+        "h": 72,
+        "symbol": "queueStrip"
       },
       "safe": {
         "top": 24,
@@ -1425,7 +1438,8 @@
         "x": 252,
         "y": 816,
         "w": 360,
-        "h": 72
+        "h": 72,
+        "symbol": "queueStrip"
       },
       "safe": {
         "top": 24,
@@ -1522,7 +1536,8 @@
         "x": 576,
         "y": 576,
         "w": 360,
-        "h": 72
+        "h": 72,
+        "symbol": "queueStrip"
       },
       "safe": {
         "top": 24,
@@ -1640,7 +1655,8 @@
         "x": 24,
         "y": 576,
         "w": 360,
-        "h": 72
+        "h": 72,
+        "symbol": "queueSplit"
       },
       "safe": {
         "top": 24,
@@ -1758,7 +1774,8 @@
         "x": 180,
         "y": 816,
         "w": 360,
-        "h": 72
+        "h": 72,
+        "symbol": "queueStrip"
       },
       "safe": {
         "top": 24,
@@ -1876,7 +1893,8 @@
         "x": 480,
         "y": 816,
         "w": 360,
-        "h": 72
+        "h": 72,
+        "symbol": "queueStrip"
       },
       "safe": {
         "top": 24,
@@ -1994,7 +2012,8 @@
         "x": 24,
         "y": 656,
         "w": 312,
-        "h": 72
+        "h": 72,
+        "symbol": "queueCompact"
       },
       "safe": {
         "top": 24,
@@ -2112,7 +2131,8 @@
         "x": 24,
         "y": 432,
         "w": 312,
-        "h": 72
+        "h": 72,
+        "symbol": "queueCompact"
       },
       "safe": {
         "top": 24,
@@ -2230,7 +2250,484 @@
         "x": 24,
         "y": 432,
         "w": 312,
-        "h": 72
+        "h": 72,
+        "symbol": "queueCompact"
+      },
+      "safe": {
+        "top": 24,
+        "bottom": 24,
+        "side": 24
+      },
+      "travel": 48,
+      "targets": [
+        {
+          "symbol": "settings",
+          "x": 4,
+          "y": 24,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "library",
+          "x": 308,
+          "y": 24,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 55,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 138.33333333333331,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 221.66666666666666,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 84,
+          "y": 284,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 132,
+          "y": 284,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 180,
+          "y": 284,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 228,
+          "y": 284,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "iconFlashAuto",
+          "x": 60,
+          "y": 356,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "shutterPhoto",
+          "x": 140,
+          "y": 340,
+          "w": 80,
+          "h": 80
+        },
+        {
+          "symbol": "iconLens",
+          "x": 252,
+          "y": 356,
+          "w": 48,
+          "h": 48
+        }
+      ]
+    },
+    {
+      "id": "cover-queue-start",
+      "w": 360,
+      "h": 576,
+      "compact": true,
+      "overlay": true,
+      "shell": "bottom",
+      "hand": "center",
+      "frame": "tall",
+      "camera": "rear",
+      "zoomAxis": "horizontal",
+      "mode": "photo",
+      "preview": {
+        "x": 0,
+        "y": 72,
+        "w": 360,
+        "h": 480
+      },
+      "ratio": 0.75,
+      "queue": {
+        "x": 24,
+        "y": 432,
+        "w": 312,
+        "h": 72,
+        "symbol": "queueCompactLongStart"
+      },
+      "safe": {
+        "top": 24,
+        "bottom": 24,
+        "side": 24
+      },
+      "travel": 48,
+      "targets": [
+        {
+          "symbol": "settings",
+          "x": 4,
+          "y": 24,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "library",
+          "x": 308,
+          "y": 24,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 55,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 138.33333333333331,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 221.66666666666666,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 84,
+          "y": 284,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 132,
+          "y": 284,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 180,
+          "y": 284,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 228,
+          "y": 284,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "iconFlashAuto",
+          "x": 60,
+          "y": 356,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "shutterPhoto",
+          "x": 140,
+          "y": 340,
+          "w": 80,
+          "h": 80
+        },
+        {
+          "symbol": "iconLens",
+          "x": 252,
+          "y": 356,
+          "w": 48,
+          "h": 48
+        }
+      ]
+    },
+    {
+      "id": "cover-queue-middle",
+      "w": 360,
+      "h": 576,
+      "compact": true,
+      "overlay": true,
+      "shell": "bottom",
+      "hand": "center",
+      "frame": "tall",
+      "camera": "rear",
+      "zoomAxis": "horizontal",
+      "mode": "photo",
+      "preview": {
+        "x": 0,
+        "y": 72,
+        "w": 360,
+        "h": 480
+      },
+      "ratio": 0.75,
+      "queue": {
+        "x": 24,
+        "y": 432,
+        "w": 312,
+        "h": 72,
+        "symbol": "queueCompactLongMiddle"
+      },
+      "safe": {
+        "top": 24,
+        "bottom": 24,
+        "side": 24
+      },
+      "travel": 48,
+      "targets": [
+        {
+          "symbol": "settings",
+          "x": 4,
+          "y": 24,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "library",
+          "x": 308,
+          "y": 24,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 55,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 138.33333333333331,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 221.66666666666666,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 84,
+          "y": 284,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 132,
+          "y": 284,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 180,
+          "y": 284,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 228,
+          "y": 284,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "iconFlashAuto",
+          "x": 60,
+          "y": 356,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "shutterPhoto",
+          "x": 140,
+          "y": 340,
+          "w": 80,
+          "h": 80
+        },
+        {
+          "symbol": "iconLens",
+          "x": 252,
+          "y": 356,
+          "w": 48,
+          "h": 48
+        }
+      ]
+    },
+    {
+      "id": "cover-queue-end",
+      "w": 360,
+      "h": 576,
+      "compact": true,
+      "overlay": true,
+      "shell": "bottom",
+      "hand": "center",
+      "frame": "tall",
+      "camera": "rear",
+      "zoomAxis": "horizontal",
+      "mode": "photo",
+      "preview": {
+        "x": 0,
+        "y": 72,
+        "w": 360,
+        "h": 480
+      },
+      "ratio": 0.75,
+      "queue": {
+        "x": 24,
+        "y": 432,
+        "w": 312,
+        "h": 72,
+        "symbol": "queueCompactLongEnd"
+      },
+      "safe": {
+        "top": 24,
+        "bottom": 24,
+        "side": 24
+      },
+      "travel": 48,
+      "targets": [
+        {
+          "symbol": "settings",
+          "x": 4,
+          "y": 24,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "library",
+          "x": 308,
+          "y": 24,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 55,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 138.33333333333331,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 221.66666666666666,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 84,
+          "y": 284,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 132,
+          "y": 284,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 180,
+          "y": 284,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 228,
+          "y": 284,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "iconFlashAuto",
+          "x": 60,
+          "y": 356,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "shutterPhoto",
+          "x": 140,
+          "y": 340,
+          "w": 80,
+          "h": 80
+        },
+        {
+          "symbol": "iconLens",
+          "x": 252,
+          "y": 356,
+          "w": 48,
+          "h": 48
+        }
+      ]
+    },
+    {
+      "id": "cover-queue-split",
+      "w": 360,
+      "h": 576,
+      "compact": true,
+      "overlay": true,
+      "shell": "bottom",
+      "hand": "center",
+      "frame": "tall",
+      "camera": "rear",
+      "zoomAxis": "horizontal",
+      "mode": "photo",
+      "preview": {
+        "x": 0,
+        "y": 72,
+        "w": 360,
+        "h": 480
+      },
+      "ratio": 0.75,
+      "queue": {
+        "x": 24,
+        "y": 432,
+        "w": 312,
+        "h": 72,
+        "symbol": "queueCompactLongSplit"
       },
       "safe": {
         "top": 24,
@@ -2348,7 +2845,8 @@
         "x": 24,
         "y": 656,
         "w": 312,
-        "h": 72
+        "h": 72,
+        "symbol": "queueCompact"
       },
       "safe": {
         "top": 24,
@@ -2466,7 +2964,8 @@
         "x": 24,
         "y": 432,
         "w": 312,
-        "h": 72
+        "h": 72,
+        "symbol": "queueCompact"
       },
       "safe": {
         "top": 24,
@@ -2584,7 +3083,8 @@
         "x": 576,
         "y": 576,
         "w": 360,
-        "h": 72
+        "h": 72,
+        "symbol": "queueStrip"
       },
       "safe": {
         "top": 24,
@@ -2702,7 +3202,8 @@
         "x": 24,
         "y": 656,
         "w": 312,
-        "h": 72
+        "h": 72,
+        "symbol": "queueCompact"
       },
       "safe": {
         "top": 24,
@@ -2820,7 +3321,8 @@
         "x": 24,
         "y": 432,
         "w": 312,
-        "h": 72
+        "h": 72,
+        "symbol": "queueCompact"
       },
       "safe": {
         "top": 24,
@@ -2938,7 +3440,8 @@
         "x": 576,
         "y": 576,
         "w": 360,
-        "h": 72
+        "h": 72,
+        "symbol": "queueStrip"
       },
       "safe": {
         "top": 24,
@@ -3056,7 +3559,8 @@
         "x": 24,
         "y": 656,
         "w": 312,
-        "h": 72
+        "h": 72,
+        "symbol": "queueCompact"
       },
       "safe": {
         "top": 24,
@@ -3174,7 +3678,8 @@
         "x": 24,
         "y": 432,
         "w": 312,
-        "h": 72
+        "h": 72,
+        "symbol": "queueCompact"
       },
       "safe": {
         "top": 24,
@@ -3292,7 +3797,8 @@
         "x": 576,
         "y": 576,
         "w": 360,
-        "h": 72
+        "h": 72,
+        "symbol": "queueStrip"
       },
       "safe": {
         "top": 24,
@@ -3410,7 +3916,8 @@
         "x": 24,
         "y": 656,
         "w": 312,
-        "h": 72
+        "h": 72,
+        "symbol": "queueCompact"
       },
       "safe": {
         "top": 24,
@@ -3528,7 +4035,8 @@
         "x": 24,
         "y": 432,
         "w": 312,
-        "h": 72
+        "h": 72,
+        "symbol": "queueCompact"
       },
       "safe": {
         "top": 24,
@@ -3646,7 +4154,8 @@
         "x": 576,
         "y": 576,
         "w": 360,
-        "h": 72
+        "h": 72,
+        "symbol": "queueStrip"
       },
       "safe": {
         "top": 24,
@@ -3764,7 +4273,8 @@
         "x": 24,
         "y": 656,
         "w": 312,
-        "h": 72
+        "h": 72,
+        "symbol": "queueCompact"
       },
       "safe": {
         "top": 24,
@@ -3882,7 +4392,8 @@
         "x": 24,
         "y": 432,
         "w": 312,
-        "h": 72
+        "h": 72,
+        "symbol": "queueCompact"
       },
       "safe": {
         "top": 24,
@@ -4000,7 +4511,8 @@
         "x": 576,
         "y": 576,
         "w": 360,
-        "h": 72
+        "h": 72,
+        "symbol": "queueStrip"
       },
       "safe": {
         "top": 24,

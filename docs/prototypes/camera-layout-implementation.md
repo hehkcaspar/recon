@@ -70,14 +70,14 @@ Android Back begins at either physical side edge; Home/quick-switch occupy the b
 
 Reserve strip height plus full downward feedback/finger travel above the bottom inset. The prototype allocates 72 + 48 units before the inset; native deletion currently arms beyond 40 units. The entire moving thumbnail fits this budget. Clamp visual feedback at the usable boundary and treat pointer cancellation as cancellation. Reflow/scroll the control region or use direct actions when a smaller usable pane cannot fit this minimum; never silently shrink 48-unit controls. [Android touch target guidance](https://developer.android.com/develop/ui/compose/accessibility/api-defaults).
 
-Queue gesture arbitration must distinguish horizontal scrolling, long-press reorder, vertical item deletion, gap split and edge mutation by the initial visible zone and intent. No velocity-only destructive completion. Long text must wrap above the fixed capture/queue geometry; recording locks must cover semantic actions as well as touch. See [component contract](COMPONENT-CONTRACT.md).
+Queue gesture arbitration must distinguish horizontal scrolling, long-press reorder, vertical item deletion, gap split and edge mutation by fixed handle priority at pointer-down, then exposed item/gap regions and intent. No velocity-only destructive completion. Long text must wrap above the fixed capture/queue geometry; recording locks must cover semantic actions as well as touch. See [component contract](COMPONENT-CONTRACT.md).
 
 ## Existing code touchpoints
 
 - `CameraPreview.kt`: already uses `FIT_CENTER`; retain its ownership of camera presentation.
 - `CaptureScreen.kt`: fixed 3:4 container must become independently fitted frame geometry.
 - `CaptureController.kt` / `OrientationCodec.kt`: audit active-display basis, 180° changes and transition handling; keep ongoing recording stable.
-- `QueueStrip.kt`: cancellation currently routes through release logic. Separate it; cancellation must not commit/discard. Replace overlapping edge/gap ownership with the documented visible-zone contract.
+- `QueueStrip.kt`: cancellation currently routes through release logic. Separate it; cancellation must not commit/discard. Replace overlapping edge/gap ownership with the documented initial-owner contract (fixed handles win over overflowing media).
 - `CaptureViewModel.kt`: guard reorder and every queue mutation during recording, including semantic actions.
 - Manifest: portrait restriction belongs to the future adaptive implementation batch, not this SVG work.
 
@@ -92,3 +92,7 @@ Queue gesture arbitration must distinguish horizontal scrolling, long-press reor
 7. Minimum-window fallback and horizontal tabletop composition: prototype a scrollable/direct-action fallback if real supported panes fall below the illustrated minimum. This is a deferred layout variant, not a reason to retain wrong existing frames.
 
 Static geometry, portability and independent visual inspection are acceptance evidence for these SVGs. They do not replace the backlog's runtime tests.
+
+### Overflow queue implementation acceptance
+
+Use a clipped, alpha-masked scrolling media layer with stationary edge handles above it. Keep 56dp tiles, 6dp ordinary gaps, 24dp split gaps and unchanged 48 × 48dp handle targets. Handle regions win pointer-down over media underneath; opacity must never enable click-through. Preserve gesture ownership after pointer-down, including reorder auto-scroll across an edge. Keep endpoint tiles fully accessible and derive accessible bounds from exposed interaction regions, not raw tile bounds. Test both 312dp and 360dp queues at start/middle/end, split near an edge, active commit/discard, scroll cancellation and TalkBack navigation. These are prototype contracts, not implemented runtime behavior.

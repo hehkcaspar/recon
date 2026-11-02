@@ -1,4 +1,18 @@
-# Current raster exception — mode and zoom revision
+# Current raster exception — long-queue revision
+
+Reassessed for the 1440 × 8280 sheet. Exact source/direct/image hashes and measurements are in [current-measurements.json](current-measurements.json) and pinned in `../../render-review.mjs`. All direct HTTP / isolated-file pixels match. Strict HTML-image comparison remains false; the exception is artifact-specific, not a relaxed global threshold.
+
+- 11,923,200 pixels; 33,812 differ in any channel; 320 exceed delta8, 55 exceed delta32; overall maximum81 remains at the unchanged tutorial curve (254,5410). Mean maximum-channel difference is 0.003583434/255.
+- In the pre-existing 1440 × 7360 area, 383 signed RGB residual pixels change, with new maximum1. All previous above-delta8 residuals remain unchanged.
+- The appended overflow panels introduce 19 above-delta8 pixels, maximum21, at microphone curves and rounded thumbnail edges. No new pixel exceeds32. Coordinates are recorded in the measurements file.
+- New microphone region (193,7588,56,56): centroid delta +0.00190/−0.00066px; zero-offset error150 versus best ±1px error22,920. New rounded-tile region (1010,7488,56,56): +0.00113/−0.00171px; zero-offset error61 versus best shifted error11,864. Neither suggests a coherent displacement.
+- The two older hotspot crops retain their prior pixels and diagnostic results. The [alternate full render](design-system-image-context.png) is refreshed; the old eight-times tutorial enlargement is still valid for that unchanged hotspot.
+
+Independent GPT-6.1-SOL Poincare inspected the final direct/alternate overflow crops and found no apparent displacement or visual defect. This bounded assessment concerns SVG compositor edge coverage, not native interaction correctness. The seven other sheets retain their strict thresholds. Any future source or raster change invalidates these hashes and requires reassessment.
+
+---
+
+# Historical reassessment — mode and zoom revision
 
 Reassessed 2026-11-01 for the 1440 × 7360 design-system sheet, including the zoom-size refinement and subsequent `0.5` → `.5` label change. The label change leaves signed RGB document-minus-image residuals identical at every pixel. All 301 pixel locations exceeding delta 8 retain identical signed RGB document-minus-image residuals. Only 32 lower-difference residual pixels changed; their new maximum delta is 4, within the strict tolerance. The subsequent tap-focus ring revision also leaves the signed RGB residual identical at every pixel; its refreshed hashes and audit are in the measurements file. The exact source/direct/image hashes are in [current-measurements.json](current-measurements.json) and pinned in `../../render-review.mjs`. Direct HTTP and isolated-file output match exactly. The strict HTML-image check remains false; this is a narrowly scoped reviewed exception, not a global tolerance increase.
 
