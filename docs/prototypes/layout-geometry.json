@@ -22,17 +22,19 @@
       "ratio": 0.75,
       "queue": {
         "x": 24,
-        "y": 656,
+        "y": 680,
         "w": 312,
         "h": 72,
         "symbol": "queueCompact"
       },
+      "profile": "standard",
+      "shutterSize": 80,
       "safe": {
         "top": 24,
         "bottom": 24,
         "side": 24
       },
-      "travel": 48,
+      "travel": 24,
       "targets": [
         {
           "symbol": "settings",
@@ -72,49 +74,49 @@
         {
           "symbol": "zoom",
           "x": 84,
-          "y": 508,
+          "y": 532,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 132,
-          "y": 508,
+          "y": 532,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 180,
-          "y": 508,
+          "y": 532,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 228,
-          "y": 508,
+          "y": 532,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconFlashAuto",
           "x": 60,
-          "y": 580,
+          "y": 604,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "shutterPhoto",
           "x": 140,
-          "y": 564,
+          "y": 588,
           "w": 80,
           "h": 80
         },
         {
           "symbol": "iconLens",
           "x": 252,
-          "y": 580,
+          "y": 604,
           "w": 48,
           "h": 48
         }
@@ -141,17 +143,19 @@
       "ratio": 0.75,
       "queue": {
         "x": 24,
-        "y": 432,
+        "y": 464,
         "w": 312,
-        "h": 72,
-        "symbol": "queueCompact"
+        "h": 64,
+        "symbol": "queueDenseIdle"
       },
+      "profile": "dense",
+      "shutterSize": 64,
       "safe": {
         "top": 24,
         "bottom": 24,
         "side": 24
       },
-      "travel": 48,
+      "travel": 24,
       "targets": [
         {
           "symbol": "settings",
@@ -191,49 +195,49 @@
         {
           "symbol": "zoom",
           "x": 84,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 132,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 180,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 228,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconFlashAuto",
           "x": 60,
-          "y": 356,
+          "y": 400,
           "w": 48,
           "h": 48
         },
         {
-          "symbol": "shutterPhoto",
-          "x": 140,
-          "y": 340,
-          "w": 80,
-          "h": 80
+          "symbol": "shutterDensePhoto",
+          "x": 148,
+          "y": 392,
+          "w": 64,
+          "h": 64
         },
         {
           "symbol": "iconLens",
           "x": 252,
-          "y": 356,
+          "y": 400,
           "w": 48,
           "h": 48
         }
@@ -265,6 +269,8 @@
         "h": 72,
         "symbol": "queueStrip"
       },
+      "profile": "standard",
+      "shutterSize": 80,
       "safe": {
         "top": 24,
         "bottom": 24,
@@ -384,6 +390,8 @@
         "h": 72,
         "symbol": "queueStrip"
       },
+      "profile": "standard",
+      "shutterSize": 80,
       "safe": {
         "top": 24,
         "bottom": 24,
@@ -463,24 +471,26 @@
       "mode": "photo",
       "preview": {
         "x": 24,
-        "y": 118,
+        "y": 130,
         "w": 672,
         "h": 504
       },
       "ratio": 1.3333333333333333,
       "queue": {
         "x": 180,
-        "y": 816,
+        "y": 840,
         "w": 360,
         "h": 72,
         "symbol": "queueStrip"
       },
+      "profile": "standard",
+      "shutterSize": 80,
       "safe": {
         "top": 24,
         "bottom": 24,
         "side": 24
       },
-      "travel": 48,
+      "travel": 24,
       "targets": [
         {
           "symbol": "iconSettings",
@@ -520,49 +530,49 @@
         {
           "symbol": "zoom",
           "x": 264,
-          "y": 668,
+          "y": 692,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 312,
-          "y": 668,
+          "y": 692,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 360,
-          "y": 668,
+          "y": 692,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 408,
-          "y": 668,
+          "y": 692,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconFlashAuto",
           "x": 240,
-          "y": 740,
+          "y": 764,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "shutterPhoto",
           "x": 320,
-          "y": 724,
+          "y": 748,
           "w": 80,
           "h": 80
         },
         {
           "symbol": "iconLens",
           "x": 432,
-          "y": 740,
+          "y": 764,
           "w": 48,
           "h": 48
         }
@@ -582,24 +592,26 @@
       "mode": "photo",
       "preview": {
         "x": 24,
-        "y": 118,
+        "y": 130,
         "w": 672,
         "h": 504
       },
       "ratio": 1.3333333333333333,
       "queue": {
         "x": 180,
-        "y": 816,
+        "y": 840,
         "w": 360,
         "h": 72,
         "symbol": "queueStrip"
       },
+      "profile": "standard",
+      "shutterSize": 80,
       "safe": {
         "top": 24,
         "bottom": 24,
         "side": 24
       },
-      "travel": 48,
+      "travel": 24,
       "targets": [
         {
           "symbol": "iconSettings",
@@ -639,21 +651,21 @@
         {
           "symbol": "zoom1x",
           "x": 336,
-          "y": 668,
+          "y": 692,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "shutterPhoto",
           "x": 320,
-          "y": 724,
+          "y": 748,
           "w": 80,
           "h": 80
         },
         {
           "symbol": "iconLens",
           "x": 432,
-          "y": 740,
+          "y": 764,
           "w": 48,
           "h": 48
         }
@@ -685,6 +697,8 @@
         "h": 72,
         "symbol": "queueStrip"
       },
+      "profile": "standard",
+      "shutterSize": 80,
       "safe": {
         "top": 24,
         "bottom": 24,
@@ -804,6 +818,8 @@
         "h": 72,
         "symbol": "queueStrip"
       },
+      "profile": "standard",
+      "shutterSize": 80,
       "safe": {
         "top": 24,
         "bottom": 24,
@@ -882,25 +898,27 @@
       "zoomAxis": "horizontal",
       "mode": "photo",
       "preview": {
-        "x": 50.6667,
+        "x": 34.6667,
         "y": 84,
-        "w": 762.6667,
-        "h": 572
+        "w": 794.6667,
+        "h": 596
       },
       "ratio": 1.3333333333333333,
       "queue": {
         "x": 252,
-        "y": 816,
+        "y": 840,
         "w": 360,
         "h": 72,
         "symbol": "queueStrip"
       },
+      "profile": "standard",
+      "shutterSize": 80,
       "safe": {
         "top": 24,
         "bottom": 24,
         "side": 24
       },
-      "travel": 48,
+      "travel": 24,
       "targets": [
         {
           "symbol": "iconSettings",
@@ -940,49 +958,49 @@
         {
           "symbol": "zoom",
           "x": 336,
-          "y": 668,
+          "y": 692,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 384,
-          "y": 668,
+          "y": 692,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 432,
-          "y": 668,
+          "y": 692,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 480,
-          "y": 668,
+          "y": 692,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconFlashAuto",
           "x": 312,
-          "y": 740,
+          "y": 764,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "shutterPhoto",
           "x": 392,
-          "y": 724,
+          "y": 748,
           "w": 80,
           "h": 80
         },
         {
           "symbol": "iconLens",
           "x": 504,
-          "y": 740,
+          "y": 764,
           "w": 48,
           "h": 48
         }
@@ -1001,25 +1019,27 @@
       "zoomAxis": "horizontal",
       "mode": "photo",
       "preview": {
-        "x": 50.6667,
+        "x": 34.6667,
         "y": 84,
-        "w": 762.6667,
-        "h": 572
+        "w": 794.6667,
+        "h": 596
       },
       "ratio": 1.3333333333333333,
       "queue": {
         "x": 252,
-        "y": 816,
+        "y": 840,
         "w": 360,
         "h": 72,
         "symbol": "queueStrip"
       },
+      "profile": "standard",
+      "shutterSize": 80,
       "safe": {
         "top": 24,
         "bottom": 24,
         "side": 24
       },
-      "travel": 48,
+      "travel": 24,
       "targets": [
         {
           "symbol": "iconSettings",
@@ -1059,21 +1079,21 @@
         {
           "symbol": "zoom1x",
           "x": 408,
-          "y": 668,
+          "y": 692,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "shutterPhoto",
           "x": 392,
-          "y": 724,
+          "y": 748,
           "w": 80,
           "h": 80
         },
         {
           "symbol": "iconLens",
           "x": 504,
-          "y": 740,
+          "y": 764,
           "w": 48,
           "h": 48
         }
@@ -1105,6 +1125,8 @@
         "h": 72,
         "symbol": "queueStrip"
       },
+      "profile": "standard",
+      "shutterSize": 80,
       "safe": {
         "top": 24,
         "bottom": 24,
@@ -1224,6 +1246,8 @@
         "h": 72,
         "symbol": "queueStrip"
       },
+      "profile": "standard",
+      "shutterSize": 80,
       "safe": {
         "top": 24,
         "bottom": 24,
@@ -1310,24 +1334,26 @@
       "mode": "video",
       "preview": {
         "x": 24,
-        "y": 140.5,
+        "y": 152.5,
         "w": 816,
         "h": 459
       },
       "ratio": 1.7777777777777777,
       "queue": {
         "x": 252,
-        "y": 816,
+        "y": 840,
         "w": 360,
         "h": 72,
         "symbol": "queueStrip"
       },
+      "profile": "standard",
+      "shutterSize": 80,
       "safe": {
         "top": 24,
         "bottom": 24,
         "side": 24
       },
-      "travel": 48,
+      "travel": 24,
       "targets": [
         {
           "symbol": "iconSettings",
@@ -1367,49 +1393,49 @@
         {
           "symbol": "zoom",
           "x": 336,
-          "y": 668,
+          "y": 692,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 384,
-          "y": 668,
+          "y": 692,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 432,
-          "y": 668,
+          "y": 692,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 480,
-          "y": 668,
+          "y": 692,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconMic",
           "x": 312,
-          "y": 740,
+          "y": 764,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "shutterVideoIdle",
           "x": 392,
-          "y": 724,
+          "y": 748,
           "w": 80,
           "h": 80
         },
         {
           "symbol": "iconLens",
           "x": 504,
-          "y": 740,
+          "y": 764,
           "w": 48,
           "h": 48
         }
@@ -1429,24 +1455,26 @@
       "mode": "video",
       "preview": {
         "x": 24,
-        "y": 140.5,
+        "y": 152.5,
         "w": 816,
         "h": 459
       },
       "ratio": 1.7777777777777777,
       "queue": {
         "x": 252,
-        "y": 816,
+        "y": 840,
         "w": 360,
         "h": 72,
         "symbol": "queueStrip"
       },
+      "profile": "standard",
+      "shutterSize": 80,
       "safe": {
         "top": 24,
         "bottom": 24,
         "side": 24
       },
-      "travel": 48,
+      "travel": 24,
       "targets": [
         {
           "symbol": "iconSettings",
@@ -1486,28 +1514,28 @@
         {
           "symbol": "zoom1x",
           "x": 408,
-          "y": 668,
+          "y": 692,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconMic",
           "x": 312,
-          "y": 740,
+          "y": 764,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "shutterVideoIdle",
           "x": 392,
-          "y": 724,
+          "y": 748,
           "w": 80,
           "h": 80
         },
         {
           "symbol": "iconLens",
           "x": 504,
-          "y": 740,
+          "y": 764,
           "w": 48,
           "h": 48
         }
@@ -1539,6 +1567,8 @@
         "h": 72,
         "symbol": "queueStrip"
       },
+      "profile": "standard",
+      "shutterSize": 80,
       "safe": {
         "top": 24,
         "bottom": 24,
@@ -1658,6 +1688,8 @@
         "h": 72,
         "symbol": "queueSplit"
       },
+      "profile": "standard",
+      "shutterSize": 80,
       "safe": {
         "top": 24,
         "bottom": 24,
@@ -1764,25 +1796,27 @@
       "zoomAxis": "horizontal",
       "mode": "photo",
       "preview": {
-        "x": 145.5,
+        "x": 136.5,
         "y": 84,
-        "w": 429,
-        "h": 572
+        "w": 447,
+        "h": 596
       },
       "ratio": 0.75,
       "queue": {
         "x": 180,
-        "y": 816,
+        "y": 840,
         "w": 360,
         "h": 72,
         "symbol": "queueStrip"
       },
+      "profile": "standard",
+      "shutterSize": 80,
       "safe": {
         "top": 24,
         "bottom": 24,
         "side": 24
       },
-      "travel": 48,
+      "travel": 24,
       "targets": [
         {
           "symbol": "iconSettings",
@@ -1822,49 +1856,49 @@
         {
           "symbol": "zoom",
           "x": 264,
-          "y": 668,
+          "y": 692,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 312,
-          "y": 668,
+          "y": 692,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 360,
-          "y": 668,
+          "y": 692,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 408,
-          "y": 668,
+          "y": 692,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconFlashAuto",
           "x": 240,
-          "y": 740,
+          "y": 764,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "shutterPhoto",
           "x": 320,
-          "y": 724,
+          "y": 748,
           "w": 80,
           "h": 80
         },
         {
           "symbol": "iconLens",
           "x": 432,
-          "y": 740,
+          "y": 764,
           "w": 48,
           "h": 48
         }
@@ -1896,6 +1930,8 @@
         "h": 72,
         "symbol": "queueStrip"
       },
+      "profile": "standard",
+      "shutterSize": 80,
       "safe": {
         "top": 24,
         "bottom": 24,
@@ -2002,25 +2038,27 @@
       "zoomAxis": "horizontal",
       "mode": "photo",
       "preview": {
-        "x": 28.5,
-        "y": 92,
-        "w": 303,
-        "h": 404
+        "x": 24,
+        "y": 98,
+        "w": 312,
+        "h": 416
       },
       "ratio": 0.75,
       "queue": {
         "x": 24,
-        "y": 656,
+        "y": 680,
         "w": 312,
         "h": 72,
         "symbol": "queueCompact"
       },
+      "profile": "standard",
+      "shutterSize": 80,
       "safe": {
         "top": 24,
         "bottom": 24,
         "side": 24
       },
-      "travel": 48,
+      "travel": 24,
       "targets": [
         {
           "symbol": "settings",
@@ -2060,49 +2098,49 @@
         {
           "symbol": "zoom",
           "x": 84,
-          "y": 508,
+          "y": 532,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 132,
-          "y": 508,
+          "y": 532,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 180,
-          "y": 508,
+          "y": 532,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 228,
-          "y": 508,
+          "y": 532,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconFlashAuto",
           "x": 60,
-          "y": 580,
+          "y": 604,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "shutterPhoto",
           "x": 140,
-          "y": 564,
+          "y": 588,
           "w": 80,
           "h": 80
         },
         {
           "symbol": "iconLens",
           "x": 252,
-          "y": 580,
+          "y": 604,
           "w": 48,
           "h": 48
         }
@@ -2129,17 +2167,19 @@
       "ratio": 0.75,
       "queue": {
         "x": 24,
-        "y": 432,
+        "y": 464,
         "w": 312,
-        "h": 72,
-        "symbol": "queueCompact"
+        "h": 64,
+        "symbol": "queueDenseIdle"
       },
+      "profile": "dense",
+      "shutterSize": 64,
       "safe": {
         "top": 24,
         "bottom": 24,
         "side": 24
       },
-      "travel": 48,
+      "travel": 24,
       "targets": [
         {
           "symbol": "settings",
@@ -2179,49 +2219,49 @@
         {
           "symbol": "zoom",
           "x": 84,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 132,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 180,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 228,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconFlashAuto",
           "x": 60,
-          "y": 356,
+          "y": 400,
           "w": 48,
           "h": 48
         },
         {
-          "symbol": "shutterPhoto",
-          "x": 140,
-          "y": 340,
-          "w": 80,
-          "h": 80
+          "symbol": "shutterDensePhoto",
+          "x": 148,
+          "y": 392,
+          "w": 64,
+          "h": 64
         },
         {
           "symbol": "iconLens",
           "x": 252,
-          "y": 356,
+          "y": 400,
           "w": 48,
           "h": 48
         }
@@ -2248,17 +2288,19 @@
       "ratio": 0.75,
       "queue": {
         "x": 24,
-        "y": 432,
+        "y": 464,
         "w": 312,
-        "h": 72,
-        "symbol": "queueCompact"
+        "h": 64,
+        "symbol": "queueDenseIdle"
       },
+      "profile": "dense",
+      "shutterSize": 64,
       "safe": {
         "top": 24,
         "bottom": 24,
         "side": 24
       },
-      "travel": 48,
+      "travel": 24,
       "targets": [
         {
           "symbol": "settings",
@@ -2298,49 +2340,49 @@
         {
           "symbol": "zoom",
           "x": 84,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 132,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 180,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 228,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconFlashAuto",
           "x": 60,
-          "y": 356,
+          "y": 400,
           "w": 48,
           "h": 48
         },
         {
-          "symbol": "shutterPhoto",
-          "x": 140,
-          "y": 340,
-          "w": 80,
-          "h": 80
+          "symbol": "shutterDensePhoto",
+          "x": 148,
+          "y": 392,
+          "w": 64,
+          "h": 64
         },
         {
           "symbol": "iconLens",
           "x": 252,
-          "y": 356,
+          "y": 400,
           "w": 48,
           "h": 48
         }
@@ -2367,17 +2409,19 @@
       "ratio": 0.75,
       "queue": {
         "x": 24,
-        "y": 432,
+        "y": 464,
         "w": 312,
-        "h": 72,
-        "symbol": "queueCompactLongStart"
+        "h": 64,
+        "symbol": "queueDenseLongStart"
       },
+      "profile": "dense",
+      "shutterSize": 64,
       "safe": {
         "top": 24,
         "bottom": 24,
         "side": 24
       },
-      "travel": 48,
+      "travel": 24,
       "targets": [
         {
           "symbol": "settings",
@@ -2417,49 +2461,49 @@
         {
           "symbol": "zoom",
           "x": 84,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 132,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 180,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 228,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconFlashAuto",
           "x": 60,
-          "y": 356,
+          "y": 400,
           "w": 48,
           "h": 48
         },
         {
-          "symbol": "shutterPhoto",
-          "x": 140,
-          "y": 340,
-          "w": 80,
-          "h": 80
+          "symbol": "shutterDensePhoto",
+          "x": 148,
+          "y": 392,
+          "w": 64,
+          "h": 64
         },
         {
           "symbol": "iconLens",
           "x": 252,
-          "y": 356,
+          "y": 400,
           "w": 48,
           "h": 48
         }
@@ -2486,17 +2530,19 @@
       "ratio": 0.75,
       "queue": {
         "x": 24,
-        "y": 432,
+        "y": 464,
         "w": 312,
-        "h": 72,
-        "symbol": "queueCompactLongMiddle"
+        "h": 64,
+        "symbol": "queueDenseLongMiddle"
       },
+      "profile": "dense",
+      "shutterSize": 64,
       "safe": {
         "top": 24,
         "bottom": 24,
         "side": 24
       },
-      "travel": 48,
+      "travel": 24,
       "targets": [
         {
           "symbol": "settings",
@@ -2536,49 +2582,49 @@
         {
           "symbol": "zoom",
           "x": 84,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 132,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 180,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 228,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconFlashAuto",
           "x": 60,
-          "y": 356,
+          "y": 400,
           "w": 48,
           "h": 48
         },
         {
-          "symbol": "shutterPhoto",
-          "x": 140,
-          "y": 340,
-          "w": 80,
-          "h": 80
+          "symbol": "shutterDensePhoto",
+          "x": 148,
+          "y": 392,
+          "w": 64,
+          "h": 64
         },
         {
           "symbol": "iconLens",
           "x": 252,
-          "y": 356,
+          "y": 400,
           "w": 48,
           "h": 48
         }
@@ -2605,17 +2651,19 @@
       "ratio": 0.75,
       "queue": {
         "x": 24,
-        "y": 432,
+        "y": 464,
         "w": 312,
-        "h": 72,
-        "symbol": "queueCompactLongEnd"
+        "h": 64,
+        "symbol": "queueDenseLongEnd"
       },
+      "profile": "dense",
+      "shutterSize": 64,
       "safe": {
         "top": 24,
         "bottom": 24,
         "side": 24
       },
-      "travel": 48,
+      "travel": 24,
       "targets": [
         {
           "symbol": "settings",
@@ -2655,49 +2703,49 @@
         {
           "symbol": "zoom",
           "x": 84,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 132,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 180,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 228,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconFlashAuto",
           "x": 60,
-          "y": 356,
+          "y": 400,
           "w": 48,
           "h": 48
         },
         {
-          "symbol": "shutterPhoto",
-          "x": 140,
-          "y": 340,
-          "w": 80,
-          "h": 80
+          "symbol": "shutterDensePhoto",
+          "x": 148,
+          "y": 392,
+          "w": 64,
+          "h": 64
         },
         {
           "symbol": "iconLens",
           "x": 252,
-          "y": 356,
+          "y": 400,
           "w": 48,
           "h": 48
         }
@@ -2724,17 +2772,19 @@
       "ratio": 0.75,
       "queue": {
         "x": 24,
-        "y": 432,
+        "y": 464,
         "w": 312,
-        "h": 72,
-        "symbol": "queueCompactLongSplit"
+        "h": 64,
+        "symbol": "queueDenseLongSplit"
       },
+      "profile": "dense",
+      "shutterSize": 64,
       "safe": {
         "top": 24,
         "bottom": 24,
         "side": 24
       },
-      "travel": 48,
+      "travel": 24,
       "targets": [
         {
           "symbol": "settings",
@@ -2774,49 +2824,533 @@
         {
           "symbol": "zoom",
           "x": 84,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 132,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 180,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 228,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconFlashAuto",
           "x": 60,
-          "y": 356,
+          "y": 400,
           "w": 48,
           "h": 48
         },
         {
-          "symbol": "shutterPhoto",
-          "x": 140,
-          "y": 340,
-          "w": 80,
-          "h": 80
+          "symbol": "shutterDensePhoto",
+          "x": 148,
+          "y": 392,
+          "w": 64,
+          "h": 64
         },
         {
           "symbol": "iconLens",
           "x": 252,
-          "y": 356,
+          "y": 400,
+          "w": 48,
+          "h": 48
+        }
+      ]
+    },
+    {
+      "id": "short-480",
+      "w": 360,
+      "h": 480,
+      "compact": true,
+      "overlay": true,
+      "shell": "bottom",
+      "hand": "center",
+      "frame": "tall",
+      "camera": "rear",
+      "zoomAxis": "horizontal",
+      "mode": "photo",
+      "preview": {
+        "x": 18,
+        "y": 24,
+        "w": 324,
+        "h": 432
+      },
+      "ratio": 0.75,
+      "queue": {
+        "x": 24,
+        "y": 368,
+        "w": 312,
+        "h": 64,
+        "symbol": "queueDenseIdle"
+      },
+      "profile": "dense",
+      "shutterSize": 64,
+      "safe": {
+        "top": 24,
+        "bottom": 24,
+        "side": 24
+      },
+      "travel": 24,
+      "targets": [
+        {
+          "symbol": "settings",
+          "x": 4,
+          "y": 24,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "library",
+          "x": 308,
+          "y": 24,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 55,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 138.33333333333331,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 221.66666666666666,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 84,
+          "y": 240,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 132,
+          "y": 240,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 180,
+          "y": 240,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 228,
+          "y": 240,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "iconFlashAuto",
+          "x": 60,
+          "y": 304,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "shutterDensePhoto",
+          "x": 148,
+          "y": 296,
+          "w": 64,
+          "h": 64
+        },
+        {
+          "symbol": "iconLens",
+          "x": 252,
+          "y": 304,
+          "w": 48,
+          "h": 48
+        }
+      ]
+    },
+    {
+      "id": "short-640",
+      "w": 360,
+      "h": 640,
+      "compact": true,
+      "overlay": true,
+      "shell": "bottom",
+      "hand": "center",
+      "frame": "tall",
+      "camera": "rear",
+      "zoomAxis": "horizontal",
+      "mode": "photo",
+      "preview": {
+        "x": 0,
+        "y": 72,
+        "w": 360,
+        "h": 480
+      },
+      "ratio": 0.75,
+      "queue": {
+        "x": 24,
+        "y": 528,
+        "w": 312,
+        "h": 64,
+        "symbol": "queueDenseIdle"
+      },
+      "profile": "dense",
+      "shutterSize": 64,
+      "safe": {
+        "top": 24,
+        "bottom": 24,
+        "side": 24
+      },
+      "travel": 24,
+      "targets": [
+        {
+          "symbol": "settings",
+          "x": 4,
+          "y": 24,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "library",
+          "x": 308,
+          "y": 24,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 55,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 138.33333333333331,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 221.66666666666666,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 84,
+          "y": 400,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 132,
+          "y": 400,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 180,
+          "y": 400,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 228,
+          "y": 400,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "iconFlashAuto",
+          "x": 60,
+          "y": 464,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "shutterDensePhoto",
+          "x": 148,
+          "y": 456,
+          "w": 64,
+          "h": 64
+        },
+        {
+          "symbol": "iconLens",
+          "x": 252,
+          "y": 464,
+          "w": 48,
+          "h": 48
+        }
+      ]
+    },
+    {
+      "id": "cover-delete",
+      "w": 360,
+      "h": 576,
+      "compact": true,
+      "overlay": true,
+      "shell": "bottom",
+      "hand": "center",
+      "frame": "tall",
+      "camera": "rear",
+      "zoomAxis": "horizontal",
+      "mode": "photo",
+      "preview": {
+        "x": 0,
+        "y": 72,
+        "w": 360,
+        "h": 480
+      },
+      "ratio": 0.75,
+      "queue": {
+        "x": 24,
+        "y": 464,
+        "w": 312,
+        "h": 64,
+        "symbol": "queueDenseDeleteArmed"
+      },
+      "profile": "dense",
+      "shutterSize": 64,
+      "safe": {
+        "top": 24,
+        "bottom": 24,
+        "side": 24
+      },
+      "travel": 24,
+      "targets": [
+        {
+          "symbol": "settings",
+          "x": 4,
+          "y": 24,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "library",
+          "x": 308,
+          "y": 24,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 55,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 138.33333333333331,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 221.66666666666666,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 84,
+          "y": 336,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 132,
+          "y": 336,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 180,
+          "y": 336,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 228,
+          "y": 336,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "iconFlashAuto",
+          "x": 60,
+          "y": 400,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "shutterDensePhoto",
+          "x": 148,
+          "y": 392,
+          "w": 64,
+          "h": 64
+        },
+        {
+          "symbol": "iconLens",
+          "x": 252,
+          "y": 400,
+          "w": 48,
+          "h": 48
+        }
+      ]
+    },
+    {
+      "id": "cover-nav48",
+      "w": 360,
+      "h": 576,
+      "compact": true,
+      "overlay": true,
+      "shell": "bottom",
+      "hand": "center",
+      "frame": "tall",
+      "camera": "rear",
+      "zoomAxis": "horizontal",
+      "mode": "photo",
+      "preview": {
+        "x": 9,
+        "y": 72,
+        "w": 342,
+        "h": 456
+      },
+      "ratio": 0.75,
+      "queue": {
+        "x": 24,
+        "y": 440,
+        "w": 312,
+        "h": 64,
+        "symbol": "queueDenseIdle"
+      },
+      "profile": "dense",
+      "shutterSize": 64,
+      "safe": {
+        "top": 24,
+        "bottom": 48,
+        "side": 24
+      },
+      "travel": 24,
+      "targets": [
+        {
+          "symbol": "settings",
+          "x": 4,
+          "y": 24,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "library",
+          "x": 308,
+          "y": 24,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 55,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 138.33333333333331,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 221.66666666666666,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 84,
+          "y": 312,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 132,
+          "y": 312,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 180,
+          "y": 312,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 228,
+          "y": 312,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "iconFlashAuto",
+          "x": 60,
+          "y": 376,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "shutterDensePhoto",
+          "x": 148,
+          "y": 368,
+          "w": 64,
+          "h": 64
+        },
+        {
+          "symbol": "iconLens",
+          "x": 252,
+          "y": 376,
           "w": 48,
           "h": 48
         }
@@ -2843,17 +3377,19 @@
       "ratio": 0.75,
       "queue": {
         "x": 24,
-        "y": 656,
+        "y": 680,
         "w": 312,
         "h": 72,
         "symbol": "queueCompact"
       },
+      "profile": "standard",
+      "shutterSize": 80,
       "safe": {
         "top": 24,
         "bottom": 24,
         "side": 24
       },
-      "travel": 48,
+      "travel": 24,
       "targets": [
         {
           "symbol": "settings",
@@ -2893,49 +3429,49 @@
         {
           "symbol": "zoom",
           "x": 84,
-          "y": 508,
+          "y": 532,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 132,
-          "y": 508,
+          "y": 532,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 180,
-          "y": 508,
+          "y": 532,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 228,
-          "y": 508,
+          "y": 532,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconFlashAuto",
           "x": 60,
-          "y": 580,
+          "y": 604,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "shutterPhoto",
           "x": 140,
-          "y": 564,
+          "y": 588,
           "w": 80,
           "h": 80
         },
         {
           "symbol": "iconLens",
           "x": 252,
-          "y": 580,
+          "y": 604,
           "w": 48,
           "h": 48
         }
@@ -2962,17 +3498,19 @@
       "ratio": 0.75,
       "queue": {
         "x": 24,
-        "y": 432,
+        "y": 464,
         "w": 312,
-        "h": 72,
-        "symbol": "queueCompact"
+        "h": 64,
+        "symbol": "queueDenseIdle"
       },
+      "profile": "dense",
+      "shutterSize": 64,
       "safe": {
         "top": 24,
         "bottom": 24,
         "side": 24
       },
-      "travel": 48,
+      "travel": 24,
       "targets": [
         {
           "symbol": "settings",
@@ -3012,49 +3550,49 @@
         {
           "symbol": "zoom",
           "x": 84,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 132,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 180,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 228,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconFlashAuto",
           "x": 60,
-          "y": 356,
+          "y": 400,
           "w": 48,
           "h": 48
         },
         {
-          "symbol": "shutterPhoto",
-          "x": 140,
-          "y": 340,
-          "w": 80,
-          "h": 80
+          "symbol": "shutterDensePhoto",
+          "x": 148,
+          "y": 392,
+          "w": 64,
+          "h": 64
         },
         {
           "symbol": "iconLens",
           "x": 252,
-          "y": 356,
+          "y": 400,
           "w": 48,
           "h": 48
         }
@@ -3086,6 +3624,8 @@
         "h": 72,
         "symbol": "queueStrip"
       },
+      "profile": "standard",
+      "shutterSize": 80,
       "safe": {
         "top": 24,
         "bottom": 24,
@@ -3200,17 +3740,19 @@
       "ratio": 0.5625,
       "queue": {
         "x": 24,
-        "y": 656,
+        "y": 680,
         "w": 312,
         "h": 72,
         "symbol": "queueCompact"
       },
+      "profile": "standard",
+      "shutterSize": 80,
       "safe": {
         "top": 24,
         "bottom": 24,
         "side": 24
       },
-      "travel": 48,
+      "travel": 24,
       "targets": [
         {
           "symbol": "settings",
@@ -3250,49 +3792,49 @@
         {
           "symbol": "zoom",
           "x": 84,
-          "y": 508,
+          "y": 532,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 132,
-          "y": 508,
+          "y": 532,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 180,
-          "y": 508,
+          "y": 532,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 228,
-          "y": 508,
+          "y": 532,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconFlashAuto",
           "x": 60,
-          "y": 580,
+          "y": 604,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "shutterPhoto",
           "x": 140,
-          "y": 564,
+          "y": 588,
           "w": 80,
           "h": 80
         },
         {
           "symbol": "iconLens",
           "x": 252,
-          "y": 580,
+          "y": 604,
           "w": 48,
           "h": 48
         }
@@ -3319,17 +3861,19 @@
       "ratio": 0.5625,
       "queue": {
         "x": 24,
-        "y": 432,
+        "y": 464,
         "w": 312,
-        "h": 72,
-        "symbol": "queueCompact"
+        "h": 64,
+        "symbol": "queueDenseIdle"
       },
+      "profile": "dense",
+      "shutterSize": 64,
       "safe": {
         "top": 24,
         "bottom": 24,
         "side": 24
       },
-      "travel": 48,
+      "travel": 24,
       "targets": [
         {
           "symbol": "settings",
@@ -3369,49 +3913,49 @@
         {
           "symbol": "zoom",
           "x": 84,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 132,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 180,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 228,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconFlashAuto",
           "x": 60,
-          "y": 356,
+          "y": 400,
           "w": 48,
           "h": 48
         },
         {
-          "symbol": "shutterPhoto",
-          "x": 140,
-          "y": 340,
-          "w": 80,
-          "h": 80
+          "symbol": "shutterDensePhoto",
+          "x": 148,
+          "y": 392,
+          "w": 64,
+          "h": 64
         },
         {
           "symbol": "iconLens",
           "x": 252,
-          "y": 356,
+          "y": 400,
           "w": 48,
           "h": 48
         }
@@ -3443,6 +3987,8 @@
         "h": 72,
         "symbol": "queueStrip"
       },
+      "profile": "standard",
+      "shutterSize": 80,
       "safe": {
         "top": 24,
         "bottom": 24,
@@ -3557,17 +4103,19 @@
       "ratio": 0.5625,
       "queue": {
         "x": 24,
-        "y": 656,
+        "y": 680,
         "w": 312,
         "h": 72,
         "symbol": "queueCompact"
       },
+      "profile": "standard",
+      "shutterSize": 80,
       "safe": {
         "top": 24,
         "bottom": 24,
         "side": 24
       },
-      "travel": 48,
+      "travel": 24,
       "targets": [
         {
           "symbol": "settings",
@@ -3607,49 +4155,49 @@
         {
           "symbol": "zoom",
           "x": 84,
-          "y": 508,
+          "y": 532,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 132,
-          "y": 508,
+          "y": 532,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 180,
-          "y": 508,
+          "y": 532,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 228,
-          "y": 508,
+          "y": 532,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconMic",
           "x": 60,
-          "y": 580,
+          "y": 604,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "shutterVideoIdle",
           "x": 140,
-          "y": 564,
+          "y": 588,
           "w": 80,
           "h": 80
         },
         {
           "symbol": "iconLens",
           "x": 252,
-          "y": 580,
+          "y": 604,
           "w": 48,
           "h": 48
         }
@@ -3676,17 +4224,19 @@
       "ratio": 0.5625,
       "queue": {
         "x": 24,
-        "y": 432,
+        "y": 464,
         "w": 312,
-        "h": 72,
-        "symbol": "queueCompact"
+        "h": 64,
+        "symbol": "queueDenseIdle"
       },
+      "profile": "dense",
+      "shutterSize": 64,
       "safe": {
         "top": 24,
         "bottom": 24,
         "side": 24
       },
-      "travel": 48,
+      "travel": 24,
       "targets": [
         {
           "symbol": "settings",
@@ -3726,49 +4276,49 @@
         {
           "symbol": "zoom",
           "x": 84,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 132,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 180,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 228,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconMic",
           "x": 60,
-          "y": 356,
+          "y": 400,
           "w": 48,
           "h": 48
         },
         {
-          "symbol": "shutterVideoIdle",
-          "x": 140,
-          "y": 340,
-          "w": 80,
-          "h": 80
+          "symbol": "shutterDenseVideoIdle",
+          "x": 148,
+          "y": 392,
+          "w": 64,
+          "h": 64
         },
         {
           "symbol": "iconLens",
           "x": 252,
-          "y": 356,
+          "y": 400,
           "w": 48,
           "h": 48
         }
@@ -3800,6 +4350,8 @@
         "h": 72,
         "symbol": "queueStrip"
       },
+      "profile": "standard",
+      "shutterSize": 80,
       "safe": {
         "top": 24,
         "bottom": 24,
@@ -3914,17 +4466,19 @@
       "ratio": 1,
       "queue": {
         "x": 24,
-        "y": 656,
+        "y": 680,
         "w": 312,
         "h": 72,
         "symbol": "queueCompact"
       },
+      "profile": "standard",
+      "shutterSize": 80,
       "safe": {
         "top": 24,
         "bottom": 24,
         "side": 24
       },
-      "travel": 48,
+      "travel": 24,
       "targets": [
         {
           "symbol": "settings",
@@ -3964,49 +4518,49 @@
         {
           "symbol": "zoom",
           "x": 84,
-          "y": 508,
+          "y": 532,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 132,
-          "y": 508,
+          "y": 532,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 180,
-          "y": 508,
+          "y": 532,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 228,
-          "y": 508,
+          "y": 532,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconFlashAuto",
           "x": 60,
-          "y": 580,
+          "y": 604,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "shutterPhoto",
           "x": 140,
-          "y": 564,
+          "y": 588,
           "w": 80,
           "h": 80
         },
         {
           "symbol": "iconLens",
           "x": 252,
-          "y": 580,
+          "y": 604,
           "w": 48,
           "h": 48
         }
@@ -4033,17 +4587,19 @@
       "ratio": 1,
       "queue": {
         "x": 24,
-        "y": 432,
+        "y": 464,
         "w": 312,
-        "h": 72,
-        "symbol": "queueCompact"
+        "h": 64,
+        "symbol": "queueDenseIdle"
       },
+      "profile": "dense",
+      "shutterSize": 64,
       "safe": {
         "top": 24,
         "bottom": 24,
         "side": 24
       },
-      "travel": 48,
+      "travel": 24,
       "targets": [
         {
           "symbol": "settings",
@@ -4083,49 +4639,49 @@
         {
           "symbol": "zoom",
           "x": 84,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 132,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 180,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 228,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconFlashAuto",
           "x": 60,
-          "y": 356,
+          "y": 400,
           "w": 48,
           "h": 48
         },
         {
-          "symbol": "shutterPhoto",
-          "x": 140,
-          "y": 340,
-          "w": 80,
-          "h": 80
+          "symbol": "shutterDensePhoto",
+          "x": 148,
+          "y": 392,
+          "w": 64,
+          "h": 64
         },
         {
           "symbol": "iconLens",
           "x": 252,
-          "y": 356,
+          "y": 400,
           "w": 48,
           "h": 48
         }
@@ -4157,6 +4713,8 @@
         "h": 72,
         "symbol": "queueStrip"
       },
+      "profile": "standard",
+      "shutterSize": 80,
       "safe": {
         "top": 24,
         "bottom": 24,
@@ -4271,17 +4829,19 @@
       "ratio": 0.45,
       "queue": {
         "x": 24,
-        "y": 656,
+        "y": 680,
         "w": 312,
         "h": 72,
         "symbol": "queueCompact"
       },
+      "profile": "standard",
+      "shutterSize": 80,
       "safe": {
         "top": 24,
         "bottom": 24,
         "side": 24
       },
-      "travel": 48,
+      "travel": 24,
       "targets": [
         {
           "symbol": "settings",
@@ -4321,49 +4881,49 @@
         {
           "symbol": "zoom",
           "x": 84,
-          "y": 508,
+          "y": 532,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 132,
-          "y": 508,
+          "y": 532,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 180,
-          "y": 508,
+          "y": 532,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 228,
-          "y": 508,
+          "y": 532,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconFlashAuto",
           "x": 60,
-          "y": 580,
+          "y": 604,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "shutterPhoto",
           "x": 140,
-          "y": 564,
+          "y": 588,
           "w": 80,
           "h": 80
         },
         {
           "symbol": "iconLens",
           "x": 252,
-          "y": 580,
+          "y": 604,
           "w": 48,
           "h": 48
         }
@@ -4390,17 +4950,19 @@
       "ratio": 0.625,
       "queue": {
         "x": 24,
-        "y": 432,
+        "y": 464,
         "w": 312,
-        "h": 72,
-        "symbol": "queueCompact"
+        "h": 64,
+        "symbol": "queueDenseIdle"
       },
+      "profile": "dense",
+      "shutterSize": 64,
       "safe": {
         "top": 24,
         "bottom": 24,
         "side": 24
       },
-      "travel": 48,
+      "travel": 24,
       "targets": [
         {
           "symbol": "settings",
@@ -4440,49 +5002,49 @@
         {
           "symbol": "zoom",
           "x": 84,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 132,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 180,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
           "x": 228,
-          "y": 284,
+          "y": 336,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconFlashAuto",
           "x": 60,
-          "y": 356,
+          "y": 400,
           "w": 48,
           "h": 48
         },
         {
-          "symbol": "shutterPhoto",
-          "x": 140,
-          "y": 340,
-          "w": 80,
-          "h": 80
+          "symbol": "shutterDensePhoto",
+          "x": 148,
+          "y": 392,
+          "w": 64,
+          "h": 64
         },
         {
           "symbol": "iconLens",
           "x": 252,
-          "y": 356,
+          "y": 400,
           "w": 48,
           "h": 48
         }
@@ -4514,6 +5076,8 @@
         "h": 72,
         "symbol": "queueStrip"
       },
+      "profile": "standard",
+      "shutterSize": 80,
       "safe": {
         "top": 24,
         "bottom": 24,

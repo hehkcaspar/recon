@@ -15,17 +15,20 @@ const rect=(x,y,w,h,fill)=>`<rect x="${n(x)}" y="${n(y)}" width="${n(w)}" height
 const fit=(b,r)=>{const w=Math.min(b.w,b.h*r),h=w/r;return {x:b.x+(b.w-w)/2,y:b.y+(b.h-h)/2,w,h};};
 const compactHeader=()=>use('topBarCompact',0,12,360,72);
 const targetsOverlap=(a,b)=>a.x<b.x+b.w-.001&&b.x<a.x+a.w-.001&&a.y<b.y+b.h-.001&&b.y<a.y+a.h-.001;
-function screen({id,w,h,tall=true,front=false,video=false,shell='bottom',hand='center',queue='idle',compact=false,overlay=false,aspect=null}){
- const qWidth=compact?312:360;
+function screen({id,w,h,tall=true,front=false,video=false,shell='bottom',hand='center',queue='idle',compact=false,overlay=false,aspect=null,bottomInset=24}){
+ const dense=shell!=='side'&&h-24-bottomInset<600;
+ const qWidth=compact||dense?312:360;
  const qX=compact?24:hand==='right'?w-24-qWidth:hand==='left'?24:(w-qWidth)/2;
- const qY=h-144,shutterY=qY-92,modeY=28,zoomY=shutterY-52;
+ const qHeight=dense?64:72,shutterSize=dense?64:80,queueGap=dense?8:12;
+ const travel=shell==='side'?48:24; // Side docks retain deliberate visual balance; bottom docks use only needed travel.
+ const qY=h-bottomInset-travel-qHeight,shutterY=qY-queueGap-shutterSize,modeY=28,zoomY=shutterY-52;
  const cx=qX+qWidth/2;
  const frameRatio=aspect??(video?(tall?9/16:16/9):(tall?3/4:4/3));
  const verticalZoom=shell==='side'&&frameRatio<1&&!compact;
  let box;
- if(overlay){const top=w/frameRatio>h-96?24:72;box={x:0,y:top,w,h:h-24-top};}
+ if(overlay){const top=w/frameRatio>h-96?24:72;box={x:0,y:top,w,h:h-bottomInset-top};}
  else if(compact)box={x:24,y:92,w:w-48,h:zoomY-108};
- else if(shell==='side')box={x:hand==='left'?408:(verticalZoom?96:24),y:84,w:w-432-(verticalZoom?72:0),h:h-108};
+ else if(shell==='side')box={x:hand==='left'?408:(verticalZoom?96:24),y:84,w:w-432-(verticalZoom?72:0),h:h-bottomInset-84};
  else box={x:24,y:84,w:w-48,h:zoomY-100};
  const ratio=frameRatio,p=fit(box,ratio);
  if(overlay&&p.w===w)p.y=box.y; // Full-width compact frames align below the top bar, instead of floating in unused space.
@@ -45,7 +48,7 @@ function screen({id,w,h,tall=true,front=false,video=false,shell='bottom',hand='c
  if(overlay&&p.y<72){out+=rect(0,24,w,48,'#000').replace('/>',' fill-opacity=".72"/>');out+=compactHeader(video);}
 
  if(!video)out+=use('focusIndicator',p.x+p.w*.56-40,(overlay?Math.min(p.y+p.h*.30,zoomY-52):p.y+p.h*.52)-40,80,80);
- if(overlay)out+=`<defs><linearGradient id="${id}-scrim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset=".32" stop-color="#000" stop-opacity=".72"/><stop offset="1" stop-color="#000" stop-opacity=".85"/></linearGradient></defs><rect x="0" y="${zoomY-48}" width="${w}" height="${h-24-(zoomY-48)}" fill="url(#${id}-scrim)"/>`;
+ if(overlay)out+=`<defs><linearGradient id="${id}-scrim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset=".32" stop-color="#000" stop-opacity=".72"/><stop offset="1" stop-color="#000" stop-opacity=".85"/></linearGradient></defs><rect x="0" y="${zoomY-48}" width="${w}" height="${h-bottomInset-(zoomY-48)}" fill="url(#${id}-scrim)"/>`;
  // Less-frequent mode selection stays in the top bar; preview swipe is the quick alternative.
  out+=use(video?'modeStripVideo':'modeStripPhoto',w/2-125,modeY,250,40);
  for(let k=0;k<3;k++)targets.push({symbol:'mode',x:w/2-125+k*250/3,y:modeY-4,w:250/3,h:48});
@@ -54,18 +57,21 @@ function screen({id,w,h,tall=true,front=false,video=false,shell='bottom',hand='c
  const zy=verticalZoom?p.y+p.h/2-96:zoomY;
  if(front){const x=verticalZoom?zx:cx-20,y=verticalZoom?zy+76:zoomY;out+=use('zoomSingle',x,y,40,40);targets.push({symbol:'zoom1x',x:x-4,y:y-4,w:48,h:48});}
  else {out+=use(verticalZoom?'zoomVertical':'zoomChips',zx,zy,verticalZoom?40:192,verticalZoom?192:40);for(let k=0;k<4;k++)targets.push({symbol:'zoom',x:verticalZoom?zx-4:zx+k*48,y:verticalZoom?zy+k*48:zy-4,w:48,h:48});}
- control(video?'iconMic':front?'iconFlashOff':'iconFlashAuto',cx-120,shutterY+16);
+ control(video?'iconMic':front?'iconFlashOff':'iconFlashAuto',cx-120,shutterY+(shutterSize-48)/2);
  // Front flash off is unavailable in this capability fixture; visible but not an active target.
  if(front&&!video){out=out.replace(/(<use href="#shared-iconFlashOff"[^>]*)(\/>)$/, '$1 opacity=".38"$2');targets.pop();}
- control(video?'shutterVideoIdle':'shutterPhoto',cx-40,shutterY,80,80);
- control('iconLens',cx+72,shutterY+16);
- const queueSymbol=queue.startsWith('long-')?(compact?'queueCompactLong':'queueLong')+queue.slice(5):(compact?(queue==='split'?'queueCompactSplit':'queueCompact'):(queue==='split'?'queueSplit':'queueStrip'));
- out+=use(queueSymbol,qX,qY,qWidth,72,'data-role="queue"');
- out+=`<rect x="${w/2-50}" y="${h-12}" width="100" height="4" rx="2" fill="#fff" fill-opacity=".45"/>`;
- const record={id,w,h,compact,overlay,shell,hand,frame:ratio===1?'square':ratio<1?'tall':'wide',camera:front?'front':'rear',zoomAxis:verticalZoom?'vertical':'horizontal',mode:video?'video':'photo',preview:Object.fromEntries(Object.entries(p).map(([k,v])=>[k,n(v)])),ratio,queue:{x:qX,y:qY,w:qWidth,h:72,symbol:queueSymbol},safe:{top:24,bottom:24,side:24},travel:48,targets};
- for(const t of targets){if(t.x<0||t.y<24||t.x+t.w>w||t.y+t.h>h-24)throw Error(`Unsafe target ${id} ${t.symbol}`);if(!overlay&&targetsOverlap(t,p))throw Error(`Preview/control overlap ${id} ${t.symbol}`);}
+ control((dense?'shutterDense':'shutter')+(video?'VideoIdle':'Photo'),cx-shutterSize/2,shutterY,shutterSize,shutterSize);
+ control('iconLens',cx+72,shutterY+(shutterSize-48)/2);
+ const queueSymbol=dense?(queue==='deleteArmed'?'queueDenseDeleteArmed':queue.startsWith('long-')?'queueDenseLong'+queue.slice(5):queue==='split'?'queueDenseSplit':'queueDenseIdle'):queue.startsWith('long-')?(compact?'queueCompactLong':'queueLong')+queue.slice(5):(compact?(queue==='split'?'queueCompactSplit':'queueCompact'):(queue==='split'?'queueSplit':'queueStrip'));
+ out+=use(queueSymbol,qX,qY,qWidth,queue==='deleteArmed'?qHeight+48:qHeight,'data-role="queue"');
+ if(bottomInset===48)out+=`<path d="M${w/2-70} ${h-30}l-10 6 10 6Z" fill="#888"/><circle cx="${w/2}" cy="${h-24}" r="7" fill="none" stroke="#888" stroke-width="2"/><rect x="${w/2+62}" y="${h-31}" width="14" height="14" fill="#888"/>`;
+ else out+=`<rect x="${w/2-50}" y="${h-12}" width="100" height="4" rx="2" fill="#fff" fill-opacity=".45"/>`;
+ const record={id,w,h,compact,overlay,shell,hand,frame:ratio===1?'square':ratio<1?'tall':'wide',camera:front?'front':'rear',zoomAxis:verticalZoom?'vertical':'horizontal',mode:video?'video':'photo',preview:Object.fromEntries(Object.entries(p).map(([k,v])=>[k,n(v)])),ratio,queue:{x:qX,y:qY,w:qWidth,h:qHeight,symbol:queueSymbol},profile:dense?'dense':'standard',shutterSize,safe:{top:24,bottom:bottomInset,side:24},travel,targets};
+ for(const t of targets){if(t.w<48||t.h<48)throw Error(`Undersized target ${id} ${t.symbol}`);if(t.x<0||t.y<24||t.x+t.w>w||t.y+t.h>h-bottomInset)throw Error(`Unsafe target ${id} ${t.symbol}`);if(!overlay&&targetsOverlap(t,p))throw Error(`Preview/control overlap ${id} ${t.symbol}`);}
  for(let i=0;i<targets.length;i++)for(let j=i+1;j<targets.length;j++)if(targetsOverlap(targets[i],targets[j]))throw Error(`Overlapping targets ${id}`);
- if(qX<24||qX+qWidth>w-24||qY+72+48>h-24)throw Error(`Unsafe queue ${id}`);
+ if(qX<24||qX+qWidth>w-24||qY+qHeight+travel>h-bottomInset)throw Error(`Unsafe queue ${id}`);
+ if(qY+8+(dense?48:56)+32>h-bottomInset)throw Error(`Unsafe bottommost delete start ${id}`);
+ if(qY+qHeight+24>h-bottomInset)throw Error(`Unsafe split endpoint ${id}`);
  if(Math.abs(p.w/p.h-ratio)>1e-8)throw Error(`Distorted frame ${id}`);
  records.push(record);
  return out;
@@ -99,7 +105,7 @@ async function matrix(ultra){
    y+=h+100;
   }
  }
- body+=text(32,y+8,'24-unit illustrative safe insets; 48-unit downward queue runway above bottom inset. No explanations inside app views.',15);
+ body+=text(32,y+8,'24-unit illustrative insets; bottom docks reserve 24dp travel; side docks retain balanced anchors. No explanations inside app views.',15);
  body+=text(32,y+34,'Dock choice fits frame + controls, not width > height. Tall-frame examples use a right dock; left-hand equivalent is in layout checks.',15);
  body+=text(32,y+60,'Rotation continues recording. Fold/unfold finalizes once. These SVGs specify intended behavior; they do not execute it.',15);
  await save(`recon-capture-${ultra?'fold8-ultra':'fold8'}-inner.svg`,document(W,Math.max(H,y+92),`${name} capture layouts`,body));
@@ -107,7 +113,7 @@ async function matrix(ultra){
 await matrix(false);await matrix(true);
 // Separate engineering/gesture fixtures, not permanent labels or guides in product screens.
 let body=text(32,42,'Layout checks / independent frame direction, handedness and hinge',28,'#fff');
-body+=text(32,74,'Counterexamples prevent hardcoding window-wide → camera-wide, or its inverse. Same component sizes and gesture runway.');
+body+=text(32,74,'Counterexamples prevent hardcoding window-wide → camera-wide, or its inverse. Explicit standard/dense sizes; bottom travel and system insets remain separate.');
 const cases=[
  {id:'wide-wide',w:960,h:720,tall:false,shell:'side',hand:'right',label:'Wide window / wide frame — transform exception'},
  {id:'wide-left',w:960,h:720,tall:true,shell:'side',hand:'left',queue:'split',label:'Wide window / tall frame — left-hand dock and split queue'},
@@ -125,8 +131,8 @@ for(const [i,s] of [
  'Insets here are fixtures, not Android constants.',
  'Use safeDrawing for visible controls and safeGestures for drags.',
  'Queue edge targets begin inside the usable region; OS Back keeps its edges.',
- '72-unit queue + 48-unit travel + actual bottom inset are allocated first.',
- 'Preview fits the remaining bounds uniformly; controls never shrink.',
+ 'Bottom dock: 72/64dp queue + 24dp travel + actual bottom inset.',
+ 'Preview fits uniformly; dense visuals shrink, targets stay at least 48dp.',
  'Long text grows overlay height; it never pushes controls into system UI.',
  'Left-hand layout moves the dock; text, media and commit direction stay unchanged.',
  'A flat, nonseparating crease can share the preview; no button sits on a separator.',
@@ -145,7 +151,17 @@ for(const [i,state] of ['Start','Middle','End','Split'].entries()){
  const x=32+i*488;body+=`<g transform="translate(${x} 3784)">${screen({id:`cover-queue-${state.toLowerCase()}`,w:360,h:576,compact:true,overlay:true,queue:`long-${state}`})}</g>`;
  body+=text(x,4390,`${state} / 48dp edge targets unchanged`,16,'#fff');
 }
-await save('recon-capture-layout-checks.svg',document(2040,4440,'Recon layout validation fixtures',body));
+body+=text(32,4478,'Bottom anchoring / short windows, active deletion and larger system insets',24,'#fff');
+body+=text(32,4510,'Usable height = full window height minus top/bottom insets. Dense below 600dp; freeze profile during any active gesture.');
+for(const [i,c] of [
+ {id:'short-480',h:480,label:'360 × 480 / dense / 24dp bottom inset'},
+ {id:'short-640',h:640,label:'360 × 640 / dense / 24dp bottom inset'},
+ {id:'cover-delete',h:576,queue:'deleteArmed',label:'Cover / delete armed / 32dp display travel'},
+ {id:'cover-nav48',h:576,bottomInset:48,label:'Cover / illustrative 48dp button-nav inset'}
+].entries()){
+ const x=32+i*488;body+=`<g transform="translate(${x} 4540)">${screen({w:360,compact:true,overlay:true,...c})}</g>`+text(x,4540+c.h+28,c.label,15,'#fff');
+}
+await save('recon-capture-layout-checks.svg',document(2040,5240,'Recon layout validation fixtures',body));
 // Common output ratios are fixtures, not a new in-app aspect selector.
 let ratiosBody=text(32,42,'Common framing / phone, cover and inner-window layout',28,'#fff');
 ratiosBody+=text(32,72,'4:3 family, 16:9 family, square and variable Full-style output. Selected output crop is distinct from extra preview-fitting crop.');
@@ -176,10 +192,15 @@ await save('layout-geometry.json',JSON.stringify({units:'logical dp-like; insets
 // Check nested queue ownership too: screen-level targets alone miss expanded split gaps.
 const canonical=await readFile(join(root,'recon-capture-design-system.svg'),'utf8');
 const symbols=new Map([...canonical.matchAll(/<symbol\b[^>]*id="([^"]+)"[^>]*>([\s\S]*?)<\/symbol>/g)].map(m=>[m[1],m[2]]));
+for(const {id,queue} of records){
+ const match=canonical.match(new RegExp('<symbol id="'+queue.symbol+'" viewBox="0 0 ([0-9]+) ([0-9]+)"'));
+ if(!match||+match[1]!==queue.w)throw Error(`Scaled queue width ${id}`);
+ if(+match[2]!==queue.h&&queue.symbol!=='queueDenseDeleteArmed')throw Error(`Scaled queue height ${id}`);
+}
 const attrs=tag=>Object.fromEntries([...tag.matchAll(/([\w-]+)="([^"]*)"/g)].map(m=>[m[1],m[2]]));
 function queueBounds(id,ox=0,oy=0){
  const result=[];
- if(/^queueThumb(Photo|Video|Voice)$/.test(id))return [{x:ox,y:oy,w:56,h:56,kind:'item'}];
+ if(/^queue(Dense)?Thumb(Photo|Video|Voice)$/.test(id)){const size=id.includes('Dense')?48:56;return [{x:ox,y:oy,w:size,h:size,kind:'item'}];}
  const source=symbols.get(id);if(!source)throw Error(`Missing queue symbol ${id}`);
  for(const match of source.matchAll(/<(use|rect)\b[^>]*\/>/g)){
   const a=attrs(match[0]),x=ox+(+a.x||0),y=oy+(+a.y||0);
@@ -188,7 +209,7 @@ function queueBounds(id,ox=0,oy=0){
  }
  return result;
 }
-for(const id of ['queueStrip','queueSplit','queueCompact','queueCompactSplit']){
+for(const id of ['queueStrip','queueSplit','queueCompact','queueCompactSplit','queueDenseIdle','queueDenseSplit']){
  const bounds=queueBounds(id);
  for(const a of bounds.filter(b=>b.kind==='edge'))for(const b of bounds.filter(b=>b.kind==='item'))if(targetsOverlap(a,b))throw Error(`Queue edge/item overlap: ${id}`);
 }
@@ -196,24 +217,24 @@ console.log(`${records.length} screen geometries validated: ratios, target separ
 
 // Overflow allows visual overlap, but edge ownership has priority on pointer-down.
 // Once selected, that owner lasts for the whole sequence (runtime acceptance still required).
-for(const [prefix,w] of [['queueLong',360],['queueCompactLong',312]]){
+for(const [prefix,w] of [['queueLong',360],['queueCompactLong',312],['queueDenseLong',312]]){
  for(const state of ['Start','Middle','End','Split','Commit','Discard']){
-  const id=prefix+state,source=symbols.get(id),bounds=queueBounds(id);
+  const id=prefix+state,source=symbols.get(id),bounds=queueBounds(id),dense=prefix.includes('Dense'),edgeY=dense?8:12,size=dense?48:56;
   const edges=bounds.filter(b=>b.kind==='edge'),items=bounds.filter(b=>b.kind==='item');
-  if(edges.length!==2||!edges.some(b=>b.x===0&&b.y===12&&b.w===48&&b.h===48)||!edges.some(b=>b.x===w-48&&b.y===12&&b.w===48&&b.h===48))throw Error(`Overflow edge target changed: ${id}`);
+  if(edges.length!==2||!edges.some(b=>b.x===0&&b.y===edgeY&&b.w===48&&b.h===48)||!edges.some(b=>b.x===w-48&&b.y===edgeY&&b.w===48&&b.h===48))throw Error(`Overflow edge target changed: ${id}`);
   if(!source.startsWith('<use href="#'+prefix))throw Error(`Overflow media must paint before handles: ${id}`);
   const media=symbols.get(prefix+(['Commit','Discard'].includes(state)?'Middle':state)+'Media');
-  if(!media.includes(`mask="url(#${prefix}Mask)"`))throw Error(`Overflow mask missing: ${id}`);
+  if(!media.includes(`mask="url(#${dense?'queueCompactLong':prefix}Mask)"`))throw Error(`Overflow mask missing: ${id}`);
   const contains=(b,x,y)=>x>=b.x&&x<b.x+b.w&&y>=b.y&&y<b.y+b.h;
   const owner=(x,y)=>edges.some(b=>contains(b,x,y))?'edge':items.some(b=>contains(b,x,y))?'item':'gap';
   for(const edge of edges)for(const item of items){
    if(!targetsOverlap(edge,item))continue;
-   const x=(Math.max(edge.x,item.x)+Math.min(edge.x+48,item.x+56))/2;
+   const x=(Math.max(edge.x,item.x)+Math.min(edge.x+48,item.x+size))/2;
    if(owner(x,36)!=='edge')throw Error(`Overflow thumbnail stole handle: ${id}`);
   }
   if(state==='Start'&&items[0].x!==56)throw Error(`First item inaccessible: ${id}`);
-  if(state==='End'&&items.at(-1).x+56!==w-56)throw Error(`Last item inaccessible: ${id}`);
-  if(state==='Split'&&items[3].x-(items[2].x+56)!==24)throw Error(`Overflow split gap changed: ${id}`);
+  if(state==='End'&&items.at(-1).x+size!==w-56)throw Error(`Last item inaccessible: ${id}`);
+  if(state==='Split'&&items[3].x-(items[2].x+size)!==24)throw Error(`Overflow split gap changed: ${id}`);
  }
 }
-console.log('12 overflow states validated: invariant edge zones, media masks, endpoint access, split spacing and initial-owner priority.');
+console.log('18 overflow states validated: invariant edge zones, media masks, endpoint access, split spacing and initial-owner priority.');

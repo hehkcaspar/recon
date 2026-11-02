@@ -4,7 +4,7 @@ Static SVG reference, revised 2026-11-01. Android application code is unchanged.
 
 ## Read and view
 
-1. [Design system](recon-capture-design-system.svg) and [component behavior contract](COMPONENT-CONTRACT.md): reusable controls, queue states, gestures, feedback and recording; the canonical sheet is 1440 × 8280.
+1. [Design system](recon-capture-design-system.svg) and [component behavior contract](COMPONENT-CONTRACT.md): reusable controls, queue states, gestures, feedback and recording; the canonical sheet is 1440 × 9000.
 2. [Phone](recon-capture-phone.svg), [cover](recon-capture-cover.svg), [external phone annotations](recon-capture-phone-annotated.svg).
 3. [Fold8 inner](recon-capture-fold8-inner.svg): four PHOTO artboards; corrected wide-window/tall-frame and tall-window/wide-frame compositions, rear and front.
 4. [Fold8 Ultra inner](recon-capture-fold8-ultra-inner.svg): the same pose study for PHOTO and VIDEO on near-square windows.
@@ -30,28 +30,28 @@ One SVG unit is one logical dp-like unit. Device names describe comparison scena
 | --- | --- |
 | Toolbar icon | Official Material Filled 24-unit glyph in a 48 × 48 slot |
 | Tap focus | Complete white ring, radius 30 / stroke 2; transparent center; no lock or exposure controls |
-| Shutter | 80 × 80; centered 3-unit white ring with radius 38.5 |
+| Shutter | Standard 80 / dense 64; centered3dp white ring; radius 38.5 /30.5 |
 | Inner fills | PHOTO 64; VIDEO idle 42; recording stop 28; VOICE idle white disk 58 with black mic glyph box 32 |
-| Queue | Height 72; thumbnail 56; padding 8 vertically; ordinary gap 6 |
+| Queue | Standard height 72 / tile56; dense height 64 / tile48; vertical padding8; ordinary gap6 |
 | Queue capacity | Short queues: 312-wide / three centered items; 360-wide / four. Overflow adds fading partial tiles. |
 | Divider | 4 wide, centered in a 24-unit expanded gap; never covers an item |
 | Mode | 250 × 40 horizontal text row at (window width / 2 − 125, 28); three equal 83⅓ × 48 targets spanning y24–72; selected label white / weight 700; no underline |
 | Zoom | 28-unit selected circle; 12sp labels; visible surface 176 × 32 or 32 × 176; independent 48 × 48 targets at 48-unit pitch |
 | Overlay | 328-wide compact specimen, minimum height 48; wraps/grows at larger text sizes |
 | Screen fixture insets | 24 top, bottom and drag-side clearance; replace with actual runtime insets |
-| Queue gesture runway | 48 below the strip, in addition to the actual bottom inset |
-| Spacing | 4-unit base; mode top = 28; horizontal zoom slot top = shutter top − 52 (surface inset 4); queue top = shutter top + 92 |
+| Queue gesture runway | Bottom docks24 below strip + actual bottom inset; balanced side docks retain48 |
+| Spacing | 4-unit base; mode top = 28; horizontal zoom slot top = shutter top − 52 (surface inset 4); queue top = shutter top +92 standard /+72 dense |
 
-[layout-geometry.json](layout-geometry.json) records exact bounds for all 40 screen fixtures. It is generated from [layout-screens.mjs](layout-screens.mjs), which also validates frame ratios, target separation, screen bounds and downward queue travel.
+[layout-geometry.json](layout-geometry.json) records exact bounds for all 44 screen fixtures. It is generated from [layout-screens.mjs](layout-screens.mjs), which also validates frame ratios, target separation, screen bounds and downward queue travel.
 
 | Screen | Upright PHOTO frame | Dock / queue |
 | --- | --- | --- |
-| Phone 360 × 800 | 360 × 480, at (0,72); horizontal zoom above shutter | Shutter y564; queue (24,656), 312 × 72 |
-| Cover 360 × 576 | 360 × 480, at (0,72); controls overlay | Shutter y340; queue (24,432), 312 × 72 |
+| Phone 360 × 800 | 360 × 480, at (0,72); horizontal zoom above shutter | Shutter y588; queue (24,680), 312 ×72 |
+| Cover 360 × 576 | 360 × 480, at (0,72); controls overlay | Dense shutter 64 at y392; queue (24,464),312 ×64 |
 | Fold8 wide 960 × 720 | 456 × 608, at (96,86) | Right shutter y484; opposite vertical zoom; queue (576,576), 360 × 72 |
-| Fold8 tall 720 × 960 | 672 × 504, at (24,118) | Bottom shutter y724; queue (180,816), 360 × 72 |
+| Fold8 tall 720 × 960 | 672 ×504, at (24,130) | Bottom shutter y748; queue (180,840), 360 × 72 |
 | Ultra wide 960 × 864 | 456 × 608, at (96,158) | Right shutter y628; opposite vertical zoom; queue (576,720), 360 × 72 |
-| Ultra tall 864 × 960 | 762.6667 × 572, at (50.6667,84) | Bottom shutter y724; queue (252,816), 360 × 72 |
+| Ultra tall 864 × 960 | 794.6667 ×596, at (34.6667,84) | Bottom shutter y748; queue (252,840), 360 × 72 |
 
 Preview rectangles use uniform scale. On compact screens, the 3:4 frame fills the usable width and controls overlay the image; this intentional visual occlusion is distinct from cropping the camera stream. Controls own input above the preview; taps/swipes beginning on a control cannot also focus or change mode. Other layouts fit the preview in the remaining region. The additional ratio sheet covers 9:16 PHOTO and VIDEO, 1:1 PHOTO, and variable Full-style crops. On the short cover, 9:16 fits to 297 × 528 with controls overlaying the frame: full-width 360 × 640 would exceed available height. VIDEO in inner matrices uses 9:16 or 16:9 in allocated regions. Controls may visually occlude part of an overlaid preview; this is not a crop or stretch of the stream. Zoom shortcuts are capability fixtures, not fixed optical-lens claims. The illustrated rear choices are .5, 1×, 2 and 5; the front single-preset 1× fixture assumes continuous zoom is available, with rear flash unavailable. Hide the zoom control and its input/semantic regions if no zoom adjustment exists. Production controls depend on the selected camera's capabilities, not a universal rear/front assumption. A continuous 1.7× value replaces the 1× slot without falsely selecting a preset; tapping that slot resets to 1×, and semantics describe both the current value and reset action.
 
@@ -61,7 +61,7 @@ The left-hand side fixture has a 456 × 608 preview at (408,86), queue at (24,57
 
 Where a compact preview extends behind the header, the header uses a 72% black scrim across y24–72; mode labels remain in that top region. The design-system VIDEO and VOICE recording compositions also keep their locked mode rows at the top.
 
-Short-cover feedback uses host (16,92), width 328: compact Undo is 48 high and the restored 2× large-text error is 160 high, ending at y252. Horizontal zoom targets now begin at y284, leaving 32 units between banner and targets; shutter y340 and queue y432 remain anchored. This is a static fit example, not runtime font-scaling verification. For content that exceeds the available host, preserve complete text and reachable actions through an alternate accessible presentation while keeping Stop accessible.
+Short-cover feedback uses host (16,92), width 328: compact Undo is 48 high and the restored 2× large-text error is 160 high, ending at y252. Dense horizontal zoom targets begin at y336, leaving 84 units between banner and targets; shutter y392 and queue y464 remain anchored. This is a static fit example, not runtime font-scaling verification. For content that exceeds the available host, preserve complete text and reachable actions through an alternate accessible presentation while keeping Stop accessible.
 
 ## Behavior contract
 
@@ -89,7 +89,7 @@ node docs/prototypes/render-review.mjs
 
 Edit screen geometry in `layout-screens.mjs`, shared symbols in the design-system SVG, and external phone callouts in `build-standalone.mjs`. Do not edit generated symbol blocks or font data. The bundler embeds only used shared definitions with scoped IDs.
 
-The renderer checks eight SVGs in HTTP, isolated local-file and HTML-image contexts, with source/PNG hashes in `review/manifest.json`. Local-file output must equal HTTP. Image-context antialiasing normally allows max channel delta 8/255 and mean pixel delta 0.05/255. One exact design-system source/direct-PNG/image-PNG hash triple has a documented [curve-edge rasterization exception](review/rasterization/README.md): 320 of 11,923,200 pixels exceed delta8; the manifest explicitly records that the strict image-context check is false. Any changed source or raster invalidates the exception. The annotation sheet must contain the exact 288,000 phone pixels. Independent visual review supplements these structural checks. Android touch arbitration, camera output, accessibility and hand reach still require runtime testing.
+The renderer checks eight SVGs in HTTP, isolated local-file and HTML-image contexts, with source/PNG hashes in `review/manifest.json`. Local-file output must equal HTTP. Image-context antialiasing normally allows max channel delta 8/255 and mean pixel delta 0.05/255. One exact design-system source/direct-PNG/image-PNG hash triple has a documented [curve-edge rasterization exception](review/rasterization/README.md): 678 of 12,960,000 pixels exceed delta8; the manifest explicitly records that the strict image-context check is false. Any changed source or raster invalidates the exception. The annotation sheet must contain the exact 288,000 phone pixels. Independent visual review supplements these structural checks. Android touch arbitration, camera output, accessibility and hand reach still require runtime testing.
 
 ## Assets
 
@@ -102,3 +102,9 @@ User-provided [iPhone Duo cover/unfolded references](../references/iphone-duo-ca
 ### Long-queue edge behavior
 
 The component sheet now includes 312dp and 360dp overflow states: start, middle, end, split, commit and discard. Media fades to transparency underneath fixed handles; there is no queue background bar. Handles retain 48 × 48dp input regions and win initial hit testing over underlying thumbnails/gaps. An existing item gesture never turns into an edge action. Endpoint padding keeps the first/last item fully reachable. Four full-size cover fixtures in `recon-capture-layout-checks.svg` show these states over the camera preview. See `COMPONENT-CONTRACT.md` for exact mask, spacing and ownership geometry. Runtime pointer/accessibility arbitration remains implementation work.
+
+### Bottom anchoring and short-window density
+
+Bottom docks use `queueTop = fullWindowHeight − safeBottomInset −24 − stripHeight`. The24dp corridor supports the revised prototype deletion gate (>24dp plus release, display clamped 32dp), not an arbitrary spacer. Side docks keep their balanced anchors. The short-window profile uses 64dp shutters and 48dp tiles in a64dp queue, with 8dp shutter-to-queue spacing; standard remains 80/56/72 with 12dp spacing. Targets stay≥48dp, duration labels11sp and mode/zoom12sp. Choose dense below 600dp usable height, provisionally; freeze the profile during gestures. See the component contract for exact ownership, cancellation, glow bounds and endpoint calculations.
+
+Four new layout checks cover360 ×480,360 ×640, active cover deletion, and an illustrative48dp three-button navigation inset. These complement the existing overflow and large-text fixtures. Read actual runtime insets; never sum overlapping inset types or subtract an inset twice. Android documents [inset handling](https://developer.android.com/develop/ui/compose/system/insets) and [minimum48dp touch targets](https://developer.android.com/develop/ui/compose/accessibility/api-defaults); the density breakpoint and gesture distances are Recon proposals, not platform standards. Native behavior is unchanged; accidental deletion, edge reach and profile transitions require held-device tests.

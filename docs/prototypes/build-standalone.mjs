@@ -80,8 +80,8 @@ ${phone.trim()}
   <text x="24" y="836" font-size="14" fill="#bdbdbd">360 × 800 logical units · artboard at 1:1</text>
   <g fill="none" stroke="#777" stroke-width="1">
     <path d="M372 312H408V156H424"/>
-    <path d="M372 604H414V328H424"/>
-    <path d="M372 692H420V456H424"/>
+    <path d="M372 628H414V328H424"/>
+    <path d="M372 716H420V456H424"/>
   </g>
   <g font-size="18" font-weight="700">
     <text x="440" y="160">Preview gestures</text>
@@ -92,7 +92,7 @@ ${phone.trim()}
   <g font-size="15" fill="#ccc">
     <text x="440" y="192">Top modes or swipe: right → VIDEO; left → VOICE</text>
     <text x="440" y="220">Tap to focus · pinch to zoom</text>
-    <text x="440" y="248">Full-width 3:4 stream; zoom overlays its lower edge.</text>
+    <text x="440" y="248">Full-width 3:4 stream; lower controls anchor from bottom.</text>
     <text x="440" y="364">Flash · shutter · switch camera</text>
     <text x="440" y="392">Zoom targets stay 48dp; shutter/queue gap is 12dp.</text>
     <text x="440" y="492">Left edge → swipe right to commit</text>
@@ -102,7 +102,7 @@ ${phone.trim()}
     <text x="440" y="604">Gap ↓ split · gap ↑ remove divider</text>
     <text x="440" y="632">Long queues fade under fixed handles; scroll for more.</text>
     <text x="440" y="760">Notes and leader lines never enter the app viewport.</text>
-    <text x="440" y="788">24-unit safe insets + 48-unit queue travel (fixtures).</text>
+    <text x="440" y="788">24-unit safe insets +24-unit queue travel (fixtures).</text>
     <text x="440" y="816">Scene text/grid are camera test content, not app UI.</text>
     <text x="440" y="844">State variants and gesture diagrams: design-system sheet.</text>
   </g>

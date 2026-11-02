@@ -1,11 +1,24 @@
-# Current raster exception — long-queue revision
+# Current raster exception — bottom anchoring and dense controls
+
+The current sheet is 1440 ×9000. Source/direct/image hashes are recorded in [current-measurements.json](current-measurements.json) and pinned in `../../render-review.mjs`. Direct HTTP and isolated-file PNGs match exactly; strict HTML-image comparison remains false under this exact-artifact exception. Seven other sheets retain their strict thresholds.
+
+- 12,960,000 pixels;32,692 have any RGB difference;678 exceed delta8 and 95 exceed delta32. Overall maximum 81 remains at the old tutorial curve(254,5410); mean maximum-channel difference0.003776466/255.
+- In the existing 1440 ×8280 area,2,228 residual pixels change; their new maximum 10 occurs at(255,3005), a revised delete-thumbnail boundary. The new dense panel contributes 358 pixels above 8, maximum 58, concentrated on the five new 64dp shutter curves.
+- Dense PHOTO ring(72,8384,64,64): centroid delta+0.00318/+0.00223px; zero-offset error 1,123 versus best nonzero±1px error 72,080. Dense voice Stop(520,8384,64,64): +0.01011/+0.03046px; zero error 1,814 versus 59,461. These diagnostics and direct/alternate visual inspection support curve-edge coverage differences, not a coherent displacement.
+- The two original hotspots retain their exact direct pixels and diagnostic results. Their existing enlarged comparison remains valid. The [full alternate render](design-system-image-context.png) is refreshed.
+
+Independent GPT-6.1-SOL Peirce visually approved the final dense direct/alternate crops, feedback bounds and bottom-dock fixtures without material visual regression. This bounded exception does not certify native gestures, device reach or false-trigger rates. Every future source/raster change invalidates the pin.
+
+---
+
+# Historical reassessment — long-queue revision
 
 Reassessed for the 1440 × 8280 sheet. Exact source/direct/image hashes and measurements are in [current-measurements.json](current-measurements.json) and pinned in `../../render-review.mjs`. All direct HTTP / isolated-file pixels match. Strict HTML-image comparison remains false; the exception is artifact-specific, not a relaxed global threshold.
 
-- 11,923,200 pixels; 33,812 differ in any channel; 320 exceed delta8, 55 exceed delta32; overall maximum81 remains at the unchanged tutorial curve (254,5410). Mean maximum-channel difference is 0.003583434/255.
-- In the pre-existing 1440 × 7360 area, 383 signed RGB residual pixels change, with new maximum1. All previous above-delta8 residuals remain unchanged.
-- The appended overflow panels introduce 19 above-delta8 pixels, maximum21, at microphone curves and rounded thumbnail edges. No new pixel exceeds32. Coordinates are recorded in the measurements file.
-- New microphone region (193,7588,56,56): centroid delta +0.00190/−0.00066px; zero-offset error150 versus best ±1px error22,920. New rounded-tile region (1010,7488,56,56): +0.00113/−0.00171px; zero-offset error61 versus best shifted error11,864. Neither suggests a coherent displacement.
+- 11,923,200 pixels; 33,812 differ in any channel; 320 exceed delta8, 55 exceed delta32; overall maximum 81 remains at the unchanged tutorial curve (254,5410). Mean maximum-channel difference is 0.003583434/255.
+- In the pre-existing 1440 × 7360 area, 383 signed RGB residual pixels change, with new maximum 1. All previous above-delta8 residuals remain unchanged.
+- The appended overflow panels introduce 19 above-delta8 pixels, maximum 21, at microphone curves and rounded thumbnail edges. No new pixel exceeds32. Coordinates are recorded in the measurements file.
+- New microphone region (193,7588,56,56): centroid delta +0.00190/−0.00066px; zero-offset error 150 versus best ±1px error 22,920. New rounded-tile region (1010,7488,56,56): +0.00113/−0.00171px; zero-offset error 61 versus best shifted error 11,864. Neither suggests a coherent displacement.
 - The two older hotspot crops retain their prior pixels and diagnostic results. The [alternate full render](design-system-image-context.png) is refreshed; the old eight-times tutorial enlargement is still valid for that unchanged hotspot.
 
 Independent GPT-6.1-SOL Poincare inspected the final direct/alternate overflow crops and found no apparent displacement or visual defect. This bounded assessment concerns SVG compositor edge coverage, not native interaction correctness. The seven other sheets retain their strict thresholds. Any future source or raster change invalidates these hashes and requires reassessment.
