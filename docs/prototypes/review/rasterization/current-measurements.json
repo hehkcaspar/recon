@@ -1,0 +1,48 @@
+{
+  "dimensions": [
+    1440,
+    7360
+  ],
+  "pixelsOver8": 305,
+  "pixelsOver32": 55,
+  "max": 81,
+  "maxAt": [
+    254,
+    5410
+  ],
+  "regions": [
+    {
+      "region": [
+        220,
+        5360,
+        64,
+        72
+      ],
+      "centroidDelta": [
+        -0.004601547848608334,
+        -0.017426633507056977
+      ],
+      "zeroError": 898,
+      "bestNonzeroError": 22122,
+      "directCropIdenticalToPrevious": true
+    },
+    {
+      "region": [
+        1020,
+        4178,
+        96,
+        100
+      ],
+      "centroidDelta": [
+        -0.003341011658676507,
+        0.02085697774964501
+      ],
+      "zeroError": 2893,
+      "bestNonzeroError": 83253,
+      "directCropIdenticalToPrevious": false
+    }
+  ],
+  "svgSha256": "cb9b9a6155d2a2db11686c5052bdeceaf16ea526eb0167dffeaa56c26a4adfe6",
+  "directPngSha256": "6671f6caad26262dd55b7939ec2485a5fbc1efd4a2477682eaf41aa995401a22",
+  "imagePngSha256": "4a8962c82e57bce932ab347fc18c588b49bca2eda67d83f354edbe4e57f515c4"
+}

@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1440" height="6900" viewBox="0 0 1440 6900">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1440" height="7360" viewBox="0 0 1440 7360">
   <title>Recon Android Capture Design System</title>
   <desc>Static SVG component sheet for Recon's Android capture surface. Coordinates use dp-like units. Proposed component contract, not runtime evidence. Tap targets are at least 48dp; narrow divider lanes are optional gesture shortcuts with accessible menu alternatives. Gesture starts are owned by their initial zone: gap for split, thumbnail for deletion/reorder. Material Icons paths are from google/material-design-icons, Apache-2.0.</desc>
 
@@ -52,20 +52,12 @@
     <symbol id="iconClose" viewBox="0 0 48 48"><g class="nativeIcon" transform="translate(12 12)"><path d="M0 0h24v24H0z" fill="none"/><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></g></symbol>
     <symbol id="iconPlay" viewBox="0 0 48 48"><g class="nativeIcon" transform="translate(12 12)"><path d="M0 0h24v24H0z" fill="none"/><path d="M8 5v14l11-7z"/></g></symbol>
     <symbol id="hitTarget48" viewBox="0 0 48 48"><rect x="1" y="1" width="46" height="46" rx="12" fill="none" stroke="#66a9ff" stroke-opacity=".7" stroke-dasharray="3 3"/></symbol>
-    <symbol id="topBarCompact" viewBox="0 0 360 72"><use href="#iconSettings" x="4" y="12" width="48" height="48"/><g data-role="tap-targets" fill="transparent"><rect x="56" y="12" width="82.666667" height="48"/><rect x="138.666667" y="12" width="82.666667" height="48"/><rect x="221.333333" y="12" width="82.666667" height="48"/></g><use href="#modalityPill" x="56" y="16" width="248" height="40"/><use href="#iconLibrary" x="308" y="12" width="48" height="48"/></symbol>
+    <symbol id="topBarCompact" viewBox="0 0 360 72" overflow="visible"><use href="#iconSettings" x="4" y="12" width="48" height="48"/><use href="#iconLibrary" x="308" y="12" width="48" height="48"/></symbol>
 
-    <symbol id="modalityPill" viewBox="0 0 250 40" overflow="visible"><use href="#modalityNeutral"/><rect x="85" y="2" width="80" height="36" rx="18" fill="#fff"/><text x="125" y="25" fill="#080808" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="12" font-weight="700">PHOTO</text></symbol>
-    <symbol id="modalityPillDisabled" viewBox="0 0 250 40"><rect x="0" y="0" width="250" height="40" fill="#303030" rx="20"/><rect x="2.0" y="2" width="79.333333" height="36" fill="#aaa" rx="18"/><text x="41.666666666666664" y="25" fill="#080808" font-family="Roboto,Arial,sans-serif" font-size="12" text-anchor="middle" font-weight="700">VIDEO</text><text x="125.0" y="25" fill="#888" font-family="Roboto,Arial,sans-serif" font-size="12" text-anchor="middle" font-weight="700">PHOTO</text><text x="208.33333333333334" y="25" fill="#888" font-family="Roboto,Arial,sans-serif" font-size="12" text-anchor="middle" font-weight="700">VOICE</text></symbol>
-    <symbol id="modalityPillVoiceDisabled" viewBox="0 0 250 40"><rect x="0" y="0" width="250" height="40" fill="#303030" rx="20"/><rect x="168.666666" y="2" width="79.333333" height="36" fill="#aaa" rx="18"/><text x="41.666666666666664" y="25" fill="#888" font-family="Roboto,Arial,sans-serif" font-size="12" text-anchor="middle" font-weight="700">VIDEO</text><text x="125.0" y="25" fill="#888" font-family="Roboto,Arial,sans-serif" font-size="12" text-anchor="middle" font-weight="700">PHOTO</text><text x="208.33333333333334" y="25" fill="#080808" font-family="Roboto,Arial,sans-serif" font-size="12" text-anchor="middle" font-weight="700">VOICE</text></symbol>
-    <symbol id="zoomChips" viewBox="0 0 220 40" overflow="visible">
-      <g data-role="tap-targets" fill="transparent"><rect x="3.5" y="-4" width="48" height="48"/><rect x="58.5" y="-4" width="48" height="48"/><rect x="113.5" y="-4" width="48" height="48"/><rect x="168.5" y="-4" width="48" height="48"/></g>
-      <rect x="0" y="0" width="220" height="40" rx="20" fill="#fff" fill-opacity=".12"/>
-      <rect x="57" y="2" width="51" height="36" rx="18" fill="#fff"/>
-      <text x="27.5" y="25" fill="#fff" fill-opacity=".78" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="14">0.5×</text>
-      <text x="82.5" y="25" fill="#080808" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="14" font-weight="700">1×</text>
-      <text x="137.5" y="25" fill="#fff" fill-opacity=".78" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="14">2×</text>
-      <text x="192.5" y="25" fill="#fff" fill-opacity=".78" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="14">5×</text>
-    </symbol>
+    <symbol id="modeStripPhoto" viewBox="0 0 250 40" overflow="visible"><use href="#modeStripNeutral"/><text x="41.666667" y="25" fill="#bdbdbd" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="12" font-weight="500">VIDEO</text><text x="125.000000" y="25" fill="#fff" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="12" font-weight="700">PHOTO</text><text x="208.333333" y="25" fill="#bdbdbd" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="12" font-weight="500">VOICE</text><rect x="113.000000" y="34" width="24" height="2" rx="1" fill="#fff"/></symbol>
+    <symbol id="modeStripVideoLocked" viewBox="0 0 250 40" overflow="visible"><use href="#modeStripNeutral"/><text x="41.666667" y="25" fill="#ddd" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="12" font-weight="700">VIDEO</text><text x="125.000000" y="25" fill="#707070" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="12" font-weight="500">PHOTO</text><text x="208.333333" y="25" fill="#707070" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="12" font-weight="500">VOICE</text><rect x="29.666667" y="34" width="24" height="2" rx="1" fill="#ddd"/></symbol>
+    <symbol id="modeStripVoiceLocked" viewBox="0 0 250 40" overflow="visible"><use href="#modeStripNeutral"/><text x="41.666667" y="25" fill="#707070" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="12" font-weight="500">VIDEO</text><text x="125.000000" y="25" fill="#707070" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="12" font-weight="500">PHOTO</text><text x="208.333333" y="25" fill="#ddd" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="12" font-weight="700">VOICE</text><rect x="196.333333" y="34" width="24" height="2" rx="1" fill="#ddd"/></symbol>
+    <symbol id="zoomChips" viewBox="0 0 220 40" overflow="visible"><rect width="220" height="40" rx="20" fill="#000" fill-opacity=".72"/><rect x="3.5" y="-4" width="48" height="48" fill="transparent" data-role="tap-target"/><text x="27.5" y="25" text-anchor="middle" fill="#ccc" font-family="Roboto,Arial,sans-serif" font-size="14" font-weight="500">0.5</text><rect x="58.5" y="-4" width="48" height="48" fill="transparent" data-role="tap-target"/><circle cx="82.5" cy="20" r="18" fill="#505050"/><text x="82.5" y="25" text-anchor="middle" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="14" font-weight="700">1×</text><rect x="113.5" y="-4" width="48" height="48" fill="transparent" data-role="tap-target"/><text x="137.5" y="25" text-anchor="middle" fill="#ccc" font-family="Roboto,Arial,sans-serif" font-size="14" font-weight="500">2</text><rect x="168.5" y="-4" width="48" height="48" fill="transparent" data-role="tap-target"/><text x="192.5" y="25" text-anchor="middle" fill="#ccc" font-family="Roboto,Arial,sans-serif" font-size="14" font-weight="500">5</text></symbol>
     <symbol id="shutterPhoto" viewBox="0 0 80 80"><circle cx="40" cy="40" r="38.5" fill="none" stroke="#fff" stroke-width="3"/><circle cx="40" cy="40" r="32" fill="#fff"/></symbol>
     <symbol id="shutterVideoIdle" viewBox="0 0 80 80"><circle cx="40" cy="40" r="38.5" fill="none" stroke="#fff" stroke-width="3"/><circle cx="40" cy="40" r="21" fill="#EF5350"/></symbol>
     <symbol id="shutterVideoRecording" viewBox="0 0 80 80"><circle cx="40" cy="40" r="38.5" fill="none" stroke="#fff" stroke-width="3"/><rect x="26" y="26" width="28" height="28" rx="6" fill="#EF5350"/></symbol>
@@ -91,7 +83,7 @@
     <symbol id="bannerUndo" viewBox="0 0 328 48"><rect width="328" height="48" rx="10" fill="#262626"/><text x="16" y="29" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="13">Discarded 2 items</text><text x="312" y="29" fill="#fff" text-anchor="end" font-family="Roboto,Arial,sans-serif" font-size="13" font-weight="700">Undo</text><rect data-role="tap-target" x="256" width="72" height="48" fill="transparent"/></symbol>
     <symbol id="bannerSaved" viewBox="0 0 328 48"><rect width="328" height="48" rx="10" fill="#2E7D32"/><text x="164" y="29" fill="#fff" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="13" font-weight="600">Bundle saved</text></symbol>
     <symbol id="bannerError" viewBox="0 0 328 48"><rect width="328" height="48" rx="10" fill="#5b1f24"/><text x="16" y="29" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="13">Capture failed</text><text x="312" y="29" fill="#fff" text-anchor="end" font-family="Roboto,Arial,sans-serif" font-size="13" font-weight="700">Dismiss</text><rect data-role="tap-target" x="264" width="64" height="48" fill="transparent"/></symbol>
-    <symbol id="tutorial" viewBox="0 0 360 400"><use href="#tutorialShell" x="0" y="0" width="360" height="400" /><text x="180" y="114" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="20" text-anchor="middle" font-weight="600">Switch capture mode</text><text x="180" y="146" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="14" text-anchor="middle">Swipe the preview, or tap the mode pill.</text><use href="#gestureSwipeBoth" x="90" y="198" width="180" height="56" /><circle cx="135" cy="308" r="4" fill="#fff" fill-opacity="1"/><circle cx="153" cy="308" r="4" fill="#fff" fill-opacity="0.35"/><circle cx="171" cy="308" r="4" fill="#fff" fill-opacity="0.35"/><circle cx="189" cy="308" r="4" fill="#fff" fill-opacity="0.35"/><circle cx="207" cy="308" r="4" fill="#fff" fill-opacity="0.35"/><circle cx="225" cy="308" r="4" fill="#fff" fill-opacity="0.35"/><rect x="252" y="336" width="84" height="48" fill="transparent" data-role="tap-target"/><rect x="252" y="341" width="84" height="38" fill="#fff" rx="19"/><text x="294" y="365" fill="#080808" font-family="Roboto,Arial,sans-serif" font-size="14" text-anchor="middle" font-weight="700">Next</text></symbol>
+    <symbol id="tutorial" viewBox="0 0 360 400"><use href="#tutorialShell" x="0" y="0" width="360" height="400" /><text x="180" y="114" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="20" text-anchor="middle" font-weight="600">Switch capture mode</text><text x="180" y="146" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="14" text-anchor="middle">Swipe the preview, or tap a mode label.</text><use href="#gestureSwipeBoth" x="90" y="198" width="180" height="56" /><circle cx="135" cy="308" r="4" fill="#fff" fill-opacity="1"/><circle cx="153" cy="308" r="4" fill="#fff" fill-opacity="0.35"/><circle cx="171" cy="308" r="4" fill="#fff" fill-opacity="0.35"/><circle cx="189" cy="308" r="4" fill="#fff" fill-opacity="0.35"/><circle cx="207" cy="308" r="4" fill="#fff" fill-opacity="0.35"/><circle cx="225" cy="308" r="4" fill="#fff" fill-opacity="0.35"/><rect x="252" y="336" width="84" height="48" fill="transparent" data-role="tap-target"/><rect x="252" y="341" width="84" height="38" fill="#fff" rx="19"/><text x="294" y="365" fill="#080808" font-family="Roboto,Arial,sans-serif" font-size="14" text-anchor="middle" font-weight="700">Next</text></symbol>
     <symbol id="gestureSwipeH" viewBox="0 0 180 56"><path d="M28 28h118" class="gestureLine"/><path d="M134 16l16 12-16 12" class="gestureLine"/><circle cx="28" cy="28" r="14" fill="#fff" fill-opacity=".18" stroke="#fff" stroke-width="2"/></symbol>
     <symbol id="gestureSwipeBoth" viewBox="0 0 180 56"><path d="M20 28h140M32 16L20 28l12 12M148 16l12 12-12 12" class="gestureLine"/><circle cx="90" cy="28" r="14" fill="#555" stroke="#fff" stroke-width="2"/></symbol>
     <symbol id="gesturePullDown" viewBox="0 0 72 120"><path d="M36 28v62" class="gestureLine"/><path d="M24 78l12 14 12-14" class="gestureLine"/><circle cx="36" cy="28" r="14" fill="#fff" fill-opacity=".18" stroke="#fff" stroke-width="2"/></symbol>
@@ -109,9 +101,9 @@
     <symbol id="scenePortraitRear" viewBox="0 0 300 400"><use href="#scenePortraitBase"/><text x="150" y="42" fill="#fff" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="16" font-weight="700">REAR / PORTRAIT</text></symbol>
     <symbol id="scenePortraitFront" viewBox="0 0 300 400"><use href="#scenePortraitBase"/><rect width="300" height="400" fill="#5d4b76" fill-opacity=".18"/><text x="150" y="42" fill="#fff" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="16" font-weight="700">FRONT / PORTRAIT</text><circle cx="150" cy="205" r="55" fill="#e0ad8d" stroke="#fff" stroke-width="3"/><path d="M112 198q38-38 76 0M124 229q26 18 52 0" fill="none" stroke="#47333a" stroke-width="5" stroke-linecap="round"/></symbol>
 
-    <symbol id="modalityPillVideo" viewBox="0 0 250 40" overflow="visible"><use href="#modalityNeutral"/><rect x="1.666667" y="2" width="80" height="36" rx="18" fill="#fff"/><text x="41.666667" y="25" fill="#080808" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="12" font-weight="700">VIDEO</text></symbol>
-    <symbol id="modalityPillVoice" viewBox="0 0 250 40" overflow="visible"><use href="#modalityNeutral"/><rect x="168.333333" y="2" width="80" height="36" rx="18" fill="#fff"/><text x="208.333333" y="25" fill="#080808" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="12" font-weight="700">VOICE</text></symbol>
-    <symbol id="modalityNeutral" viewBox="0 0 250 40" overflow="visible"><rect width="250" height="40" rx="20" fill="#fff" fill-opacity=".14"/><g data-role="tap-targets" fill="transparent"><rect x="0" y="-4" width="83.333333" height="48"/><rect x="83.333333" y="-4" width="83.333333" height="48"/><rect x="166.666667" y="-4" width="83.333333" height="48"/></g><g fill="#fff" fill-opacity=".72" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="12" font-weight="600"><text x="41.666667" y="25">VIDEO</text><text x="125" y="25">PHOTO</text><text x="208.333333" y="25">VOICE</text></g></symbol>
+    <symbol id="modeStripVideo" viewBox="0 0 250 40" overflow="visible"><use href="#modeStripNeutral"/><text x="41.666667" y="25" fill="#fff" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="12" font-weight="700">VIDEO</text><text x="125.000000" y="25" fill="#bdbdbd" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="12" font-weight="500">PHOTO</text><text x="208.333333" y="25" fill="#bdbdbd" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="12" font-weight="500">VOICE</text><rect x="29.666667" y="34" width="24" height="2" rx="1" fill="#fff"/></symbol>
+    <symbol id="modeStripVoice" viewBox="0 0 250 40" overflow="visible"><use href="#modeStripNeutral"/><text x="41.666667" y="25" fill="#bdbdbd" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="12" font-weight="500">VIDEO</text><text x="125.000000" y="25" fill="#bdbdbd" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="12" font-weight="500">PHOTO</text><text x="208.333333" y="25" fill="#fff" text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="12" font-weight="700">VOICE</text><rect x="196.333333" y="34" width="24" height="2" rx="1" fill="#fff"/></symbol>
+    <symbol id="modeStripNeutral" viewBox="0 0 250 40" overflow="visible"><g data-role="tap-targets" fill="transparent"><rect x="0.000000" y="-4" width="83.333333" height="48"/><rect x="83.333333" y="-4" width="83.333333" height="48"/><rect x="166.666667" y="-4" width="83.333333" height="48"/></g></symbol>
     <symbol id="sceneVideoLandscapeBase" viewBox="0 0 400 225">
       <rect width="400" height="225" fill="#9eb8c0"/><rect y="135" width="400" height="90" fill="#b8784d"/>
       <path d="M0 135h400M200 0v225" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="1"/>
@@ -168,9 +160,12 @@
     <symbol id="tutorialShell" viewBox="0 0 360 400"><rect x="0" y="0" width="360" height="400" fill="#000" fill-opacity=".82" rx="18" stroke="#666"/><rect x="280" y="8" width="72" height="48" fill="transparent" data-role="tap-target"/><text x="336" y="38" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="14" text-anchor="end">Skip</text><text x="180" y="78" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="18" text-anchor="middle" font-weight="700">Gesture Guide</text></symbol>
     <symbol id="tutorialMiddle" viewBox="0 0 360 400"><use href="#tutorialShell" x="0" y="0" width="360" height="400" /><text x="180" y="114" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="20" text-anchor="middle" font-weight="600">Swipe left to discard</text><text x="180" y="146" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="14" text-anchor="middle">Start at the right queue handle.</text><use href="#queueCompactDiscard" x="24" y="192" width="312" height="72" /><path d="M264 280H96m12-10-12 10 12 10" class="gestureLine"/><circle cx="135" cy="308" r="4" fill="#fff" fill-opacity="0.35"/><circle cx="153" cy="308" r="4" fill="#fff" fill-opacity="0.35"/><circle cx="171" cy="308" r="4" fill="#fff" fill-opacity="1"/><circle cx="189" cy="308" r="4" fill="#fff" fill-opacity="0.35"/><circle cx="207" cy="308" r="4" fill="#fff" fill-opacity="0.35"/><circle cx="225" cy="308" r="4" fill="#fff" fill-opacity="0.35"/><rect x="24" y="336" width="72" height="48" fill="transparent" data-role="tap-target"/><text x="60" y="365" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="14" text-anchor="middle">Back</text><rect x="252" y="336" width="84" height="48" fill="transparent" data-role="tap-target"/><rect x="252" y="341" width="84" height="38" fill="#fff" rx="19"/><text x="294" y="365" fill="#080808" font-family="Roboto,Arial,sans-serif" font-size="14" text-anchor="middle" font-weight="700">Next</text></symbol>
     <symbol id="tutorialFinal" viewBox="0 0 360 400"><use href="#tutorialShell" x="0" y="0" width="360" height="400" /><text x="180" y="114" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="20" text-anchor="middle" font-weight="600">Split or join bundles</text><text x="180" y="146" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="14" text-anchor="middle">Pull down in a gap; pull up to join.</text><use href="#queueCompactSplit" x="24" y="192" width="312" height="72" /><circle cx="135" cy="308" r="4" fill="#fff" fill-opacity="0.35"/><circle cx="153" cy="308" r="4" fill="#fff" fill-opacity="0.35"/><circle cx="171" cy="308" r="4" fill="#fff" fill-opacity="0.35"/><circle cx="189" cy="308" r="4" fill="#fff" fill-opacity="0.35"/><circle cx="207" cy="308" r="4" fill="#fff" fill-opacity="0.35"/><circle cx="225" cy="308" r="4" fill="#fff" fill-opacity="1"/><rect x="24" y="336" width="72" height="48" fill="transparent" data-role="tap-target"/><text x="60" y="365" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="14" text-anchor="middle">Back</text><rect x="252" y="336" width="84" height="48" fill="transparent" data-role="tap-target"/><rect x="252" y="341" width="84" height="38" fill="#fff" rx="19"/><text x="294" y="365" fill="#080808" font-family="Roboto,Arial,sans-serif" font-size="14" text-anchor="middle" font-weight="700">Got it</text></symbol>
-  </defs>
+  <symbol id="zoomVertical" viewBox="0 0 40 220" overflow="visible"><rect width="40" height="220" rx="20" fill="#000" fill-opacity=".72"/><rect x="-4" y="3.5" width="48" height="48" fill="transparent" data-role="tap-target"/><text x="20" y="32.5" text-anchor="middle" fill="#ccc" font-family="Roboto,Arial,sans-serif" font-size="14" font-weight="500">5</text><rect x="-4" y="58.5" width="48" height="48" fill="transparent" data-role="tap-target"/><text x="20" y="87.5" text-anchor="middle" fill="#ccc" font-family="Roboto,Arial,sans-serif" font-size="14" font-weight="500">2</text><rect x="-4" y="113.5" width="48" height="48" fill="transparent" data-role="tap-target"/><circle cx="20" cy="137.5" r="18" fill="#505050"/><text x="20" y="142.5" text-anchor="middle" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="14" font-weight="700">1×</text><rect x="-4" y="168.5" width="48" height="48" fill="transparent" data-role="tap-target"/><text x="20" y="197.5" text-anchor="middle" fill="#ccc" font-family="Roboto,Arial,sans-serif" font-size="14" font-weight="500">0.5</text></symbol>
+<symbol id="zoomContinuous" viewBox="0 0 220 40" overflow="visible"><rect width="220" height="40" rx="20" fill="#000" fill-opacity=".72"/><rect x="3.5" y="-4" width="48" height="48" fill="transparent" data-role="tap-target"/><text x="27.5" y="25" text-anchor="middle" fill="#ccc" font-family="Roboto,Arial,sans-serif" font-size="14" font-weight="500">0.5</text><rect x="58.5" y="-4" width="48" height="48" fill="transparent" data-role="tap-target"/><circle cx="82.5" cy="20" r="18" fill="#505050"/><text x="82.5" y="25" text-anchor="middle" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="12" font-weight="700">1.7×</text><rect x="113.5" y="-4" width="48" height="48" fill="transparent" data-role="tap-target"/><text x="137.5" y="25" text-anchor="middle" fill="#ccc" font-family="Roboto,Arial,sans-serif" font-size="14" font-weight="500">2</text><rect x="168.5" y="-4" width="48" height="48" fill="transparent" data-role="tap-target"/><text x="192.5" y="25" text-anchor="middle" fill="#ccc" font-family="Roboto,Arial,sans-serif" font-size="14" font-weight="500">5</text></symbol>
+<symbol id="zoomSingle" viewBox="0 0 40 40" overflow="visible"><rect x="-4" y="-4" width="48" height="48" fill="transparent" data-role="tap-target"/><circle cx="20" cy="20" r="20" fill="#000" fill-opacity=".72"/><circle cx="20" cy="20" r="18" fill="#505050"/><text x="20" y="25" text-anchor="middle" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="14" font-weight="700">1×</text></symbol>
+</defs>
 
-  <rect x="0" y="0" width="1440" height="6900" fill="#080808" />
+  <rect x="0" y="0" width="1440" height="7360" fill="#080808" />
   <text x="64" y="72" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="32" font-weight="700">Recon / Android capture component contract</text>
   <text x="64" y="102" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Static proposals for later implementation · 1 unit ≈ 1dp · specimens at 1:1 unless labeled · annotations are outside product UI</text>
   <rect x="48" y="140" width="1344" height="210" fill="#141414" rx="20" stroke="#2b2b2b"/>
@@ -194,15 +189,15 @@
   <text x="810" y="266" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >56dp thumbs · 6dp gap · 24dp split gap</text>
   <text x="810" y="294" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >72dp queue + 48dp travel + 24dp safe reference</text>
   <rect x="48" y="390" width="648" height="320" fill="#141414" rx="20" stroke="#2b2b2b"/>
-  <text x="72" y="430" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="22" font-weight="700">Navigation and mode</text>
-  <text x="72" y="458" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Selected mode remains readable while taps are locked.</text>
-  <use href="#modalityPillVideo" x="72" y="476" width="250" height="40" />
+  <text x="72" y="430" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="22" font-weight="700">Mode selection / horizontal</text>
+  <text x="72" y="458" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Text + underline; selected mode remains readable when locked.</text>
+  <use href="#modeStripVideo" x="72" y="476" width="250" height="40" />
   <text x="348" y="502" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >VIDEO selected</text>
-  <use href="#modalityPill" x="72" y="532" width="250" height="40" />
+  <use href="#modeStripPhoto" x="72" y="532" width="250" height="40" />
   <text x="348" y="558" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >PHOTO selected</text>
-  <use href="#modalityPillVoice" x="72" y="588" width="250" height="40" />
+  <use href="#modeStripVoice" x="72" y="588" width="250" height="40" />
   <text x="348" y="614" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >VOICE selected</text>
-  <use href="#modalityPillDisabled" x="72" y="644" width="250" height="40" />
+  <use href="#modeStripVideoLocked" x="72" y="644" width="250" height="40" />
   <text x="348" y="670" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >VIDEO locked</text>
   <use href="#iconSettings" x="566" y="462" width="48" height="48" />
   <use href="#iconLibrary" x="626" y="462" width="48" height="48" />
@@ -231,7 +226,7 @@
   <text x="72" y="790" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="22" font-weight="700">Camera controls</text>
   <text x="72" y="818" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Toolbar glyph 24dp in 48dp slot; hidden controls have no hit region.</text>
   <use href="#zoomChips" x="72" y="840" width="220" height="40" />
-  <text x="316" y="866" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >48dp targets; centers 55 apart</text>
+  <text x="316" y="866" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >36dp selection; 48dp targets / 55dp pitch</text>
   <use href="#iconFlashOff" x="72" y="914" width="48" height="48" />
   <use href="#iconFlashAuto" x="168" y="914" width="48" height="48" />
   <use href="#iconFlashOn" x="264" y="914" width="48" height="48" />
@@ -247,7 +242,7 @@
   <use href="#focusIndicator" x="768" y="838" width="80" height="80" />
   <use href="#hitTarget48" x="900" y="854" width="48" height="48" />
   <text x="972" y="880" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Focus is feedback, not a button</text>
-  <text x="768" y="950" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >40dp visual pills include independent 48dp tap bounds.</text>
+  <text x="768" y="950" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >40dp controls include independent 48dp tap bounds.</text>
   <text x="768" y="978" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Pinch claims multi-touch; never also switch mode or focus.</text>
   <text x="768" y="1006" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >PHOTO: flash + lens. VIDEO: mic + lens. VOICE: neither.</text>
   <text x="768" y="1034" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Zoom is available for camera modes, including video recording.</text>
@@ -378,25 +373,25 @@
   <rect x="48" y="3860" width="648" height="560" fill="#141414" rx="20" stroke="#2b2b2b"/>
   <text x="72" y="3900" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="22" font-weight="700">VIDEO recording / composed reference</text>
   <text x="72" y="3928" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Required behavior: mode + queue + mic + lens locked; Stop enabled.</text>
-  <use href="#modalityPillDisabled" x="223" y="3950" width="250" height="40" />
-  <use href="#recordingPill" x="112" y="4030" width="150" height="32" />
-  <use href="#recordingPillMuted" x="302" y="4030" width="112" height="32" />
-  <use href="#recordingPillLong" x="450" y="4030" width="150" height="32" />
-  <text x="112" y="4092" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Audio on</text>
-  <text x="302" y="4092" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Muted</text>
-  <text x="450" y="4092" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Long elapsed time</text>
-  <use href="#zoomChips" x="238" y="4130" width="220" height="40" />
+  <use href="#modeStripVideoLocked" x="223" y="4140" width="250" height="40" />
+  <use href="#recordingPill" x="112" y="3960" width="150" height="32" />
+  <use href="#recordingPillMuted" x="302" y="3960" width="112" height="32" />
+  <use href="#recordingPillLong" x="450" y="3960" width="150" height="32" />
+  <text x="112" y="4022" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Audio on</text>
+  <text x="302" y="4022" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Muted</text>
+  <text x="450" y="4022" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Long elapsed time</text>
+  <use href="#zoomChips" x="238" y="4088" width="220" height="40" />
   <use href="#iconMicDisabled" x="176" y="4208" width="48" height="48" />
   <use href="#shutterVideoRecording" x="308" y="4192" width="80" height="80" />
   <g opacity=".25"><use href="#iconLens" x="472" y="4208" width="48" height="48" /><use href="#queueCompact" x="192" y="4300" width="312" height="72" /></g>
   <rect x="744" y="3860" width="648" height="560" fill="#141414" rx="20" stroke="#2b2b2b"/>
   <text x="768" y="3900" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="22" font-weight="700">VOICE recording / composed reference</text>
   <text x="768" y="3928" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Camera controls hidden; elapsed time and Stop stay available.</text>
-  <use href="#modalityPillVoiceDisabled" x="943" y="3950" width="250" height="40" />
-  <circle cx="1000" cy="4036" r="5" fill="#EF5350"/>
-  <text x="1016" y="4042" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="16" >Recording…</text>
-  <use href="#voiceWaveform" x="918" y="4050" width="300" height="120" />
-  <text x="1068" y="4180" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="22" text-anchor="middle">0:12</text>
+  <use href="#modeStripVoiceLocked" x="943" y="4140" width="250" height="40" />
+  <circle cx="1000" cy="3966" r="5" fill="#EF5350"/>
+  <text x="1016" y="3972" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="16" >Recording…</text>
+  <use href="#voiceWaveform" x="918" y="3980" width="300" height="120" />
+  <text x="1068" y="4124" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="22" text-anchor="middle">0:12</text>
   <use href="#shutterVoiceRecording" x="1028" y="4192" width="80" height="80" />
   <g opacity=".25"><use href="#queueCompact" x="912" y="4300" width="312" height="72" /></g>
   <text x="768" y="4400" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Lock means no pointer or semantic mutation; dimming alone is insufficient.</text>
@@ -485,4 +480,20 @@
   <text x="968" y="6720" class="small">Release when armed; cancel restores.</text>
   <text x="72" y="6778" class="small">One gesture owner until release / cancel. Initial visible zone wins; pinch cannot also switch mode, focus or mutate the queue.</text>
   <text x="72" y="6860" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Contract details and source gaps: COMPONENT-CONTRACT.md · Generated screen definitions and review renders are refreshed by the parent workflow.</text>
+<rect x="48" y="6940" width="1344" height="372" rx="20" fill="#141414" stroke="#2b2b2b"/>
+<g font-family="Roboto,Arial,sans-serif"><text x="72" y="6980" fill="#fff" font-size="22" font-weight="700">Zoom / orientation and current value</text>
+<text x="72" y="7010" fill="#aaa" font-size="14">Illustrative shortcuts: derive supported choices from the active camera. Numbers are not claims of optical lenses.</text>
+<use href="#zoomVertical" x="88" y="7040" width="40" height="220"/>
+<text x="152" y="7066" fill="#ccc" font-size="14">Larger above</text><text x="152" y="7238" fill="#ccc" font-size="14">Smaller below</text>
+<use href="#zoomContinuous" x="380" y="7040" width="220" height="40"/>
+<text x="380" y="7110" fill="#ccc" font-size="14">Pinch state: actual 1.7× replaces 1×.</text>
+<text x="380" y="7138" fill="#aaa" font-size="14">No preset is falsely marked as active.</text>
+<text x="380" y="7178" fill="#aaa" font-size="14">Tap this current-value slot to return to 1×.</text>
+<text x="380" y="7206" fill="#aaa" font-size="14">Announce current value and reset action.</text>
+<use href="#zoomSingle" x="884" y="7040" width="40" height="40"/>
+<text x="884" y="7110" fill="#ccc" font-size="14">Single-choice capability fixture</text>
+<text x="884" y="7138" fill="#aaa" font-size="14">Hide zoom if no adjustment is available.</text>
+<text x="884" y="7178" fill="#aaa" font-size="14">Mode stays horizontal in every layout.</text>
+<text x="884" y="7206" fill="#aaa" font-size="14">Queue order and gestures do not rotate.</text>
+<text x="72" y="7290" fill="#aaa" font-size="14">36dp selected circle · 14sp preset labels · 12sp fractional value · 48dp targets · 55dp pitch · upright text</text></g>
 </svg>

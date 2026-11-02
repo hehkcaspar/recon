@@ -104,6 +104,7 @@ await mkdir(isolated);
 await mkdir(output, { recursive: true });
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const manifest = { generatedAt: new Date().toISOString(), renderer: chrome, referencesValidated: references, portability: 'Self-contained symbols and Roboto. Isolated file must match HTTP exactly. Img allows only compositor rounding: max channel delta 8/255 and mean pixel delta 0.05/255.', files: {}, assets: {} };
+const failures = [];
 try {
   for (const [name, svg] of sources) {
     const [, width, height] = svg.match(/<svg[^>]*\bwidth="(\d+)"[^>]*\bheight="(\d+)"/);
@@ -135,12 +136,16 @@ try {
     // Exact reviewed artifact exception: sparse curve-edge coverage, not a global tolerance increase.
     // Any source OR raster change invalidates it. Evidence includes the alternate render and 8x comparison.
     const reviewedRasterException = name === 'recon-capture-design-system.svg'
-      && sha(svg) === '6e3c35110553269c21af322026d1e06816641554f4a4418e838318bc7b4d4f22'
-      && sha(png) === '8d46ad6d7c818509c14405124e43a2fc28488a8e5d3d3c6fa735506ab2fe8704'
-      && imagePngSha256 === 'b8f39b5f68cdaa7c6c3110c33c4576694d0ec2db3b36c94743b9cb2697d55e76';
-    if (filePngSha256 !== sha(png) || (!strictImageContextPassed && !reviewedRasterException)) throw new Error(`Portability render mismatch: ${name}: ${JSON.stringify(imageContextDifference)}`);
-    manifest.files[name] = { width: +width, height: +height, svgSha256: sha(svg), pngSha256: sha(png), filePngSha256, imagePngSha256, imageContextDifference, strictImageContextPassed, rasterException: !strictImageContextPassed ? "rasterization/README.md" : null };
-    console.log(`Verified HTTP / isolated file${strictImageContextPassed ? " / img" : "; img has exact documented raster exception"}: ${name}, ${width} × ${height}`);
+      && sha(svg) === 'cb9b9a6155d2a2db11686c5052bdeceaf16ea526eb0167dffeaa56c26a4adfe6'
+      && sha(png) === '6671f6caad26262dd55b7939ec2485a5fbc1efd4a2477682eaf41aa995401a22'
+      && imagePngSha256 === '4a8962c82e57bce932ab347fc18c588b49bca2eda67d83f354edbe4e57f515c4';
+    const portabilityPassed = filePngSha256 === sha(png) && (strictImageContextPassed || reviewedRasterException);
+    if (!portabilityPassed) {
+      failures.push(`${name}: ${JSON.stringify(imageContextDifference)}`);
+      await writeFile(join(output, name.replace(".svg", ".image-context.png")), imageBytes);
+    }
+    manifest.files[name] = { width: +width, height: +height, svgSha256: sha(svg), pngSha256: sha(png), filePngSha256, imagePngSha256, imageContextDifference, strictImageContextPassed, portabilityPassed, rasterException: !strictImageContextPassed && reviewedRasterException ? "rasterization/README.md" : null };
+    console.log(`${portabilityPassed ? "Verified" : "FAILED"} HTTP / isolated file${strictImageContextPassed ? " / img" : reviewedRasterException ? "; img has exact documented raster exception" : "; img needs review"}: ${name}, ${width} × ${height}`);
   }
   // Prove the explanation sheet cannot silently become a different mockup.
   const cleanPhone = pixels(await readFile(join(output, 'recon-capture-phone.png')));
@@ -158,5 +163,6 @@ try {
   console.log('Annotated phone matches clean phone exactly: 288000 pixels.');
   for (const asset of ['Roboto.ttf', 'Roboto-OFL.txt', 'Material-Icons-LICENSE.txt']) manifest.assets[asset] = sha(await readFile(join(root, 'assets', asset)));
   await writeFile(join(output, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
+  if (failures.length) throw new Error(`Portability failures (all evidence rendered): ${failures.join("; ")}`);
   console.log(`Validated ${references} references; evidence saved in ${output}`);
 } finally { server.close(); }

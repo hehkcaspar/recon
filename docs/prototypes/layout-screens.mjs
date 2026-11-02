@@ -13,29 +13,27 @@ const use=(id,x,y,w,h,extra='')=>`<use href="#shared-${id}" x="${n(x)}" y="${n(y
 const text=(x,y,s,size=16,color='#ccc')=>`<text x="${x}" y="${y}" font-size="${size}" fill="${color}">${esc(s)}</text>`;
 const rect=(x,y,w,h,fill)=>`<rect x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" fill="${fill}"/>`;
 const fit=(b,r)=>{const w=Math.min(b.w,b.h*r),h=w/r;return {x:b.x+(b.w-w)/2,y:b.y+(b.h-h)/2,w,h};};
-const compactHeader=video=>video
- ? use('iconSettings',4,24,48,48)+use('modalityPillVideo',56,28,248,40)+use('iconLibrary',308,24,48,48)
-   +[0,1,2].map(k=>`<rect x="${56+k*248/3}" y="24" width="${248/3}" height="48" fill="transparent" data-role="tap-target"/>`).join('')
- : use('topBarCompact',0,12,360,72);
+const compactHeader=()=>use('topBarCompact',0,12,360,72);
 const targetsOverlap=(a,b)=>a.x<b.x+b.w-.001&&b.x<a.x+a.w-.001&&a.y<b.y+b.h-.001&&b.y<a.y+a.h-.001;
 function screen({id,w,h,tall=true,front=false,video=false,shell='bottom',hand='center',queue='idle',compact=false,overlay=false,aspect=null}){
  const qWidth=compact?312:360;
  const qX=compact?24:hand==='right'?w-24-qWidth:hand==='left'?24:(w-qWidth)/2;
- const qY=h-144,shutterY=qY-92,zoomY=shutterY-52,modeY=zoomY-52;
+ const qY=h-144,shutterY=qY-92,modeY=shutterY-52,zoomY=modeY-52;
  const cx=qX+qWidth/2;
  const frameRatio=aspect??(video?(tall?9/16:16/9):(tall?3/4:4/3));
+ const verticalZoom=shell==='side'&&frameRatio<1&&!compact;
  let box;
  if(overlay){const top=w/frameRatio>h-96?24:72;box={x:0,y:top,w,h:h-24-top};}
  else if(compact)box={x:24,y:92,w:w-48,h:zoomY-108};
- else if(shell==='side')box={x:hand==='left'?408:24,y:84,w:w-432,h:h-108};
- else box={x:24,y:84,w:w-48,h:modeY-100};
+ else if(shell==='side')box={x:hand==='left'?408:(verticalZoom?96:24),y:84,w:w-432-(verticalZoom?72:0),h:h-108};
+ else box={x:24,y:84,w:w-48,h:zoomY-100};
  const ratio=frameRatio,p=fit(box,ratio);
  if(overlay&&p.w===w)p.y=box.y; // Full-width compact frames align below the top bar, instead of floating in unused space.
  let out=rect(0,0,w,h,'#080808');
  const targets=[];
  const control=(symbol,x,y,sw=48,sh=48)=>{targets.push({symbol,x,y,w:sw,h:sh});out+=use(symbol,x,y,sw,sh);};
- if(compact){for(let k=0;k<3;k++)targets.push({symbol:'mode',x:56+k*248/3,y:24,w:248/3,h:48});out+=compactHeader(video);targets.push({symbol:'settings',x:4,y:24,w:48,h:48},{symbol:'library',x:308,y:24,w:48,h:48});}
- else {for(let k=0;k<3;k++)targets.push({symbol:'mode',x:cx-125+k*250/3,y:modeY-4,w:250/3,h:48});control('iconSettings',24,24);control('iconLibrary',w-72,24);out+=use(video?'modalityPillVideo':'modalityPill',cx-125,modeY,250,40);}
+ if(compact){out+=compactHeader();targets.push({symbol:'settings',x:4,y:24,w:48,h:48},{symbol:'library',x:308,y:24,w:48,h:48});}
+ else {control('iconSettings',24,24);control('iconLibrary',w-72,24);}
  let scene;
  if(Math.abs(ratio-.75)<1e-8||Math.abs(ratio-4/3)<1e-8)scene=`scene${ratio<1?'Portrait':'Landscape'}${front?'Front':'Rear'}`;
  else if(Math.abs(ratio-9/16)<1e-8||Math.abs(ratio-16/9)<1e-8)scene=`sceneVideo${ratio<1?'Portrait':'Landscape'}${front?'Front':'Rear'}`;
@@ -44,13 +42,18 @@ function screen({id,w,h,tall=true,front=false,video=false,shell='bottom',hand='c
  customScenes.set(key,`<symbol id="${key}" viewBox="0 0 ${sw} ${sh}">${rect(0,0,sw,sh,'#9eb8c0')}${rect(0,sh*.58,sw,sh*.42,'#b8784d')}<path d="M0 ${sh*.58}H300M150 0V${sh}" stroke="#fff" stroke-opacity=".4"/><circle cx="230" cy="${sh*.26}" r="32" fill="#f0c66b"/><rect x="30" y="${sh*.16}" width="72" height="${Math.min(130,sh*.3)}" fill="#456274" stroke="#fff" stroke-width="2"/><text x="66" y="${sh*.3}" text-anchor="middle" fill="#fff" font-size="14">UP ↑</text><path d="M170 ${sh-25}l40 -80 35 45 20 -30 35 65Z" fill="#5b7e4a"/><path d="M4 20V4H20M280 4H296V20M4 ${sh-20}V${sh-4}H20M280 ${sh-4}H296V${sh-20}" stroke="#fff" stroke-width="2" fill="none"/></symbol>`);
  out+=`<use href="#${key}" x="${n(p.x)}" y="${n(p.y)}" width="${n(p.w)}" height="${n(p.h)}" data-role="preview"/>`;}
  // In the very tall cover frame the header overlaps: redraw it on its own top scrim.
- if(overlay&&p.y<72){out+=rect(0,24,w,48,'#171717').replace('/>',' fill-opacity=".72"/>');out+='<rect x="56" y="28" width="248" height="40" rx="20" fill="#000" fill-opacity=".8"/>';out+=compactHeader(video);}
+ if(overlay&&p.y<72){out+=rect(0,24,w,48,'#171717').replace('/>',' fill-opacity=".72"/>');out+=compactHeader(video);}
 
- if(!video)out+=use('focusIndicator',p.x+p.w*.56-40,p.y+p.h*(overlay?.30:.52)-40,80,80);
- if(overlay)out+=`<defs><linearGradient id="${id}-scrim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset=".35" stop-color="#000" stop-opacity=".55"/><stop offset="1" stop-color="#000" stop-opacity=".8"/></linearGradient></defs><rect x="0" y="${zoomY-48}" width="${w}" height="${h-24-(zoomY-48)}" fill="url(#${id}-scrim)"/>`;
- // Camera capability is independent of facing. This front specimen exposes only 1x and no rear flash.
- if(front){out+=`<rect x="${cx-24}" y="${zoomY-4}" width="48" height="48" rx="24" fill="#fff"/><text x="${cx}" y="${zoomY+25}" text-anchor="middle" font-size="14" font-weight="700" fill="#000">1×</text>`;targets.push({symbol:'zoom1x',x:cx-24,y:zoomY-4,w:48,h:48});}
- else {if(overlay)out+=`<rect x="${cx-110}" y="${zoomY}" width="220" height="40" rx="20" fill="#000" fill-opacity=".8"/>`;out+=use('zoomChips',cx-110,zoomY,220,40);for(let k=0;k<4;k++)targets.push({symbol:'zoom',x:cx-110+k*55+3.5,y:zoomY-4,w:48,h:48});}
+ if(!video)out+=use('focusIndicator',p.x+p.w*.56-40,(overlay?Math.min(p.y+p.h*.30,zoomY-52):p.y+p.h*.52)-40,80,80);
+ if(overlay)out+=`<defs><linearGradient id="${id}-scrim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset=".32" stop-color="#000" stop-opacity=".72"/><stop offset="1" stop-color="#000" stop-opacity=".85"/></linearGradient></defs><rect x="0" y="${zoomY-48}" width="${w}" height="${h-24-(zoomY-48)}" fill="url(#${id}-scrim)"/>`;
+ // Mode is always horizontal and adjacent to shutter; its position survives camera/voice changes.
+ out+=use(video?'modeStripVideo':'modeStripPhoto',cx-125,modeY,250,40);
+ for(let k=0;k<3;k++)targets.push({symbol:'mode',x:cx-125+k*250/3,y:modeY-4,w:250/3,h:48});
+ // Frame orientation determines rail suitability, independently of window orientation.
+ const zx=verticalZoom?(hand==='left'?w-68:28):cx-110;
+ const zy=verticalZoom?p.y+p.h/2-110:zoomY;
+ if(front){const x=verticalZoom?zx:cx-20,y=verticalZoom?zy+90:zoomY;out+=use('zoomSingle',x,y,40,40);targets.push({symbol:'zoom1x',x:x-4,y:y-4,w:48,h:48});}
+ else {out+=use(verticalZoom?'zoomVertical':'zoomChips',zx,zy,verticalZoom?40:220,verticalZoom?220:40);for(let k=0;k<4;k++)targets.push({symbol:'zoom',x:verticalZoom?zx-4:zx+k*55+3.5,y:verticalZoom?zy+k*55+3.5:zy-4,w:48,h:48});}
  control(video?'iconMic':front?'iconFlashOff':'iconFlashAuto',cx-120,shutterY+16);
  // Front flash off is unavailable in this capability fixture; visible but not an active target.
  if(front&&!video){out=out.replace(/(<use href="#shared-iconFlashOff"[^>]*)(\/>)$/, '$1 opacity=".38"$2');targets.pop();}
@@ -58,7 +61,7 @@ function screen({id,w,h,tall=true,front=false,video=false,shell='bottom',hand='c
  control('iconLens',cx+72,shutterY+16);
  out+=use(compact?(queue==='split'?'queueCompactSplit':'queueCompact'):(queue==='split'?'queueSplit':'queueStrip'),qX,qY,qWidth,72,'data-role="queue"');
  out+=`<rect x="${w/2-50}" y="${h-12}" width="100" height="4" rx="2" fill="#fff" fill-opacity=".45"/>`;
- const record={id,w,h,compact,overlay,shell,hand,frame:ratio===1?'square':ratio<1?'tall':'wide',camera:front?'front':'rear',mode:video?'video':'photo',preview:Object.fromEntries(Object.entries(p).map(([k,v])=>[k,n(v)])),ratio,queue:{x:qX,y:qY,w:qWidth,h:72},safe:{top:24,bottom:24,side:24},travel:48,targets};
+ const record={id,w,h,compact,overlay,shell,hand,frame:ratio===1?'square':ratio<1?'tall':'wide',camera:front?'front':'rear',zoomAxis:verticalZoom?'vertical':'horizontal',mode:video?'video':'photo',preview:Object.fromEntries(Object.entries(p).map(([k,v])=>[k,n(v)])),ratio,queue:{x:qX,y:qY,w:qWidth,h:72},safe:{top:24,bottom:24,side:24},travel:48,targets};
  for(const t of targets){if(t.x<0||t.y<24||t.x+t.w>w||t.y+t.h>h-24)throw Error(`Unsafe target ${id} ${t.symbol}`);if(!overlay&&targetsOverlap(t,p))throw Error(`Preview/control overlap ${id} ${t.symbol}`);}
  for(let i=0;i<targets.length;i++)for(let j=i+1;j<targets.length;j++)if(targetsOverlap(targets[i],targets[j]))throw Error(`Overlapping targets ${id}`);
  if(qX<24||qX+qWidth>w-24||qY+72+48>h-24)throw Error(`Unsafe queue ${id}`);
@@ -130,10 +133,10 @@ for(const [i,s] of [
  'One-handed reach is a prototype hypothesis until tested while holding a device.'
 ].entries())body+=text(840,2154+i*34,s,15);
 body+=text(32,2960,'Feedback on the actual short-cover layout',24,'#fff');
-body+=text(32,2990,'Overlay host x16 / y92 / width328. Large content grows above the capture group; Stop and queue travel remain reachable.');
-for(const [i,banner] of ['bannerUndo','bannerErrorLarge'].entries()){
- const x=32+i*424;body+=`<g transform="translate(${x} 3020)">${screen({id:`cover-feedback-${i}`,w:360,h:576,compact:true,overlay:true})}${use(banner,16,92,328,i?160:48)}</g>`;
- body+=text(x,3624,i?'2× text / stacked dismiss action':'Undo / compact message',17,'#fff');
+body+=text(32,2990,'Overlay host x16 / y92 / width328. Compact messages remain above zoom; long content uses an accessible sheet without covering Stop.');
+for(const [i,banner] of ['bannerUndo','bannerErrorLong'].entries()){
+ const x=32+i*424;body+=`<g transform="translate(${x} 3020)">${screen({id:`cover-feedback-${i}`,w:360,h:576,compact:true,overlay:true})}${use(banner,16,92,328,i?72:48)}</g>`;
+ body+=text(x,3624,i?'Multiline message / dismiss action':'Undo / compact message',17,'#fff');
 }
 await save('recon-capture-layout-checks.svg',document(2040,3670,'Recon layout validation fixtures',body));
 // Common output ratios are fixtures, not a new in-app aspect selector.

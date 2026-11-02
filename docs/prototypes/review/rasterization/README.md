@@ -1,3 +1,19 @@
+# Current raster exception — mode and zoom revision
+
+Reassessed 2026-11-01 for the 1440 × 7360 design-system sheet. The exact source/direct/image hashes are in [current-measurements.json](current-measurements.json) and pinned in `../../render-review.mjs`. Direct HTTP and isolated-file output match exactly. The strict HTML-image check remains false; this is a narrowly scoped reviewed exception, not a global tolerance increase.
+
+- 10,598,400 total pixels; 23,526 have any channel difference.
+- 305 pixels exceed delta 8; 55 exceed delta 32; maximum 81 at (254,5410), on the tutorial marker curve.
+- Mean maximum-channel difference: 0.0029788459/255.
+- Tutorial-marker region (220,5360,64,72): centroid delta −0.00460/−0.01743px; zero-offset error 898 versus best nonzero ±1px error 22,122. The direct crop is identical to the previous reviewed crop, so the existing eight-times enlargement still represents this hotspot.
+- Voice Stop region (1020,4178,96,100): centroid delta −0.00334/+0.02086px; zero-offset error 2,893 versus best nonzero error 83,253. Nearby mode labels changed; the comparison was measured again rather than reusing the old result.
+
+Independent GPT-6.1-SOL reviewer Harvey inspected direct/alternate crops and found curved-edge raster differences without visible geometry or text-content changes. The new mode and zoom panels introduce no pixels exceeding delta 8. The full current alternate image is [design-system-image-context.png](design-system-image-context.png). All seven other sheets retain the original strict tolerances. Any source or raster change invalidates the pinned exception.
+
+The investigation below records the previous 1440 × 6900 sheet; its old whole-sheet numbers are historical, superseded by the measurements above. Its diagnostic method and scope limitations still apply.
+
+---
+
 # Bounded SVG document/image rendering investigation
 
 Conclusion: the tested hotspots show sparse curve-edge coverage differences, without evidence of a coherent one-pixel displacement. The maximum delta is not on text. No rendering fix was established. No repository files were edited during this investigation. This diagnostic does not replace the existing strict portability check or grant release approval.

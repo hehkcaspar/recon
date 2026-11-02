@@ -94,7 +94,7 @@ ${phone.trim()}
     <text x="440" y="220">Tap to focus · pinch to zoom</text>
     <text x="440" y="248">Full-width 3:4 stream; zoom overlays its lower edge.</text>
     <text x="440" y="364">Flash · shutter · switch camera</text>
-    <text x="440" y="392">12-unit visual gaps: zoom → shutter → queue.</text>
+    <text x="440" y="392">Zoom → mode → shutter → queue; 12-unit gaps.</text>
     <text x="440" y="492">Left edge → swipe right to commit</text>
     <text x="440" y="520">Right edge → swipe left to discard</text>
     <text x="440" y="548">Thumbnail ↓ pull down to delete one item</text>

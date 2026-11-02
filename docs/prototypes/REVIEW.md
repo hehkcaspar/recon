@@ -109,3 +109,19 @@ Evidence: final manifest generated **2026-11-01 19:01:32 UTC**; 693 local refere
 The design-system HTML-image render has one explicit, exact-hash [rasterization exception](review/rasterization/README.md). Its strict image-context result remains **false**, not silently relabeled a pass. Independent review confirmed sparse curve-edge coverage differences without obvious displacement or broken geometry. Other artifacts retain the original strict image-context tolerances. Any change to the pinned source/direct/image hash triple invalidates the exception.
 
 This batch supersedes earlier screen geometry and incomplete state specimens. Official-source coding guidance and the remaining runtime, accessibility, grip and cross-engine validation work are in [camera-layout-implementation.md](camera-layout-implementation.md). Those backlog tasks do not block correcting the demonstrated design errors.
+
+## Mode and zoom reference-learning batch — 2026-11-01
+
+**PASS for the final eight-sheet static design set**, independently reviewed by GPT-6.1-SOL Harvey (`01a19a08-f47c-7690-a523-493b9ede4e06`). The initial review found a cover focus/zoom collision; the focus example was moved clear, then the reviewer reinspected the phone, cover and repeated layout/aspect fixtures. No remaining actionable visual defects were found. Documentation author James was separate from the visual reviewer.
+
+- Replaced heavy segmented mode pills with horizontal text labels and a selected underline, immediately above the shutter. VIDEO–PHOTO–VOICE order and preview-swipe meanings remain consistent.
+- Added circular zoom selection, quiet surfaces, an opposite vertical zoom rail for tall-frame side layouts, single-preset capability and continuous 1.7× specimens. Presets are not universal optical-lens claims.
+- Preserved shutter and queue anchors, target sizes and gesture runway. Strengthened overlay contrast: inactive mode labels have at least 4.91:1 against the worst-case white camera frame under the specified scrim.
+- Moved recording compositions to the same zoom/mode/shutter order. Replaced the short cover's conflicting 160-high banner example with the 72-high multiline state; large-text alternate presentation remains an explicit runtime requirement.
+- Archived nine original user-provided Samsung/iPhone reference images with provenance and byte hashes. No Kotlin, manifest or camera implementation changes.
+
+Evidence: manifest generated **2026-11-02T02:17:49.444Z**; 708 local references resolve; 36 generated layouts validate preview ratios, target separation, bounds and queue travel. All eight HTTP and isolated-file renders match. The clean and annotated phone match in all 288,000 pixels. Seven sheets pass strict HTML-image comparison. XML, JavaScript syntax, freshness and whitespace checks pass.
+
+The design-system sheet's exact source/direct/image triple was reassessed: 305 of 10,598,400 pixels exceed delta8, maximum81 on the unchanged tutorial-marker curve. Independent direct/alternate inspection found no visible geometry or text-content change. The strict result remains false with a pinned, documented [curve-edge exception](review/rasterization/README.md); it is not a general tolerance relaxation. The renderer now collects diagnostics for every sheet before reporting portability failure, rather than stopping after the first artifact.
+
+Native input arbitration, TalkBack, large-font presentation, actual camera capability selection and physical hand reach remain implementation acceptance work. This batch supersedes earlier mode/zoom placement and sheet dimensions.

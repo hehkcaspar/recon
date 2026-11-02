@@ -1,127 +1,135 @@
 {
-  "generatedAt": "2026-11-01T19:01:32.449Z",
+  "generatedAt": "2026-11-02T02:17:49.444Z",
   "renderer": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-  "referencesValidated": 693,
+  "referencesValidated": 708,
   "portability": "Self-contained symbols and Roboto. Isolated file must match HTTP exactly. Img allows only compositor rounding: max channel delta 8/255 and mean pixel delta 0.05/255.",
   "files": {
     "recon-capture-design-system.svg": {
       "width": 1440,
-      "height": 6900,
-      "svgSha256": "6e3c35110553269c21af322026d1e06816641554f4a4418e838318bc7b4d4f22",
-      "pngSha256": "8d46ad6d7c818509c14405124e43a2fc28488a8e5d3d3c6fa735506ab2fe8704",
-      "filePngSha256": "8d46ad6d7c818509c14405124e43a2fc28488a8e5d3d3c6fa735506ab2fe8704",
-      "imagePngSha256": "b8f39b5f68cdaa7c6c3110c33c4576694d0ec2db3b36c94743b9cb2697d55e76",
+      "height": 7360,
+      "svgSha256": "cb9b9a6155d2a2db11686c5052bdeceaf16ea526eb0167dffeaa56c26a4adfe6",
+      "pngSha256": "6671f6caad26262dd55b7939ec2485a5fbc1efd4a2477682eaf41aa995401a22",
+      "filePngSha256": "6671f6caad26262dd55b7939ec2485a5fbc1efd4a2477682eaf41aa995401a22",
+      "imagePngSha256": "4a8962c82e57bce932ab347fc18c588b49bca2eda67d83f354edbe4e57f515c4",
       "imageContextDifference": {
         "maxChannelDelta": 81,
-        "changedPixels": 23503,
-        "meanPixelDelta": 0.0031836755233494362
+        "changedPixels": 23526,
+        "meanPixelDelta": 0.00297884586352657
       },
       "strictImageContextPassed": false,
+      "portabilityPassed": true,
       "rasterException": "rasterization/README.md"
     },
     "recon-capture-phone.svg": {
       "width": 360,
       "height": 800,
-      "svgSha256": "57d91b3823ff6a80bdfa1c44883e5fb342b9617fef98b7b2907c39dc080273a9",
-      "pngSha256": "9dfea94d5ddaba913c6bcf96ed9a5e9af473d20f0d486536173eb0fbd2b3b89e",
-      "filePngSha256": "9dfea94d5ddaba913c6bcf96ed9a5e9af473d20f0d486536173eb0fbd2b3b89e",
-      "imagePngSha256": "9dfea94d5ddaba913c6bcf96ed9a5e9af473d20f0d486536173eb0fbd2b3b89e",
+      "svgSha256": "550f20cdd0b73513efce737afadd5f9c7196ab7b7b155fc908ca3ded0752493f",
+      "pngSha256": "4606d4d85355cb06fb3913d1a036caa41d93fa83465d0cc500f631e13a003c08",
+      "filePngSha256": "4606d4d85355cb06fb3913d1a036caa41d93fa83465d0cc500f631e13a003c08",
+      "imagePngSha256": "4606d4d85355cb06fb3913d1a036caa41d93fa83465d0cc500f631e13a003c08",
       "imageContextDifference": {
         "maxChannelDelta": 0,
         "changedPixels": 0,
         "meanPixelDelta": 0
       },
       "strictImageContextPassed": true,
+      "portabilityPassed": true,
       "rasterException": null
     },
     "recon-capture-phone-annotated.svg": {
       "width": 960,
       "height": 920,
-      "svgSha256": "33e890c011d182aa72a4087b936c0c4a9b4f123beb06450f637d3952e93e2cb7",
-      "pngSha256": "aa5d8dc33b152aa8ecd5150d6061069b33853c3ab16202853fe478ea52c57af2",
-      "filePngSha256": "aa5d8dc33b152aa8ecd5150d6061069b33853c3ab16202853fe478ea52c57af2",
-      "imagePngSha256": "aa5d8dc33b152aa8ecd5150d6061069b33853c3ab16202853fe478ea52c57af2",
+      "svgSha256": "3e7eee261ba0e96087dca9f604fe34bc55d839fa81547510d54fa2fe2a1e1a6e",
+      "pngSha256": "be6f66af65a30267baf03c1a5a2947817fd81533ec7b74da8a75d4d425caec41",
+      "filePngSha256": "be6f66af65a30267baf03c1a5a2947817fd81533ec7b74da8a75d4d425caec41",
+      "imagePngSha256": "be6f66af65a30267baf03c1a5a2947817fd81533ec7b74da8a75d4d425caec41",
       "imageContextDifference": {
         "maxChannelDelta": 0,
         "changedPixels": 0,
         "meanPixelDelta": 0
       },
       "strictImageContextPassed": true,
+      "portabilityPassed": true,
       "rasterException": null
     },
     "recon-capture-cover.svg": {
       "width": 360,
       "height": 576,
-      "svgSha256": "41bcfc8ddad8d552d9ba28f892665d68d4ddf9908a4d79d21f8cf4aa92d15adb",
-      "pngSha256": "62458668b2bac7eb8efb65e4f299d18dc15a5ce919b40ff0456b52fe51824e22",
-      "filePngSha256": "62458668b2bac7eb8efb65e4f299d18dc15a5ce919b40ff0456b52fe51824e22",
-      "imagePngSha256": "62458668b2bac7eb8efb65e4f299d18dc15a5ce919b40ff0456b52fe51824e22",
+      "svgSha256": "82e91cfda1ec654c62afcb5db08320f41d916da20c2dcc641c0f9a0a5b64eaf3",
+      "pngSha256": "45af4cd5270bcaec0401f8dfbf9fd48e94526704678ede52bee73c3c3c59f178",
+      "filePngSha256": "45af4cd5270bcaec0401f8dfbf9fd48e94526704678ede52bee73c3c3c59f178",
+      "imagePngSha256": "45af4cd5270bcaec0401f8dfbf9fd48e94526704678ede52bee73c3c3c59f178",
       "imageContextDifference": {
         "maxChannelDelta": 0,
         "changedPixels": 0,
         "meanPixelDelta": 0
       },
       "strictImageContextPassed": true,
+      "portabilityPassed": true,
       "rasterException": null
     },
     "recon-capture-fold8-inner.svg": {
       "width": 2040,
       "height": 2180,
-      "svgSha256": "4d37c2bb57c7d1a46b4fe6f21f1855ccd73a87066385925c3fe09fc51141892a",
-      "pngSha256": "e1bb7eba7785f323a83e47c8e770e2c0b1af52e7228fa3030b3f48cbfc477b73",
-      "filePngSha256": "e1bb7eba7785f323a83e47c8e770e2c0b1af52e7228fa3030b3f48cbfc477b73",
-      "imagePngSha256": "e1bb7eba7785f323a83e47c8e770e2c0b1af52e7228fa3030b3f48cbfc477b73",
+      "svgSha256": "a53a880868c46a87debe08f87506ecbdb9529de01c157bbd02108e39f7a9f460",
+      "pngSha256": "994de11f13bb4ed7234b7cf71d34c4a44d5494fd03de8aa8e9d6776123b90e59",
+      "filePngSha256": "994de11f13bb4ed7234b7cf71d34c4a44d5494fd03de8aa8e9d6776123b90e59",
+      "imagePngSha256": "994de11f13bb4ed7234b7cf71d34c4a44d5494fd03de8aa8e9d6776123b90e59",
       "imageContextDifference": {
         "maxChannelDelta": 0,
         "changedPixels": 0,
         "meanPixelDelta": 0
       },
       "strictImageContextPassed": true,
+      "portabilityPassed": true,
       "rasterException": null
     },
     "recon-capture-fold8-ultra-inner.svg": {
       "width": 2040,
       "height": 4300,
-      "svgSha256": "81645443260497d1b908b670044550a17921f1b66cc0e0b513dfca4ac059ce23",
-      "pngSha256": "9efe49bee0bc2a3d17204ab2b7f0be9f20e119ae0800d6c2e5224ff00421f5b6",
-      "filePngSha256": "9efe49bee0bc2a3d17204ab2b7f0be9f20e119ae0800d6c2e5224ff00421f5b6",
-      "imagePngSha256": "9efe49bee0bc2a3d17204ab2b7f0be9f20e119ae0800d6c2e5224ff00421f5b6",
+      "svgSha256": "8f6ad51932e64afca5fdcb5c1c0524f2dd4d712764d43be8a93fb8b670528f15",
+      "pngSha256": "19b650169230b4204cb3fb37c11e0349855c90af9807445ad35c8354df798a09",
+      "filePngSha256": "19b650169230b4204cb3fb37c11e0349855c90af9807445ad35c8354df798a09",
+      "imagePngSha256": "19b650169230b4204cb3fb37c11e0349855c90af9807445ad35c8354df798a09",
       "imageContextDifference": {
         "maxChannelDelta": 0,
         "changedPixels": 0,
         "meanPixelDelta": 0
       },
       "strictImageContextPassed": true,
+      "portabilityPassed": true,
       "rasterException": null
     },
     "recon-capture-layout-checks.svg": {
       "width": 2040,
       "height": 3670,
-      "svgSha256": "d6343bd4ee53e91ddf93cc9d1a27e0732f21e29724a420977a61ccf5fba2a019",
-      "pngSha256": "80b162ba8292000a466189aae5c668fc3e91e24a0e6fd3070849d8cf8935b0f4",
-      "filePngSha256": "80b162ba8292000a466189aae5c668fc3e91e24a0e6fd3070849d8cf8935b0f4",
-      "imagePngSha256": "80b162ba8292000a466189aae5c668fc3e91e24a0e6fd3070849d8cf8935b0f4",
+      "svgSha256": "673bf93f8671df15045f128f54230afdbdd27828b3f96a42cefcd0ba9ada49b2",
+      "pngSha256": "10965d692a6b534276f0fdb76774734de801039e582b42d7576a7331a6903051",
+      "filePngSha256": "10965d692a6b534276f0fdb76774734de801039e582b42d7576a7331a6903051",
+      "imagePngSha256": "10965d692a6b534276f0fdb76774734de801039e582b42d7576a7331a6903051",
       "imageContextDifference": {
         "maxChannelDelta": 0,
         "changedPixels": 0,
         "meanPixelDelta": 0
       },
       "strictImageContextPassed": true,
+      "portabilityPassed": true,
       "rasterException": null
     },
     "recon-capture-aspect-ratios.svg": {
       "width": 2040,
       "height": 4960,
-      "svgSha256": "2531239e737c51e7e6d0bc2b418a518cc6a115753b501355c656bf701804a595",
-      "pngSha256": "24eb40e890e3953fe6f40f5d5e01240a443f78fe15fb5388d5d33e144774ebb5",
-      "filePngSha256": "24eb40e890e3953fe6f40f5d5e01240a443f78fe15fb5388d5d33e144774ebb5",
-      "imagePngSha256": "24eb40e890e3953fe6f40f5d5e01240a443f78fe15fb5388d5d33e144774ebb5",
+      "svgSha256": "3c1086256cd3b329b87dbe41d00304dc40b5660c52144ff592507060f1dd79df",
+      "pngSha256": "b3edf7791f853dd2d9c9ff682b2199dd9c180e5e778baef8e851dea80aa8ef5d",
+      "filePngSha256": "b3edf7791f853dd2d9c9ff682b2199dd9c180e5e778baef8e851dea80aa8ef5d",
+      "imagePngSha256": "b3edf7791f853dd2d9c9ff682b2199dd9c180e5e778baef8e851dea80aa8ef5d",
       "imageContextDifference": {
         "maxChannelDelta": 0,
         "changedPixels": 0,
         "meanPixelDelta": 0
       },
       "strictImageContextPassed": true,
+      "portabilityPassed": true,
       "rasterException": null
     }
   },
