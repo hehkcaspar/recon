@@ -29,4 +29,4 @@ Original PNG bytes are preserved without cropping, scaling or annotation. Dimens
 
 ![User-provided unfolded camera reference with tall upright preview](unfolded-without-rotation.png)
 
-Related: [Android orientation and grip review](../../foldable-camera-orientation-ux-review.md). These new references do not expand the current Android prototype scope to iOS.
+Related: [archived Android orientation investigation](../../archive/foldable-camera-orientation-ux-review.md). These new references do not expand the current Android prototype scope to iOS.

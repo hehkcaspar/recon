@@ -2,7 +2,7 @@
 
 Status: planning only. No implementation changes are included in this document.
 
-2026-11-01 correction: read the [camera orientation and grip review](foldable-camera-orientation-ux-review.md). Wide/tall window shape does not determine upright camera frame shape. The inner SVGs now correct the opposite-axis combinations shown in the supplied native-camera screenshots. Use the revised [prototype contract](prototypes/README.md) and [coding guidance/backlog](prototypes/camera-layout-implementation.md); remaining device validation does not block these design corrections.
+2026-11-01 correction: read the [archived camera orientation investigation](archive/foldable-camera-orientation-ux-review.md). Wide/tall window shape does not determine upright camera frame shape. The inner SVGs now correct the opposite-axis combinations shown in the supplied native-camera screenshots. Use the revised [prototype contract](prototypes/README.md) and [coding guidance/backlog](prototypes/camera-layout-implementation.md); remaining device validation does not block these design corrections.
 
 ## Goal
 

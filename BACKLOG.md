@@ -6,6 +6,8 @@ For the product and interaction spec that *is* shipped, see [`recon-mvp-designs.
 
 > Item 2 of this list — **LocalSend interop for peer-to-peer bundle transfer** — has shipped. See `recon-mvp-designs.md` § "LocalSend bundle transfer" for the user-visible UX and `README.md` § `network/localsend/` for the Android implementation. The remaining backlog items renumber accordingly.
 
+Adaptive Android capture is a separate **designed, not implemented** workstream: see the [implementation plan](docs/adaptive-foldable-capture-plan.md) and [device/runtime validation backlog](docs/prototypes/camera-layout-implementation.md).
+
 ---
 
 ## 1. OCR / document-understanding pipeline for bundle → Markdown

@@ -5,7 +5,10 @@ Native Android **multimodal** camera app for capturing **bundles** of photos, vi
 > The Gradle `namespace` and `applicationId` remain `com.example.bundlecam` — renaming them would orphan existing installs on upgrade. Everything user-facing, every class / log tag / EXIF identifier, and every document uses **Recon**.
 
 **Other docs:**
-- [`recon-mvp-designs.md`](./recon-mvp-designs.md) — product + UX + architecture design spec (platform-neutral; canonical source for an iOS port).
+
+- [`docs/README.md`](docs/README.md) — documentation map, current design authority and archived evidence.
+- [`docs/prototypes/README.md`](docs/prototypes/README.md) — approved Android adaptive capture SVG proposal; not yet implemented.
+- [`recon-mvp-designs.md`](./recon-mvp-designs.md) — existing product, UX and architecture baseline; adaptive capture proposals are documented separately.
 - [`RELEASE.md`](./RELEASE.md) — signing, R8, and Play Store release runbook.
 - [`BACKLOG.md`](./BACKLOG.md) — post-MVP directions (OCR / MinerU companion, background-record FGS).
 - [`CLAUDE.md`](./CLAUDE.md) — condensed architecture reference for Claude Code agents.

@@ -1,3 +1,9 @@
+# Archived orientation investigation
+
+Historical research from 2026-11-01, before the corrected SVG layouts. Statements below about “current” or “next” designs refer to that earlier snapshot. The screenshot-based corrections are now complete. For current rules use the [camera implementation guidance](../prototypes/camera-layout-implementation.md) and [design contract](../prototypes/README.md). Retained for evidence and rationale, not as an implementation gate.
+
+---
+
 # Foldable capture: orientation and grip review
 
 Reviewed 2026-11-01. Scope: official-source research, supplied Samsung camera screenshots, Recon source and SVG review. No Android runtime changes or replacement screen designs. Ergonomic recommendations below are hypotheses to prototype and test, not measured comfort results.

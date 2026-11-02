@@ -10,6 +10,10 @@ The user chooses the capture modality via a top-bar `VIDEO · PHOTO · VOICE` pi
 
 The platform-neutral product + architecture spec (source of truth for an iOS port) lives in `recon-mvp-designs.md`. README.md is the Android-specific technical reference — keep both in sync when changing pipeline, capture-flow, UX, or LocalSend behavior. Post-MVP ideas (OCR companion, background-record FGS) live in `BACKLOG.md`.
 
+## Design authority
+
+The descriptions above document the existing app. For adaptive capture work, use [the current prototype contract](docs/prototypes/README.md), [component behavior](docs/prototypes/COMPONENT-CONTRACT.md) and [implementation plan](docs/adaptive-foldable-capture-plan.md). These are proposed SVG designs, not implemented Kotlin behavior. Historical evidence in `docs/archive/` must not override them. See [the documentation map](docs/README.md).
+
 ## Common commands
 
 ```bash

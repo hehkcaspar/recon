@@ -19,7 +19,7 @@
 | Feedback, tutorial and accessibility design | Equal-width banner families, growing/stacked text examples, correct prior-capture error wording, six-step tutorial and direct/semantic action contract. Targets/status bounds checked; native font scaling and accessibility still need implementation tests. |
 | Independent review and portability | Bohr reviewed all component sections and corrected direct/alternate crops. Beauvoir reviewed all original screens and all new states. Both report PASS. All9 isolated-file renders equal HTTP;8 strict HTML-image passes,1 documented exact-artifact antialiasing exception. Phone annotation matches all288,000 clean-phone pixels. |
 
-The completed static audit contains55 screen fixtures. Reviewers' IDs, findings and final disposition are recorded in `REVIEW.md`. Historical review entries describe older artifacts; the current component contract and generated geometry take precedence.
+The completed static audit contains55 screen fixtures. Reviewers' IDs, findings and final disposition are recorded in `REVIEW.md`. Historical reviews are isolated in [the archive](../archive/README.md); the current component contract and generated geometry take precedence.
 
 ## Deferred implementation validation
 
