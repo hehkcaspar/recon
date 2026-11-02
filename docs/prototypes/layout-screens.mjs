@@ -18,7 +18,7 @@ const targetsOverlap=(a,b)=>a.x<b.x+b.w-.001&&b.x<a.x+a.w-.001&&a.y<b.y+b.h-.001
 function screen({id,w,h,tall=true,front=false,video=false,shell='bottom',hand='center',queue='idle',compact=false,overlay=false,aspect=null}){
  const qWidth=compact?312:360;
  const qX=compact?24:hand==='right'?w-24-qWidth:hand==='left'?24:(w-qWidth)/2;
- const qY=h-144,shutterY=qY-92,modeY=shutterY-52,zoomY=modeY-52;
+ const qY=h-144,shutterY=qY-92,modeY=28,zoomY=shutterY-52;
  const cx=qX+qWidth/2;
  const frameRatio=aspect??(video?(tall?9/16:16/9):(tall?3/4:4/3));
  const verticalZoom=shell==='side'&&frameRatio<1&&!compact;
@@ -42,13 +42,13 @@ function screen({id,w,h,tall=true,front=false,video=false,shell='bottom',hand='c
  customScenes.set(key,`<symbol id="${key}" viewBox="0 0 ${sw} ${sh}">${rect(0,0,sw,sh,'#9eb8c0')}${rect(0,sh*.58,sw,sh*.42,'#b8784d')}<path d="M0 ${sh*.58}H300M150 0V${sh}" stroke="#fff" stroke-opacity=".4"/><circle cx="230" cy="${sh*.26}" r="32" fill="#f0c66b"/><rect x="30" y="${sh*.16}" width="72" height="${Math.min(130,sh*.3)}" fill="#456274" stroke="#fff" stroke-width="2"/><text x="66" y="${sh*.3}" text-anchor="middle" fill="#fff" font-size="14">UP ↑</text><path d="M170 ${sh-25}l40 -80 35 45 20 -30 35 65Z" fill="#5b7e4a"/><path d="M4 20V4H20M280 4H296V20M4 ${sh-20}V${sh-4}H20M280 ${sh-4}H296V${sh-20}" stroke="#fff" stroke-width="2" fill="none"/></symbol>`);
  out+=`<use href="#${key}" x="${n(p.x)}" y="${n(p.y)}" width="${n(p.w)}" height="${n(p.h)}" data-role="preview"/>`;}
  // In the very tall cover frame the header overlaps: redraw it on its own top scrim.
- if(overlay&&p.y<72){out+=rect(0,24,w,48,'#171717').replace('/>',' fill-opacity=".72"/>');out+=compactHeader(video);}
+ if(overlay&&p.y<72){out+=rect(0,24,w,48,'#000').replace('/>',' fill-opacity=".72"/>');out+=compactHeader(video);}
 
  if(!video)out+=use('focusIndicator',p.x+p.w*.56-40,(overlay?Math.min(p.y+p.h*.30,zoomY-52):p.y+p.h*.52)-40,80,80);
  if(overlay)out+=`<defs><linearGradient id="${id}-scrim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset=".32" stop-color="#000" stop-opacity=".72"/><stop offset="1" stop-color="#000" stop-opacity=".85"/></linearGradient></defs><rect x="0" y="${zoomY-48}" width="${w}" height="${h-24-(zoomY-48)}" fill="url(#${id}-scrim)"/>`;
- // Mode is always horizontal and adjacent to shutter; its position survives camera/voice changes.
- out+=use(video?'modeStripVideo':'modeStripPhoto',cx-125,modeY,250,40);
- for(let k=0;k<3;k++)targets.push({symbol:'mode',x:cx-125+k*250/3,y:modeY-4,w:250/3,h:48});
+ // Less-frequent mode selection stays in the top bar; preview swipe is the quick alternative.
+ out+=use(video?'modeStripVideo':'modeStripPhoto',w/2-125,modeY,250,40);
+ for(let k=0;k<3;k++)targets.push({symbol:'mode',x:w/2-125+k*250/3,y:modeY-4,w:250/3,h:48});
  // Frame orientation determines rail suitability, independently of window orientation.
  const zx=verticalZoom?(hand==='left'?w-68:28):cx-110;
  const zy=verticalZoom?p.y+p.h/2-110:zoomY;
@@ -133,10 +133,10 @@ for(const [i,s] of [
  'One-handed reach is a prototype hypothesis until tested while holding a device.'
 ].entries())body+=text(840,2154+i*34,s,15);
 body+=text(32,2960,'Feedback on the actual short-cover layout',24,'#fff');
-body+=text(32,2990,'Overlay host x16 / y92 / width328. Compact messages remain above zoom; long content uses an accessible sheet without covering Stop.');
-for(const [i,banner] of ['bannerUndo','bannerErrorLong'].entries()){
- const x=32+i*424;body+=`<g transform="translate(${x} 3020)">${screen({id:`cover-feedback-${i}`,w:360,h:576,compact:true,overlay:true})}${use(banner,16,92,328,i?72:48)}</g>`;
- body+=text(x,3624,i?'Multiline message / dismiss action':'Undo / compact message',17,'#fff');
+body+=text(32,2990,'Overlay host x16 / y92 / width328. Large messages grow above zoom; Stop and queue travel remain reachable.');
+for(const [i,banner] of ['bannerUndo','bannerErrorLarge'].entries()){
+ const x=32+i*424;body+=`<g transform="translate(${x} 3020)">${screen({id:`cover-feedback-${i}`,w:360,h:576,compact:true,overlay:true})}${use(banner,16,92,328,i?160:48)}</g>`;
+ body+=text(x,3624,i?'2× text / stacked dismiss action':'Undo / compact message',17,'#fff');
 }
 await save('recon-capture-layout-checks.svg',document(2040,3670,'Recon layout validation fixtures',body));
 // Common output ratios are fixtures, not a new in-app aspect selector.

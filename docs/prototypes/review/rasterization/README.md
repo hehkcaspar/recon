@@ -2,11 +2,11 @@
 
 Reassessed 2026-11-01 for the 1440 × 7360 design-system sheet. The exact source/direct/image hashes are in [current-measurements.json](current-measurements.json) and pinned in `../../render-review.mjs`. Direct HTTP and isolated-file output match exactly. The strict HTML-image check remains false; this is a narrowly scoped reviewed exception, not a global tolerance increase.
 
-- 10,598,400 total pixels; 23,526 have any channel difference.
-- 305 pixels exceed delta 8; 55 exceed delta 32; maximum 81 at (254,5410), on the tutorial marker curve.
-- Mean maximum-channel difference: 0.0029788459/255.
+- 10,598,400 total pixels; 23,517 have any channel difference.
+- 301 pixels exceed delta 8; 55 exceed delta 32; maximum 81 at (254,5410), on the tutorial marker curve.
+- Mean maximum-channel difference: 0.0029732790/255.
 - Tutorial-marker region (220,5360,64,72): centroid delta −0.00460/−0.01743px; zero-offset error 898 versus best nonzero ±1px error 22,122. The direct crop is identical to the previous reviewed crop, so the existing eight-times enlargement still represents this hotspot.
-- Voice Stop region (1020,4178,96,100): centroid delta −0.00334/+0.02086px; zero-offset error 2,893 versus best nonzero error 83,253. Nearby mode labels changed; the comparison was measured again rather than reusing the old result.
+- Voice Stop region (1020,4178,96,100): centroid delta −0.00330/+0.02080px; zero-offset error 2,893 versus best nonzero error 85,189. Mode selection was restored to the top of the composed reference. This crop is now identical to the original reviewed crop; the comparison was measured again.
 
 Independent GPT-6.1-SOL reviewer Harvey inspected direct/alternate crops and found curved-edge raster differences without visible geometry or text-content changes. The new mode and zoom panels introduce no pixels exceeding delta 8. The full current alternate image is [design-system-image-context.png](design-system-image-context.png). All seven other sheets retain the original strict tolerances. Any source or raster change invalidates the pinned exception.
 

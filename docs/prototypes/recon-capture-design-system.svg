@@ -373,25 +373,25 @@
   <rect x="48" y="3860" width="648" height="560" fill="#141414" rx="20" stroke="#2b2b2b"/>
   <text x="72" y="3900" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="22" font-weight="700">VIDEO recording / composed reference</text>
   <text x="72" y="3928" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Required behavior: mode + queue + mic + lens locked; Stop enabled.</text>
-  <use href="#modeStripVideoLocked" x="223" y="4140" width="250" height="40" />
-  <use href="#recordingPill" x="112" y="3960" width="150" height="32" />
-  <use href="#recordingPillMuted" x="302" y="3960" width="112" height="32" />
-  <use href="#recordingPillLong" x="450" y="3960" width="150" height="32" />
-  <text x="112" y="4022" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Audio on</text>
-  <text x="302" y="4022" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Muted</text>
-  <text x="450" y="4022" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Long elapsed time</text>
-  <use href="#zoomChips" x="238" y="4088" width="220" height="40" />
+  <use href="#modeStripVideoLocked" x="223" y="3950" width="250" height="40" />
+  <use href="#recordingPill" x="112" y="4030" width="150" height="32" />
+  <use href="#recordingPillMuted" x="302" y="4030" width="112" height="32" />
+  <use href="#recordingPillLong" x="450" y="4030" width="150" height="32" />
+  <text x="112" y="4092" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Audio on</text>
+  <text x="302" y="4092" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Muted</text>
+  <text x="450" y="4092" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Long elapsed time</text>
+  <use href="#zoomChips" x="238" y="4130" width="220" height="40" />
   <use href="#iconMicDisabled" x="176" y="4208" width="48" height="48" />
   <use href="#shutterVideoRecording" x="308" y="4192" width="80" height="80" />
   <g opacity=".25"><use href="#iconLens" x="472" y="4208" width="48" height="48" /><use href="#queueCompact" x="192" y="4300" width="312" height="72" /></g>
   <rect x="744" y="3860" width="648" height="560" fill="#141414" rx="20" stroke="#2b2b2b"/>
   <text x="768" y="3900" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="22" font-weight="700">VOICE recording / composed reference</text>
   <text x="768" y="3928" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Camera controls hidden; elapsed time and Stop stay available.</text>
-  <use href="#modeStripVoiceLocked" x="943" y="4140" width="250" height="40" />
-  <circle cx="1000" cy="3966" r="5" fill="#EF5350"/>
-  <text x="1016" y="3972" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="16" >Recording…</text>
-  <use href="#voiceWaveform" x="918" y="3980" width="300" height="120" />
-  <text x="1068" y="4124" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="22" text-anchor="middle">0:12</text>
+  <use href="#modeStripVoiceLocked" x="943" y="3950" width="250" height="40" />
+  <circle cx="1000" cy="4036" r="5" fill="#EF5350"/>
+  <text x="1016" y="4042" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="16" >Recording…</text>
+  <use href="#voiceWaveform" x="918" y="4050" width="300" height="120" />
+  <text x="1068" y="4180" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="22" text-anchor="middle">0:12</text>
   <use href="#shutterVoiceRecording" x="1028" y="4192" width="80" height="80" />
   <g opacity=".25"><use href="#queueCompact" x="912" y="4300" width="312" height="72" /></g>
   <text x="768" y="4400" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Lock means no pointer or semantic mutation; dimming alone is insufficient.</text>
@@ -493,7 +493,7 @@
 <use href="#zoomSingle" x="884" y="7040" width="40" height="40"/>
 <text x="884" y="7110" fill="#ccc" font-size="14">Single-choice capability fixture</text>
 <text x="884" y="7138" fill="#aaa" font-size="14">Hide zoom if no adjustment is available.</text>
-<text x="884" y="7178" fill="#aaa" font-size="14">Mode stays horizontal in every layout.</text>
+<text x="884" y="7178" fill="#aaa" font-size="14">Mode stays horizontal in the top bar.</text>
 <text x="884" y="7206" fill="#aaa" font-size="14">Queue order and gestures do not rotate.</text>
 <text x="72" y="7290" fill="#aaa" font-size="14">36dp selected circle · 14sp preset labels · 12sp fractional value · 48dp targets · 55dp pitch · upright text</text></g>
 </svg>

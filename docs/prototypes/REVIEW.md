@@ -125,3 +125,13 @@ Evidence: manifest generated **2026-11-02T02:17:49.444Z**; 708 local references 
 The design-system sheet's exact source/direct/image triple was reassessed: 305 of 10,598,400 pixels exceed delta8, maximum81 on the unchanged tutorial-marker curve. Independent direct/alternate inspection found no visible geometry or text-content change. The strict result remains false with a pinned, documented [curve-edge exception](review/rasterization/README.md); it is not a general tolerance relaxation. The renderer now collects diagnostics for every sheet before reporting portability failure, rather than stopping after the first artifact.
 
 Native input arbitration, TalkBack, large-font presentation, actual camera capability selection and physical hand reach remain implementation acceptance work. This batch supersedes earlier mode/zoom placement and sheet dimensions.
+
+## Top-mode correction — 2026-11-01
+
+**PASS**, independently reinspected by GPT-6.1-SOL Harvey (`01a19a08-f47c-7690-a523-493b9ede4e06`) across all eight rendered sheets, with native-scale details of the 9:16 cover header, large-text feedback and recording compositions. No actionable visual defects found.
+
+User direction supersedes the preceding placement decision: modality is a less frequent change and idle preview swiping is already the quick interaction, so all three modes remain centered in the top bar. Keep the lighter text/underline styling and circular zoom controls. Horizontal zoom returns immediately above the shutter; opposite vertical zoom rails remain. Shutter, queue and gesture travel anchors are unchanged. Restored the 160-high cover feedback specimen, now with 32 units before zoom targets. Header overlays use 72% black for at least 4.91:1 inactive-label contrast against a white preview.
+
+Final manifest: **2026-11-02T02:24:39.736Z**, 708 local references, 36 valid geometries, all eight isolated-file renders identical to HTTP, seven strict image-context passes, and 288,000 exact phone/annotation pixels. Freshness, XML, JavaScript syntax and whitespace checks passed.
+
+The modified design-system source required another raster audit before repinning: 301 pixels exceed delta8, maximum81 at the same tutorial-marker curve; both inspected direct hotspot crops now match the original reviewed crops. Offset/centroid diagnostics remain consistent with curve-edge coverage. Current measurements and hashes are recorded in the raster evidence. Strict image-context comparison remains false for this one exact artifact; reviewer approval covers static visual composition, not native runtime behavior.
