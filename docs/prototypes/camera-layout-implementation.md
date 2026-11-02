@@ -98,3 +98,9 @@ Static geometry, portability and independent visual inspection are acceptance ev
 ### Overflow queue implementation acceptance
 
 Use a clipped, alpha-masked scrolling media layer with stationary edge handles above it. Keep standard 56dp/dense 48dp tiles,6dp ordinary gaps,24dp split gaps and unchanged 48 × 48dp handle targets. Handle regions win pointer-down over media underneath; opacity must never enable click-through. Preserve gesture ownership after pointer-down, including reorder auto-scroll across an edge. Keep endpoint tiles fully accessible and derive accessible bounds from exposed interaction regions, not raw tile bounds. Test both 312dp and 360dp queues at start/middle/end, split near an edge, active commit/discard, scroll cancellation and TalkBack navigation. These are prototype contracts, not implemented runtime behavior.
+
+## Complete state composition and reference coverage
+
+`recon-capture-recording-states.svg` closes the static state-composition gap with phone, cover and inner VIDEO/VOICE windows. Use the same layout anchors for idle and active capture; mode changes must not move shutter/queue. During recording the prototype also disables Settings/Library to protect the take. A recoverable queue/storage message can coexist below the recording timer; a recorder failure must stop/finalize and leave the live state. These policies still need implementation.
+
+Keep the surviving1× preset anchored across capability changes. Choose side versus bottom layout by fitted frame area and reach, not just frame orientation: the near-square tall-frame and wide16:9 examples now use bottom docks with larger previews. Center short square frames in the area above controls instead of always pinning them to the header.

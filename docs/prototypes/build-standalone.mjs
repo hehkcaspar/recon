@@ -37,7 +37,7 @@ async function save(name, previous, next) {
 }
 await save(canonical, design, embedFont(design));
 let phone;
-for (const kind of ['phone', 'cover', 'fold8-inner', 'fold8-ultra-inner', 'layout-checks', 'aspect-ratios']) {
+for (const kind of ['phone', 'cover', 'fold8-inner', 'fold8-ultra-inner', 'layout-checks', 'aspect-ratios', 'recording-states']) {
   const name = `recon-capture-${kind}.svg`;
   const previous = await readFile(join(root, name), 'utf8');
   let text = previous;

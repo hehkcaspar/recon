@@ -53,7 +53,7 @@ function imageDifference(a, b) {
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const chrome = process.env.CHROME_BIN || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-const files = ['design-system', 'phone', 'phone-annotated', 'cover', 'fold8-inner', 'fold8-ultra-inner', 'layout-checks', 'aspect-ratios']
+const files = ['design-system', 'phone', 'phone-annotated', 'cover', 'fold8-inner', 'fold8-ultra-inner', 'layout-checks', 'aspect-ratios', 'recording-states']
   .map(name => `recon-capture-${name}.svg`);
 const allowed = new Set(files);
 const sources = new Map(await Promise.all(files.map(async name => [name, await readFile(join(root, name), 'utf8')])));
@@ -136,9 +136,9 @@ try {
     // Exact reviewed artifact exception: sparse curve-edge coverage, not a global tolerance increase.
     // Any source OR raster change invalidates it. Evidence includes the alternate render and 8x comparison.
     const reviewedRasterException = name === 'recon-capture-design-system.svg'
-      && sha(svg) === '68b5a145cab340533c128d0e40dde3944dfa0ccc03cc8b80279c43f54b31fc67'
-      && sha(png) === '8591d20f92367ab1fee5991663ceda2e1b1d1ebadcfdbbcaaf6b809b4cec35fc'
-      && imagePngSha256 === '437545a8c11995601a8d67b3f58458270c1e70ef63b511f53fff166eb2576031';
+      && sha(svg) === 'da2e71f69ec4b27018ac1bd615135148335f03c958b01adc67cde14128d9a745'
+      && sha(png) === '1c234f449fadd1d6539bd398751a2fc2daf036ba091043785f5cec256198cd5b'
+      && imagePngSha256 === '1a6910772f97d0716bc756349aa0fb553dfd78bf4c23155424f64cc7e3fb8246';
     const portabilityPassed = filePngSha256 === sha(png) && (strictImageContextPassed || reviewedRasterException);
     if (!portabilityPassed) {
       failures.push(`${name}: ${JSON.stringify(imageContextDifference)}`);

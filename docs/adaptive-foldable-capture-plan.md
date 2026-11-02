@@ -23,7 +23,7 @@ The implementation should respond to the app window and available usable regions
 
 Use two capture layout shells:
 
-1. **Compact layout** — preserve the existing portrait-phone composition and spacing.
+1. **Compact layout** — preserve the capture hierarchy, with full-width fitted previews, overlay controls and bottom anchoring from the current SVG contract. Short windows use explicitly smaller visuals while retaining at least 48dp interaction targets.
 2. **Wide layout** — use a bounded camera preview with controls and the queue placed beside or below it, depending on the available usable region.
 
 For a separating hinge, never span the preview, shutter, focus indicator, queue, or primary gesture target across the hinge.
@@ -97,9 +97,9 @@ Reuse the existing components:
 - recording indicators
 - queue strip
 
-Extract shared controls once, then build the compact overlay and side/bottom arrangements from the revised SVG contract. On short compact windows, maximize the fitted preview and layer controls over a contrast scrim rather than reducing the camera to a thumbnail. Keep the same control sizes and queue gesture runway across shells.
+Extract shared controls once, then build the compact overlay and side/bottom arrangements from the revised SVG contract. On short compact windows, maximize the fitted preview and layer controls over a contrast scrim rather than reducing the camera to a thumbnail. Share component definitions and behavior across shells, with explicit standard/dense sizes: shutter 80/64dp, thumbnails 56/48dp, queue height 72/64dp. Keep interaction targets at least 48dp. Bottom docks reserve 24dp below the queue plus actual safe insets; balanced side docks retain 48dp. These distances and the provisional 600dp usable-height density breakpoint are design parameters, not Android constants. The [component contract](prototypes/COMPONENT-CONTRACT.md) is authoritative for current geometry and gesture proposals.
 
-The wide shell should fit the independently oriented camera frame, then place controls in usable regions. A wide window may contain a tall preview, and a tall window a wide preview. Compare a compact side control group and bottom control group using available space and grip reach, rather than width greater than height alone. Keep zoom, mode access and shutter close; evaluate a left/right dock preference without reversing queue chronology or gesture meanings.
+The wide shell should fit the independently oriented camera frame, then place controls in usable regions. A wide window may contain a tall preview, and a tall window a wide preview. Compare a compact side control group and bottom control group using available space and grip reach, rather than width greater than height alone. Keep the less-frequent modality switch at the top, with preview swipe as its quick alternative. Place zoom above the shutter for bottom docks or wide frames, and on the opposite side rail for tall frames in side docks. Evaluate a left/right dock preference without reversing queue chronology or gesture meanings.
 
 Design the horizontal queue's placement, complete gesture travel and safe cancellation alongside the capture group, before accepting layout geometry. Queue gestures are core product behavior, not a later decoration. Keep this one shared queue component; do not rotate its interaction axes with the camera image.
 

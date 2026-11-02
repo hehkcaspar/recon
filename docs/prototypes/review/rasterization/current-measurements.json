@@ -3,7 +3,7 @@
     1440,
     9000
   ],
-  "pixelsOver8": 678,
+  "pixelsOver8": 673,
   "pixelsOver32": 95,
   "max": 81,
   "maxAt": [
@@ -54,7 +54,7 @@
       ],
       "zeroError": 1123,
       "bestNonzeroError": 72080,
-      "directCropIdenticalToPrevious": null
+      "directCropIdenticalToPrevious": false
     },
     {
       "region": [
@@ -69,175 +69,36 @@
       ],
       "zeroError": 1814,
       "bestNonzeroError": 59461,
-      "directCropIdenticalToPrevious": null
+      "directCropIdenticalToPrevious": false
     }
   ],
-  "svgSha256": "68b5a145cab340533c128d0e40dde3944dfa0ccc03cc8b80279c43f54b31fc67",
-  "pngSha256": "8591d20f92367ab1fee5991663ceda2e1b1d1ebadcfdbbcaaf6b809b4cec35fc",
-  "imagePngSha256": "437545a8c11995601a8d67b3f58458270c1e70ef63b511f53fff166eb2576031",
+  "hashes": {
+    "svgSha256": "da2e71f69ec4b27018ac1bd615135148335f03c958b01adc67cde14128d9a745",
+    "pngSha256": "1c234f449fadd1d6539bd398751a2fc2daf036ba091043785f5cec256198cd5b",
+    "filePngSha256": "1c234f449fadd1d6539bd398751a2fc2daf036ba091043785f5cec256198cd5b",
+    "imagePngSha256": "1a6910772f97d0716bc756349aa0fb553dfd78bf4c23155424f64cc7e3fb8246"
+  },
   "imageContextDifference": {
     "maxChannelDelta": 81,
-    "changedPixels": 32692,
-    "meanPixelDelta": 0.0037764660493827163
+    "changedPixels": 34131,
+    "meanPixelDelta": 0.0038819444444444444
   },
-  "denseResidualAudit": {
-    "changedResiduals": 2228,
+  "revisionComparison": {
+    "changedResiduals": 11090,
     "newOver8": 1,
-    "maxNew": 10,
-    "addedMax": 58,
-    "addedOver8": 358,
-    "addedChanged": 1065,
+    "maxNew": 12,
+    "addedMax": 0,
+    "addedOver8": 0,
+    "addedChanged": 0,
     "peaks": [
       [
-        255,
-        3005,
-        10
-      ],
-      [
-        96,
-        8384,
-        16
-      ],
-      [
-        111,
-        8384,
-        16
-      ],
-      [
-        208,
-        8384,
-        16
-      ],
-      [
-        223,
-        8384,
-        16
-      ],
-      [
-        320,
-        8384,
-        16
-      ],
-      [
-        335,
-        8384,
-        16
-      ],
-      [
-        432,
-        8384,
-        16
-      ],
-      [
-        447,
-        8384,
-        16
-      ],
-      [
-        544,
-        8384,
-        16
-      ],
-      [
-        553,
-        8384,
-        9
-      ],
-      [
-        554,
-        8384,
-        17
-      ],
-      [
-        555,
-        8384,
-        24
-      ],
-      [
-        556,
-        8384,
-        16
-      ],
-      [
-        557,
-        8384,
-        9
-      ],
-      [
-        558,
-        8384,
-        25
-      ],
-      [
-        93,
-        8385,
-        16
-      ],
-      [
-        94,
-        8385,
-        13
-      ],
-      [
-        95,
-        8385,
+        253,
+        4235,
         12
-      ],
-      [
-        112,
-        8385,
-        13
-      ],
-      [
-        113,
-        8385,
-        14
-      ],
-      [
-        114,
-        8385,
-        15
-      ],
-      [
-        205,
-        8385,
-        16
-      ],
-      [
-        206,
-        8385,
-        13
-      ],
-      [
-        207,
-        8385,
-        12
-      ],
-      [
-        224,
-        8385,
-        13
-      ],
-      [
-        225,
-        8385,
-        14
-      ],
-      [
-        226,
-        8385,
-        15
-      ],
-      [
-        317,
-        8385,
-        16
-      ],
-      [
-        318,
-        8385,
-        13
       ]
     ]
-  }
+  },
+  "revisionBaseline": "933d32a direct and image renders; same 1440x9000 canvas",
+  "historicalRegionComparison": "directCropIdenticalToPrevious compares with original 1440x6900 artifact; dense regions did not exist there",
+  "independentVisualReview": "GPT-6.1-SOL Bohr 01a19a8a-d34e-7d72-aa16-76d5cb50d879: all DS sections, then revised direct/alternate regions PASS"
 }

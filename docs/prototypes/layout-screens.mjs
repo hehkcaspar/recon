@@ -15,7 +15,9 @@ const rect=(x,y,w,h,fill)=>`<rect x="${n(x)}" y="${n(y)}" width="${n(w)}" height
 const fit=(b,r)=>{const w=Math.min(b.w,b.h*r),h=w/r;return {x:b.x+(b.w-w)/2,y:b.y+(b.h-h)/2,w,h};};
 const compactHeader=()=>use('topBarCompact',0,12,360,72);
 const targetsOverlap=(a,b)=>a.x<b.x+b.w-.001&&b.x<a.x+a.w-.001&&a.y<b.y+b.h-.001&&b.y<a.y+a.h-.001;
-function screen({id,w,h,tall=true,front=false,video=false,shell='bottom',hand='center',queue='idle',compact=false,overlay=false,aspect=null,bottomInset=24}){
+function screen({id,w,h,tall=true,front=false,mode='photo',recording=false,feedback=null,shell='bottom',hand='center',queue='idle',compact=false,overlay=false,aspect=null,bottomInset=24}){
+ const video=mode==='video',voice=mode==='voice';
+ if(recording&&!video&&!voice)throw Error('PHOTO cannot record');
  const dense=shell!=='side'&&h-24-bottomInset<600;
  const qWidth=compact||dense?312:360;
  const qX=compact?24:hand==='right'?w-24-qWidth:hand==='left'?24:(w-qWidth)/2;
@@ -24,20 +26,27 @@ function screen({id,w,h,tall=true,front=false,video=false,shell='bottom',hand='c
  const qY=h-bottomInset-travel-qHeight,shutterY=qY-queueGap-shutterSize,modeY=28,zoomY=shutterY-52;
  const cx=qX+qWidth/2;
  const frameRatio=aspect??(video?(tall?9/16:16/9):(tall?3/4:4/3));
- const verticalZoom=shell==='side'&&frameRatio<1&&!compact;
+ const verticalZoom=shell==='side'&&frameRatio<1&&!compact&&!voice;
  let box;
  if(overlay){const top=w/frameRatio>h-96?24:72;box={x:0,y:top,w,h:h-bottomInset-top};}
  else if(compact)box={x:24,y:92,w:w-48,h:zoomY-108};
  else if(shell==='side')box={x:hand==='left'?408:(verticalZoom?96:24),y:84,w:w-432-(verticalZoom?72:0),h:h-bottomInset-84};
  else box={x:24,y:84,w:w-48,h:zoomY-100};
  const ratio=frameRatio,p=fit(box,ratio);
- if(overlay&&p.w===w)p.y=box.y; // Full-width compact frames align below the top bar, instead of floating in unused space.
+ if(overlay&&p.w===w){
+  // Center a short frame above the controls when it fits there; tall frames retain the full-width overlay composition.
+  const freeHeight=zoomY-16-box.y;
+  p.y=p.h<=freeHeight?box.y+(freeHeight-p.h)/2:box.y;
+ }
  let out=rect(0,0,w,h,'#080808');
  const targets=[];
  const control=(symbol,x,y,sw=48,sh=48)=>{targets.push({symbol,x,y,w:sw,h:sh});out+=use(symbol,x,y,sw,sh);};
+ if(recording)out+='<g opacity=".38">';
  if(compact){out+=compactHeader();targets.push({symbol:'settings',x:4,y:24,w:48,h:48},{symbol:'library',x:308,y:24,w:48,h:48});}
  else {control('iconSettings',24,24);control('iconLibrary',w-72,24);}
+ if(recording){out+='</g>';targets.length=0;}
  let scene;
+ if(!voice){
  if(Math.abs(ratio-.75)<1e-8||Math.abs(ratio-4/3)<1e-8)scene=`scene${ratio<1?'Portrait':'Landscape'}${front?'Front':'Rear'}`;
  else if(Math.abs(ratio-9/16)<1e-8||Math.abs(ratio-16/9)<1e-8)scene=`sceneVideo${ratio<1?'Portrait':'Landscape'}${front?'Front':'Rear'}`;
  if(scene)out+=use(scene,p.x,p.y,p.w,p.h,'data-role="preview"');
@@ -45,34 +54,61 @@ function screen({id,w,h,tall=true,front=false,video=false,shell='bottom',hand='c
  customScenes.set(key,`<symbol id="${key}" viewBox="0 0 ${sw} ${sh}">${rect(0,0,sw,sh,'#9eb8c0')}${rect(0,sh*.58,sw,sh*.42,'#b8784d')}<path d="M0 ${sh*.58}H300M150 0V${sh}" stroke="#fff" stroke-opacity=".4"/><circle cx="230" cy="${sh*.26}" r="32" fill="#f0c66b"/><rect x="30" y="${sh*.16}" width="72" height="${Math.min(130,sh*.3)}" fill="#456274" stroke="#fff" stroke-width="2"/><text x="66" y="${sh*.3}" text-anchor="middle" fill="#fff" font-size="14">UP ↑</text><path d="M170 ${sh-25}l40 -80 35 45 20 -30 35 65Z" fill="#5b7e4a"/><path d="M4 20V4H20M280 4H296V20M4 ${sh-20}V${sh-4}H20M280 ${sh-4}H296V${sh-20}" stroke="#fff" stroke-width="2" fill="none"/></symbol>`);
  out+=`<use href="#${key}" x="${n(p.x)}" y="${n(p.y)}" width="${n(p.w)}" height="${n(p.h)}" data-role="preview"/>`;}
  // In the very tall cover frame the header overlaps: redraw it on its own top scrim.
- if(overlay&&p.y<72){out+=rect(0,24,w,48,'#000').replace('/>',' fill-opacity=".72"/>');out+=compactHeader(video);}
+ if(overlay&&p.y<72){out+=rect(0,24,w,48,'#000').replace('/>',' fill-opacity=".72"/>');if(recording)out+='<g opacity=".38">';out+=compactHeader();if(recording)out+='</g>';}
 
- if(!video)out+=use('focusIndicator',p.x+p.w*.56-40,(overlay?Math.min(p.y+p.h*.30,zoomY-52):p.y+p.h*.52)-40,80,80);
- if(overlay)out+=`<defs><linearGradient id="${id}-scrim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset=".32" stop-color="#000" stop-opacity=".72"/><stop offset="1" stop-color="#000" stop-opacity=".85"/></linearGradient></defs><rect x="0" y="${zoomY-48}" width="${w}" height="${h-bottomInset-(zoomY-48)}" fill="url(#${id}-scrim)"/>`;
+ } // camera content; VOICE has a quiet canvas, no camera frame or focus marker
+ if(!video&&!voice)out+=use('focusIndicator',p.x+p.w*.56-40,(overlay?Math.min(p.y+p.h*.30,zoomY-52):p.y+p.h*.52)-40,80,80);
+ if(overlay&&!voice)out+=`<defs><linearGradient id="${id}-scrim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset=".32" stop-color="#000" stop-opacity=".72"/><stop offset="1" stop-color="#000" stop-opacity=".85"/></linearGradient></defs><rect x="0" y="${zoomY-48}" width="${w}" height="${h-bottomInset-(zoomY-48)}" fill="url(#${id}-scrim)"/>`;
  // Less-frequent mode selection stays in the top bar; preview swipe is the quick alternative.
- out+=use(video?'modeStripVideo':'modeStripPhoto',w/2-125,modeY,250,40);
- for(let k=0;k<3;k++)targets.push({symbol:'mode',x:w/2-125+k*250/3,y:modeY-4,w:250/3,h:48});
+ out+=use('modeStrip'+(voice?'Voice':video?'Video':'Photo')+(recording?'Locked':''),w/2-125,modeY,250,40);
+ if(!recording)for(let k=0;k<3;k++)targets.push({symbol:'mode',x:w/2-125+k*250/3,y:modeY-4,w:250/3,h:48});
  // Frame orientation determines rail suitability, independently of window orientation.
  const zx=verticalZoom?(hand==='left'?w-68:28):cx-96;
  const zy=verticalZoom?p.y+p.h/2-96:zoomY;
- if(front){const x=verticalZoom?zx:cx-20,y=verticalZoom?zy+76:zoomY;out+=use('zoomSingle',x,y,40,40);targets.push({symbol:'zoom1x',x:x-4,y:y-4,w:48,h:48});}
+ if(!voice){
+ if(front){const x=verticalZoom?zx:cx-44,y=verticalZoom?zy+100:zoomY;out+=use('zoomSingle',x,y,40,40);targets.push({symbol:'zoom1x',x:x-4,y:y-4,w:48,h:48});}
  else {out+=use(verticalZoom?'zoomVertical':'zoomChips',zx,zy,verticalZoom?40:192,verticalZoom?192:40);for(let k=0;k<4;k++)targets.push({symbol:'zoom',x:verticalZoom?zx-4:zx+k*48,y:verticalZoom?zy+k*48:zy-4,w:48,h:48});}
+ if(recording)out+='<g opacity=".38">';
  control(video?'iconMic':front?'iconFlashOff':'iconFlashAuto',cx-120,shutterY+(shutterSize-48)/2);
+ if(recording){out+='</g>';targets.pop();}
  // Front flash off is unavailable in this capability fixture; visible but not an active target.
  if(front&&!video){out=out.replace(/(<use href="#shared-iconFlashOff"[^>]*)(\/>)$/, '$1 opacity=".38"$2');targets.pop();}
- control((dense?'shutterDense':'shutter')+(video?'VideoIdle':'Photo'),cx-shutterSize/2,shutterY,shutterSize,shutterSize);
- control('iconLens',cx+72,shutterY+(shutterSize-48)/2);
+ }
+ control((dense?'shutterDense':'shutter')+(voice?(recording?'VoiceRecording':'VoiceIdle'):video?(recording?'VideoRecording':'VideoIdle'):'Photo'),cx-shutterSize/2,shutterY,shutterSize,shutterSize);
+ if(!voice){if(recording)out+='<g opacity=".38">';control('iconLens',cx+72,shutterY+(shutterSize-48)/2);if(recording){out+='</g>';targets.pop();}}
+ const statusBounds=[];
+ if(recording&&video){const timer={x:p.x+p.w/2-75,y:Math.max(84,p.y+12),w:150,h:32};out+=use('recordingPill',timer.x,timer.y,timer.w,timer.h);statusBounds.push(timer);}
+ if(voice){
+  const vx=shell==='side'?box.x+box.w/2:w/2,vy=(84+(shell==='side'?h-bottomInset:zoomY-16))/2;
+  out+=use(recording?'voiceWaveform':'voiceWaveformIdle',vx-150,vy-60,300,120);
+  if(recording){out+=`<circle cx="${vx-62}" cy="${vy-80}" r="5" fill="#EF5350"/>`+text(vx-46,vy-74,'Recording…',16,'#fff');out+=`<text x="${vx}" y="${vy+84}" text-anchor="middle" font-size="22" fill="#fff">0:12</text>`;}
+  else out+=`<text x="${vx}" y="${vy+84}" text-anchor="middle" font-size="16" fill="#ccc">Tap shutter to record voice</text>`;
+  statusBounds.push({x:vx-150,y:vy-88,w:300,h:176});
+ }
  const queueSymbol=dense?(queue==='deleteArmed'?'queueDenseDeleteArmed':queue.startsWith('long-')?'queueDenseLong'+queue.slice(5):queue==='split'?'queueDenseSplit':'queueDenseIdle'):queue.startsWith('long-')?(compact?'queueCompactLong':'queueLong')+queue.slice(5):(compact?(queue==='split'?'queueCompactSplit':'queueCompact'):(queue==='split'?'queueSplit':'queueStrip'));
+ if(recording)out+='<g opacity=".25">';
  out+=use(queueSymbol,qX,qY,qWidth,queue==='deleteArmed'?qHeight+48:qHeight,'data-role="queue"');
+ if(recording)out+='</g>';
+ let feedbackBounds=null;
+ if(feedback){
+  feedbackBounds={x:16,y:recording?128:92,w:328,h:feedback.endsWith('Large')?160:48};out+=use(feedback,...Object.values(feedbackBounds));
+  // This fixture uses the large banner's real 144x48 Dismiss action, which remains usable during recording.
+  if(feedback.endsWith('Large'))targets.push({symbol:'feedbackDismiss',x:feedbackBounds.x+184,y:feedbackBounds.y+112,w:144,h:48});
+ }
  if(bottomInset===48)out+=`<path d="M${w/2-70} ${h-30}l-10 6 10 6Z" fill="#888"/><circle cx="${w/2}" cy="${h-24}" r="7" fill="none" stroke="#888" stroke-width="2"/><rect x="${w/2+62}" y="${h-31}" width="14" height="14" fill="#888"/>`;
  else out+=`<rect x="${w/2-50}" y="${h-12}" width="100" height="4" rx="2" fill="#fff" fill-opacity=".45"/>`;
- const record={id,w,h,compact,overlay,shell,hand,frame:ratio===1?'square':ratio<1?'tall':'wide',camera:front?'front':'rear',zoomAxis:verticalZoom?'vertical':'horizontal',mode:video?'video':'photo',preview:Object.fromEntries(Object.entries(p).map(([k,v])=>[k,n(v)])),ratio,queue:{x:qX,y:qY,w:qWidth,h:qHeight,symbol:queueSymbol},profile:dense?'dense':'standard',shutterSize,safe:{top:24,bottom:bottomInset,side:24},travel,targets};
- for(const t of targets){if(t.w<48||t.h<48)throw Error(`Undersized target ${id} ${t.symbol}`);if(t.x<0||t.y<24||t.x+t.w>w||t.y+t.h>h-bottomInset)throw Error(`Unsafe target ${id} ${t.symbol}`);if(!overlay&&targetsOverlap(t,p))throw Error(`Preview/control overlap ${id} ${t.symbol}`);}
+ const record={id,w,h,compact,overlay,shell,hand,frame:voice?null:ratio===1?'square':ratio<1?'tall':'wide',camera:voice?null:front?'front':'rear',zoomAxis:voice?null:verticalZoom?'vertical':'horizontal',mode,recording,statusBounds,feedback:feedbackBounds,preview:voice?null:Object.fromEntries(Object.entries(p).map(([k,v])=>[k,n(v)])),ratio:voice?null:ratio,queue:{x:qX,y:qY,w:qWidth,h:qHeight,symbol:queueSymbol,locked:recording},profile:dense?'dense':'standard',shutterSize,safe:{top:24,bottom:bottomInset,side:24},travel,targets};
+ for(const t of targets){if(t.w<48||t.h<48)throw Error(`Undersized target ${id} ${t.symbol}`);if(t.x<0||t.y<24||t.x+t.w>w||t.y+t.h>h-bottomInset)throw Error(`Unsafe target ${id} ${t.symbol}`);if(!overlay&&!voice&&targetsOverlap(t,p))throw Error(`Preview/control overlap ${id} ${t.symbol}`);}
  for(let i=0;i<targets.length;i++)for(let j=i+1;j<targets.length;j++)if(targetsOverlap(targets[i],targets[j]))throw Error(`Overlapping targets ${id}`);
  if(qX<24||qX+qWidth>w-24||qY+qHeight+travel>h-bottomInset)throw Error(`Unsafe queue ${id}`);
  if(qY+8+(dense?48:56)+32>h-bottomInset)throw Error(`Unsafe bottommost delete start ${id}`);
  if(qY+qHeight+24>h-bottomInset)throw Error(`Unsafe split endpoint ${id}`);
  if(Math.abs(p.w/p.h-ratio)>1e-8)throw Error(`Distorted frame ${id}`);
+ for(const b of [...statusBounds,...(feedbackBounds?[feedbackBounds]:[])]){
+  if(b.x<0||b.y<24||b.x+b.w>w||b.y+b.h>qY)throw Error(`Unsafe status/feedback ${id}`);
+  for(const t of targets)if(!(b===feedbackBounds&&t.symbol==='feedbackDismiss')&&targetsOverlap(b,t))throw Error(`Status/control overlap ${id}`);
+ }
+ if(feedbackBounds&&statusBounds.some(b=>targetsOverlap(b,feedbackBounds)))throw Error(`Feedback hides recording state ${id}`);
  records.push(record);
  return out;
 }
@@ -97,7 +133,7 @@ async function matrix(ultra){
    for(const front of [false,true]){
     const x=32+(front?1024:0)+(960-w)/2;
     const id=`${ultra?'ultra':'fold8'}-${wide?'wide':'tall'}-${front?'front':'rear'}-${video?'video':'photo'}`;
-    const config={id,w,h,tall:wide,front,video,shell:wide?'side':'bottom',hand:wide?'right':'center'};
+    const config={id,w,h,tall:wide,front,mode:video?'video':'photo',shell:wide?'side':'bottom',hand:wide?'right':'center'};
     body+=`<g transform="translate(${x} ${y})">${screen(config)}</g>`;
     body+=text(x,y+h+28,`${wide?'Wide':'Tall'} window ${w} × ${h} / ${wide?'tall':'wide'} upright ${video?(wide?'9:16':'16:9'):(wide?'3:4':'4:3')} / ${front?'front':'rear'} / ${video?'VIDEO':'PHOTO'}`,16,'#fff');
     body+=text(x,y+h+52,front?'Front capability fixture: 1×, rear flash unavailable; mirroring not specified.':ultra?'Representative pose; metadata determines the actual frame direction.':'Frame direction follows the supplied rear-camera screenshot.',14);
@@ -118,7 +154,7 @@ const cases=[
  {id:'wide-wide',w:960,h:720,tall:false,shell:'side',hand:'right',label:'Wide window / wide frame — transform exception'},
  {id:'wide-left',w:960,h:720,tall:true,shell:'side',hand:'left',queue:'split',label:'Wide window / tall frame — left-hand dock and split queue'},
  {id:'tall-tall',w:720,h:960,tall:true,label:'Tall window / tall frame — transform exception'},
- {id:'near-square-tall',w:864,h:960,tall:true,shell:'side',hand:'right',label:'Near-square / tall frame — side dock despite tall window'},
+ {id:'near-square-tall',w:864,h:960,tall:true,label:'Near-square / tall frame — bottom dock gives the larger fitted frame'},
 ];
 for(let i=0;i<cases.length;i++){const c=cases[i],x=32+(i%2)*1024,y=i<2?110:930;body+=`<g transform="translate(${x} ${y})">${screen(c)}</g>`+text(x,y+c.h+28,c.label,17,'#fff');}
 body+=text(32,1980,'Separating vertical hinge / choose one complete usable pane',24,'#fff');
@@ -178,9 +214,9 @@ for(let i=0;i<ratioCases.length;i++){
  ratiosBody+=text(32,y,c.label,22,'#fff');
  const specs=[{id:`ratio-${i}-phone`,w:360,h:800,compact:true,overlay:true,aspect:c.ratio},
  {id:`ratio-${i}-cover`,w:360,h:576,compact:true,overlay:true,aspect:c.full?5/8:c.ratio},
- {id:`ratio-${i}-inner`,w:960,h:720,shell:'side',hand:'right',aspect:c.full?4/3:c.video?16/9:c.ratio}];
+ {id:`ratio-${i}-inner`,w:960,h:720,shell:c.video?'bottom':'side',hand:c.video?'center':'right',aspect:c.full?4/3:c.video?16/9:c.ratio}];
  for(let k=0;k<specs.length;k++){const x=[32,424,848][k],spec=specs[k];
- ratiosBody+=`<g transform="translate(${x} ${y+28})">${screen({...spec,video:!!c.video})}</g>`;
+ ratiosBody+=`<g transform="translate(${x} ${y+28})">${screen({...spec,mode:c.video?'video':'photo'})}</g>`;
  ratiosBody+=text(x,y+spec.h+54,`${['Phone','Cover','Inner'][k]} ${spec.w} × ${spec.h} / frame ratio ${n(spec.aspect)}`,14,'#fff');}
  if(i===1||i===2)ratiosBody+=text(424,y+660,'Short cover: 297 × 528 full frame; width-fit would crop.',14);
  if(c.full)ratiosBody+=text(424,y+660,'Full varies by selected output: 9:20 / 5:8 / 4:3 examples.',14);
@@ -188,6 +224,24 @@ for(let i=0;i<ratioCases.length;i++){
 ratiosBody+=text(32,4880,'Wide 4:3 and 16:9 upright frames appear in the inner matrices. A square frame does not swap axes on rotation.',16);
 ratiosBody+=text(32,4910,'Samsung documents 3:4, 9:16, 1:1 and Full; Pixel documents full-image 4:3 and wide-crop 16:9. Sources in camera-layout-implementation.md.',14);
 await save('recon-capture-aspect-ratios.svg',document(2040,4960,'Recon common aspect ratio designs',`<defs>${[...customScenes.values()].join('')}</defs>${ratiosBody}`));
+// Real window states share the same screen() geometry as idle capture; annotations stay outside.
+let statesBody=text(32,42,'Capture states / fixed anchors through mode and recording changes',28,'#fff');
+statesBody+=text(32,74,'PHONE / COVER / WIDE INNER. 1:1 app views; recording locks navigation, modes, side controls and queue. Zoom and Stop remain available.');
+for(const [row,state] of [{mode:'video',recording:true,label:'VIDEO recording'},{mode:'voice',label:'VOICE idle'},{mode:'voice',recording:true,label:'VOICE recording'}].entries()){
+ const y=132+row*920;
+ for(const [col,fixture] of [{name:'phone',w:360,h:800,compact:true,overlay:true},{name:'cover',w:360,h:576,compact:true,overlay:true},{name:'inner',w:960,h:720,shell:'side',hand:'right'}].entries()){
+  const x=[32,424,848][col];
+  statesBody+=`<g transform="translate(${x} ${y})">${screen({...fixture,...state,id:`state-${fixture.name}-${row}`})}</g>`;
+  statesBody+=text(x,y+fixture.h+28,`${fixture.name} / ${state.label}`,16,'#fff');
+ }
+}
+statesBody+=text(32,2932,'Recording feedback and rotated inner window',24,'#fff');
+statesBody+=text(32,2964,'Timer has its own host; error starts below it. Stop stays reachable. Rotation preserves the take; fold/unfold finalizes.');
+statesBody+=`<g transform="translate(32 2996)">${screen({id:'recording-cover-error',w:360,h:576,compact:true,overlay:true,mode:'video',recording:true,feedback:'bannerPriorCaptureErrorLarge'})}</g>`;
+statesBody+=text(32,3600,'Cover / VIDEO recording + 2× error text',15,'#fff');
+statesBody+=`<g transform="translate(488 2996)">${screen({id:'recording-inner-tall',w:720,h:960,tall:false,mode:'video',recording:true})}</g>`;
+statesBody+=text(488,3984,'Tall inner / wide 16:9 VIDEO recording',16,'#fff');
+await save('recon-capture-recording-states.svg',document(2040,4040,'Recon recording and voice window states',statesBody));
 await save('layout-geometry.json',JSON.stringify({units:'logical dp-like; insets illustrative',screens:records},null,2)+'\n');
 // Check nested queue ownership too: screen-level targets alone miss expanded split gaps.
 const canonical=await readFile(join(root,'recon-capture-design-system.svg'),'utf8');
@@ -212,6 +266,20 @@ function queueBounds(id,ox=0,oy=0){
 for(const id of ['queueStrip','queueSplit','queueCompact','queueCompactSplit','queueDenseIdle','queueDenseSplit']){
  const bounds=queueBounds(id);
  for(const a of bounds.filter(b=>b.kind==='edge'))for(const b of bounds.filter(b=>b.kind==='item'))if(targetsOverlap(a,b))throw Error(`Queue edge/item overlap: ${id}`);
+}
+// Cross-state anchors are part of the contract, not separate hand-positioned specimens.
+for(const rear of records.filter(r=>r.id.includes('-rear-'))){
+ const front=records.find(r=>r.id===rear.id.replace('-rear-','-front-'));if(!front)continue;
+ const common=rear.targets.filter(t=>t.symbol==='zoom')[rear.zoomAxis==='vertical'?2:1];
+ const single=front.targets.find(t=>t.symbol==='zoom1x');
+ if(common.x+common.w/2!==single.x+single.w/2||common.y+common.h/2!==single.y+single.h/2)throw Error(`1x moved across lens change ${rear.id}`);
+}
+for(const r of records.filter(r=>r.id.startsWith('state-'))){
+ const fixture=r.id.split('-')[1],base=records.find(b=>b.id===(fixture==='inner'?'fold8-wide-rear-photo':fixture));
+ const shutter=r.targets.find(t=>t.symbol.startsWith('shutter')),baseShutter=base.targets.find(t=>t.symbol.startsWith('shutter'));
+ if(shutter.x!==baseShutter.x||shutter.y!==baseShutter.y||r.queue.x!==base.queue.x||r.queue.y!==base.queue.y)throw Error(`Mode moved capture anchors ${r.id}`);
+ if(r.mode==='voice'&&(r.preview!==null||r.targets.some(t=>t.symbol.startsWith('zoom')||t.symbol==='iconLens')))throw Error(`VOICE exposes camera UI ${r.id}`);
+ if(r.recording&&(!r.queue.locked||r.targets.some(t=>!t.symbol.startsWith('zoom')&&!t.symbol.includes('Recording')&&t.symbol!=='feedbackDismiss')))throw Error(`Recording unlocks mutation/navigation ${r.id}`);
 }
 console.log(`${records.length} screen geometries validated: ratios, target separation, bounds, queue travel and nested split ownership.`);
 
