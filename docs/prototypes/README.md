@@ -35,11 +35,11 @@ One SVG unit is one logical dp-like unit. Device names describe comparison scena
 | Queue capacity | 312-wide / three visible items on compact screens; 360-wide / four on inner screens |
 | Divider | 4 wide, centered in a 24-unit expanded gap; never covers an item |
 | Mode | 250 × 40 horizontal text row at (window width / 2 − 125, 28); three equal 83⅓ × 48 targets spanning y24–72; selected label white / weight 700; no underline |
-| Zoom | 36-unit selected circle within a 40-unit-thick dark surface; 48 × 48 targets at 55-unit pitch; four-choice surface 220 × 40 or 40 × 220 |
+| Zoom | 28-unit selected circle; 12sp labels; visible surface 176 × 32 or 32 × 176; independent 48 × 48 targets at 48-unit pitch |
 | Overlay | 328-wide compact specimen, minimum height 48; wraps/grows at larger text sizes |
 | Screen fixture insets | 24 top, bottom and drag-side clearance; replace with actual runtime insets |
 | Queue gesture runway | 48 below the strip, in addition to the actual bottom inset |
-| Spacing | 4-unit base; mode top = 28; horizontal zoom top = shutter top − 52; queue top = shutter top + 92 |
+| Spacing | 4-unit base; mode top = 28; horizontal zoom slot top = shutter top − 52 (surface inset 4); queue top = shutter top + 92 |
 
 [layout-geometry.json](layout-geometry.json) records exact bounds for all 36 screen fixtures. It is generated from [layout-screens.mjs](layout-screens.mjs), which also validates frame ratios, target separation, screen bounds and downward queue travel.
 

@@ -50,10 +50,10 @@ function screen({id,w,h,tall=true,front=false,video=false,shell='bottom',hand='c
  out+=use(video?'modeStripVideo':'modeStripPhoto',w/2-125,modeY,250,40);
  for(let k=0;k<3;k++)targets.push({symbol:'mode',x:w/2-125+k*250/3,y:modeY-4,w:250/3,h:48});
  // Frame orientation determines rail suitability, independently of window orientation.
- const zx=verticalZoom?(hand==='left'?w-68:28):cx-110;
- const zy=verticalZoom?p.y+p.h/2-110:zoomY;
- if(front){const x=verticalZoom?zx:cx-20,y=verticalZoom?zy+90:zoomY;out+=use('zoomSingle',x,y,40,40);targets.push({symbol:'zoom1x',x:x-4,y:y-4,w:48,h:48});}
- else {out+=use(verticalZoom?'zoomVertical':'zoomChips',zx,zy,verticalZoom?40:220,verticalZoom?220:40);for(let k=0;k<4;k++)targets.push({symbol:'zoom',x:verticalZoom?zx-4:zx+k*55+3.5,y:verticalZoom?zy+k*55+3.5:zy-4,w:48,h:48});}
+ const zx=verticalZoom?(hand==='left'?w-68:28):cx-96;
+ const zy=verticalZoom?p.y+p.h/2-96:zoomY;
+ if(front){const x=verticalZoom?zx:cx-20,y=verticalZoom?zy+76:zoomY;out+=use('zoomSingle',x,y,40,40);targets.push({symbol:'zoom1x',x:x-4,y:y-4,w:48,h:48});}
+ else {out+=use(verticalZoom?'zoomVertical':'zoomChips',zx,zy,verticalZoom?40:192,verticalZoom?192:40);for(let k=0;k<4;k++)targets.push({symbol:'zoom',x:verticalZoom?zx-4:zx+k*48,y:verticalZoom?zy+k*48:zy-4,w:48,h:48});}
  control(video?'iconMic':front?'iconFlashOff':'iconFlashAuto',cx-120,shutterY+16);
  // Front flash off is unavailable in this capability fixture; visible but not an active target.
  if(front&&!video){out=out.replace(/(<use href="#shared-iconFlashOff"[^>]*)(\/>)$/, '$1 opacity=".38"$2');targets.pop();}

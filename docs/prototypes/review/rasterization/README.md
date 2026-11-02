@@ -1,10 +1,10 @@
 # Current raster exception — mode and zoom revision
 
-Reassessed 2026-11-01 for the 1440 × 7360 design-system sheet, including the later underline removal. The signed RGB document-minus-image difference is identical at every pixel before and after that refinement (zero changed residual pixels); only the reviewed artifact hashes needed refreshing. The exact source/direct/image hashes are in [current-measurements.json](current-measurements.json) and pinned in `../../render-review.mjs`. Direct HTTP and isolated-file output match exactly. The strict HTML-image check remains false; this is a narrowly scoped reviewed exception, not a global tolerance increase.
+Reassessed 2026-11-01 for the 1440 × 7360 design-system sheet, including the zoom-size refinement. All 301 pixel locations exceeding delta 8 retain identical signed RGB document-minus-image residuals. Only 32 lower-difference residual pixels changed; their new maximum delta is 4, within the strict tolerance. The exact source/direct/image hashes are in [current-measurements.json](current-measurements.json) and pinned in `../../render-review.mjs`. Direct HTTP and isolated-file output match exactly. The strict HTML-image check remains false; this is a narrowly scoped reviewed exception, not a global tolerance increase.
 
-- 10,598,400 total pixels; 23,517 have any channel difference.
+- 10,598,400 total pixels; 23,529 have any channel difference.
 - 301 pixels exceed delta 8; 55 exceed delta 32; maximum 81 at (254,5410), on the tutorial marker curve.
-- Mean maximum-channel difference: 0.0029732790/255.
+- Mean maximum-channel difference: 0.0029754491/255.
 - Tutorial-marker region (220,5360,64,72): centroid delta −0.00460/−0.01743px; zero-offset error 898 versus best nonzero ±1px error 22,122. The direct crop is identical to the previous reviewed crop, so the existing eight-times enlargement still represents this hotspot.
 - Voice Stop region (1020,4178,96,100): centroid delta −0.00330/+0.02080px; zero-offset error 2,893 versus best nonzero error 85,189. Mode selection was restored to the top of the composed reference. This crop is now identical to the original reviewed crop; the comparison was measured again.
 

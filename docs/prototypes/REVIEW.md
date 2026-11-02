@@ -143,3 +143,15 @@ The modified design-system source required another raster audit before repinning
 Removed the underline from all five shared modality variants. Selection uses solid white text at weight 700, with inactive gray text at weight 500; locked states retain their existing colors and bold selected weight. Top placement, touch targets, zoom, shutter and queue geometry are unchanged. This supersedes earlier underline guidance.
 
 Evidence refreshed at **2026-11-02T02:46:15.117Z**: all eight render sets regenerated, seven strict image-context passes, all isolated-file outputs exact, 708 resolved references and exact annotated-phone pixels. Layout/freshness, XML and whitespace checks pass. The design-system raster exception was reassessed: signed RGB document-versus-image residuals are identical at every pixel before and after this change. The exact artifact hashes are refreshed; strict result remains false for the same documented curve-edge exception. No native implementation changes.
+
+## Zoom proportions aligned with camera references — 2026-11-01
+
+Independent GPT-6.1-SOL Hegel (`01a19a2b-e038-7d40-a9fa-8cdd2e2a5aa8`) visually approved phone, cover, inner wide/tall and the design-system zoom states after comparison with the supplied iPhone/Fold8 references. The fractional 1.7× value fits, selection remains readable and no target overlaps were found.
+
+Zoom labels now use 12sp, matching modality labels. Four-option visible surfaces shrink from 220 × 40 to 176 × 32, and selected circles from 36 to 28. Targets remain separate 48 × 48 regions at 48 pitch; the full symbol viewport is 192 × 40 (or 40 × 192 vertically). Single-choice and continuous-zoom variants use the same visual tokens. Top modes remain white/bold without underline. These sizes are Recon design choices informed by the reference proportions, not dp measurements inferred from screenshots.
+
+Evidence refreshed at **2026-11-02T02:53:40.917Z**: 36 geometry fixtures pass; 708 local references resolve; all eight isolated-file outputs equal HTTP; seven image-context comparisons pass strict thresholds; the annotated phone remains pixel-identical. XML, freshness and whitespace checks pass.
+
+The reviewer initially observed incomplete exception metadata while the audit was still running. The final renderer now exits successfully with source/direct/image hashes pinned and recorded. Reassessment found all 301 above-delta8 residual pixels unchanged; 32 lower-difference pixels changed with new maximum4. The design-system strict result stays false under its exact documented curve-edge exception. No Kotlin or runtime changes.
+
+Final evidence gate independently cleared by Hegel: hashes match the visual-review snapshot and raster pins; all eight artifacts report portability passed with the design-system strict exception explicitly retained.
