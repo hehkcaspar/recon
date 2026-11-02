@@ -2,7 +2,7 @@
 
 Original user-supplied images, preserved without resizing or annotation. Device names and physical states are the user’s labels; image dimensions are not hardware specifications.
 
-- [Samsung Fold8](samsung-fold8-camera/README.md): six captures covering cover, unfolded without rotation, and unfolded with rotation.
+- [Samsung Fold8](samsung-fold8-camera/README.md): seven captures covering cover, unfolded without rotation, unfolded with rotation, and tap-to-focus feedback.
 - [iPhone Duo](iphone-duo-camera/README.md): cover and unfolded without rotation.
 - [Traditional iPhone](traditional-iphone-camera/README.md): portrait camera composition.
 

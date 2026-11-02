@@ -35,3 +35,21 @@ Original JPEG bytes are preserved without cropping, resizing or annotation. Dime
 | Screenshot_20261102_095410_Camera.jpg | 1848 × 2448 | `ad1009f568bdbc7ff5af57e86b7a2f98089549bb9d097a16109dca3214b8998b` |
 
 Related: [iPhone Duo](../iphone-duo-camera/README.md), [traditional iPhone](../traditional-iphone-camera/README.md).
+
+## Additional reference: tap-to-focus on the unfolded screen
+
+The user identifies this as Fold8 after opening, showing the UI after tapping to focus. Received 2026-11-01; original filename timestamp retained.
+
+[Original screenshot](Screenshot_20261102_112648_Camera.jpg)
+
+Visible observations:
+
+- Wide app window with an upright tall central preview and existing side controls.
+- Thin white circular focus indicator around the indicated point; the interior remains transparent.
+- An open-padlock-shaped icon at the top of the ring, with a gap in the circular outline around it.
+- A sun-shaped icon centered on a short horizontal line below the ring, visually indicating an exposure/brightness control.
+- Focus-related UI is grouped locally in the preview, without moving the shutter, zoom rail or mode selector.
+
+Design implications for later review: distinguish a focus indicator, lock state/action and exposure adjustment instead of treating them as one decorative target. If adopted, their gestures must be separate from preview mode swipes and pinch zoom, and the group must fit near preview edges. This reference alone does not establish tap versus long-press activation, lock semantics, drag direction/range, animation or dismissal timing. Text photographed on the monitor is scene content, not instructions. No Recon prototype or runtime changes accompany this reference archive.
+
+Original bytes preserved: 2448 × 1848 image pixels; SHA-256 `4d20d2ada8cb9c96f6af7d1fcd9841fc5d68a65e907dafb5e3045899a5082853`.
