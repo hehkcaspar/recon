@@ -29,6 +29,7 @@ One SVG unit is one logical dp-like unit. Device names describe comparison scena
 | Element | Contract |
 | --- | --- |
 | Toolbar icon | Official Material Filled 24-unit glyph in a 48 × 48 slot |
+| Tap focus | Complete white ring, radius 30 / stroke 2; transparent center; no lock or exposure controls |
 | Shutter | 80 × 80; centered 3-unit white ring with radius 38.5 |
 | Inner fills | PHOTO 64; VIDEO idle 42; recording stop 28; VOICE idle white disk 58 with black mic glyph box 32 |
 | Queue | Height 72; thumbnail 56; padding 8 vertically; ordinary gap 6 |

@@ -42,9 +42,9 @@
       "directCropIdenticalToPrevious": true
     }
   ],
-  "svgSha256": "5e4161c094e7c20667af910115f690cd5a1717995a155bd9e1e91e2eb29483b7",
-  "directPngSha256": "d40bf43a9cc90e98e3859f7ae5be2706fc05ab5513a25aed55e31562ea34afd4",
-  "imagePngSha256": "059d025b95c001274e6aa0553f9639a6118536413c4cbee509d276c5f5fa3709",
+  "svgSha256": "ad33141894d4c365780ecd052bcc6d080e716299c3f797c50368fdff18bc30ca",
+  "directPngSha256": "8f2a8d0dfd3481cdf190357316b419870e5e5bbc6c829f4e9970ba559aa4aec9",
+  "imagePngSha256": "79adb69a08fbe48a0eefc152dec34f0eb2a6c00eda447458f0157bb54a10c3d5",
   "zoomSizeAudit": {
     "differentResidualPixels": 32,
     "changedAbove8Pixels": 0,
@@ -56,5 +56,11 @@
     "changedAbove8Pixels": 0,
     "maxNewResidualAtChangedPixel": 0,
     "comparedAgainstSourceSha256": "24f665fa8523b753f31e9f7292d371cf7798c55a1074407317ce751d4a51a496"
+  },
+  "tapFocusAudit": {
+    "differentResidualPixels": 0,
+    "changedAbove8Pixels": 0,
+    "maxNewResidualAtChangedPixel": 0,
+    "comparedAgainstSourceSha256": "5e4161c094e7c20667af910115f690cd5a1717995a155bd9e1e91e2eb29483b7"
   }
 }

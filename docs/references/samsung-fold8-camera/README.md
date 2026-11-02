@@ -53,3 +53,5 @@ Visible observations:
 Design implications for later review: distinguish a focus indicator, lock state/action and exposure adjustment instead of treating them as one decorative target. If adopted, their gestures must be separate from preview mode swipes and pinch zoom, and the group must fit near preview edges. This reference alone does not establish tap versus long-press activation, lock semantics, drag direction/range, animation or dismissal timing. Text photographed on the monitor is scene content, not instructions. No Recon prototype or runtime changes accompany this reference archive.
 
 Original bytes preserved: 2448 × 1848 image pixels; SHA-256 `4d20d2ada8cb9c96f6af7d1fcd9841fc5d68a65e907dafb5e3045899a5082853`.
+
+User clarification: the open/closed lock controls focus locking; the sun and horizontal track together form exposure adjustment. Neither feature is included in Recon's current version. The requested design adaptation uses only the thin circular tap-focus feedback; it must not import either extra control. This clarification supersedes treating the lock/exposure controls as candidates for the current design scope.

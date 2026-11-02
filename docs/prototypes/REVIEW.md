@@ -159,3 +159,11 @@ Final evidence gate independently cleared by Hegel: hashes match the visual-revi
 ## Fractional zoom label — 2026-11-01
 
 **PASS**, independently reviewed by GPT-6.1-SOL Gauss (`01a19a49-0e35-7172-8687-9ec136ce32ca`). Changed displayed `0.5` to `.5` in horizontal, vertical and continuous zoom variants; numeric ratio and accessible full-value meaning are unchanged. Cover and inner renders remain centered, legible and unclipped. All eight render sets refreshed, 36 geometry fixtures valid and 708 references resolved. The exact raster exception was repinned after confirming zero changed document-minus-image residual pixels; strict result remains explicitly false for the same curve-edge exception.
+
+## Tap-focus only — 2026-11-01
+
+**PASS**, independently reviewed by GPT-6.1-SOL Noether (`01a19a53-862f-72d1-a1c7-02d8a4a0002c`). Reviewed cover, phone, inner layouts, design-system focus panel and gesture legend against the supplied Fold8 focus reference. Complete thin white rings are aligned and unclipped; no problematic control overlap or unrelated changes found.
+
+Replaced the crosshair with a complete, transparent-centered white circle (radius30, stroke2), matching the existing Android resting indicator geometry. User clarification explicitly excludes focus locking and exposure adjustment: no padlock, lock gap, sun icon or exposure track is introduced. Static examples depict a transient tap-feedback moment. The gesture legend's blue contact dot remains an external annotation. Documented existing animation timing without changing Kotlin or runtime behavior.
+
+Final manifest **2026-11-02T03:36:07.532Z**: 709 references resolve; all eight isolated-file renders equal HTTP; seven strict image-context passes; annotated phone exact; 36 generated geometries, XML, freshness and whitespace checks passed. The exact design-system raster exception was refreshed only after confirming the signed RGB difference is unchanged at every pixel. Native transforms and interaction execution remain future validation work.

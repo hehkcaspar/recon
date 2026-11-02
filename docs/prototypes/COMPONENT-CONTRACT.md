@@ -45,6 +45,14 @@ Where a compact preview extends behind the header, mode labels sit over a 72% bl
 
 The supplied Samsung cover and iPhone cover/traditional references make zoom visually secondary to capture modes: compact numerals and small circular highlights. Their image pixels do not establish dp values. Recon therefore uses the same 12sp label size as its modes, reduces visual mass (220 × 40 to 176 × 32), and preserves independent 48dp targets. The same tokens apply to phone, cover and inner layouts; do not downscale the whole component on short screens.
 
+## Tap-to-focus feedback
+
+Current scope is tap-to-focus only. Draw a complete thin white ring with a transparent center: radius 30dp and stroke 2dp (62dp outer diameter) inside the existing 80 × 80 symbol viewport. This matches the existing Android `FocusIndicator` resting geometry in `CameraPreview.kt`. Remove the previous crosshair ticks. No padlock, ring gap for a lock icon, sun icon or exposure track is included.
+
+The ring is feedback at the tapped camera-preview point, not a button or permanent idle decoration. Static preview examples show the moment after a focus tap; the ring alone does not assert autofocus success. Preserve the existing transient behavior as the implementation reference: scale 1.5→1 over 200ms, hold 500ms, fade over 200ms, and replace the marker on a new tap. These timing values come from current code, not the Samsung screenshot. Native edge clipping, transforms and animation remain runtime checks; target coordinates must stay tied to the actual tap.
+
+Preview swipes and pinch gestures must not also trigger focus. Existing overlay controls retain gesture ownership. The gesture legend's small blue contact dot is an external instruction mark, not part of the in-app focus ring. Focus locking and exposure adjustment are explicitly outside this design update.
+
 ## Input, release and cancellation
 
 The initial **visible** zone owns a contact sequence until completion or cancellation. Thumbnail starts cannot be stolen by a divider lane or edge target. Do not expand a 6dp gap into neighboring thumbnail hit regions. One queue mutation at a time. Horizontal tray scrolling, downward deletion, long-press reorder and edge swipes must arbitrate before claiming the gesture. Once two pointers participate in preview zoom, the sequence cannot also focus, change mode or mutate the queue.

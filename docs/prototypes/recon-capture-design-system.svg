@@ -47,7 +47,7 @@
     <symbol id="iconMic" viewBox="0 0 48 48"><use href="#glyphMic" x="12" y="12" width="24" height="24" color="#fff"/></symbol>
     <symbol id="iconMicOff" viewBox="0 0 48 48"><g class="nativeIcon" transform="translate(12 12)"><path d="M0 0h24v24H0zm0 0h24v24H0z" fill="none"/><path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"/></g></symbol>
     <symbol id="iconMicDisabled" viewBox="0 0 48 48"><g opacity=".25"><use href="#iconMic"/></g></symbol>
-    <symbol id="iconFocus" viewBox="0 0 80 80"><circle class="iconThin" cx="40" cy="40" r="26"/><path class="iconThin" d="M40 9v10M40 61v10M9 40h10M61 40h10"/></symbol>
+    <symbol id="iconFocus" viewBox="0 0 80 80"><circle cx="40" cy="40" r="30" fill="none" stroke="#fff" stroke-width="2"/></symbol>
     <symbol id="iconCheck" viewBox="0 0 48 48"><g class="nativeIcon" transform="translate(12 12)"><path d="M0 0h24v24H0z" fill="none"/><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></g></symbol>
     <symbol id="iconClose" viewBox="0 0 48 48"><g class="nativeIcon" transform="translate(12 12)"><path d="M0 0h24v24H0z" fill="none"/><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></g></symbol>
     <symbol id="iconPlay" viewBox="0 0 48 48"><g class="nativeIcon" transform="translate(12 12)"><path d="M0 0h24v24H0z" fill="none"/><path d="M8 5v14l11-7z"/></g></symbol>
@@ -88,7 +88,7 @@
     <symbol id="gestureSwipeBoth" viewBox="0 0 180 56"><path d="M20 28h140M32 16L20 28l12 12M148 16l12 12-12 12" class="gestureLine"/><circle cx="90" cy="28" r="14" fill="#555" stroke="#fff" stroke-width="2"/></symbol>
     <symbol id="gesturePullDown" viewBox="0 0 72 120"><path d="M36 28v62" class="gestureLine"/><path d="M24 78l12 14 12-14" class="gestureLine"/><circle cx="36" cy="28" r="14" fill="#fff" fill-opacity=".18" stroke="#fff" stroke-width="2"/></symbol>
     <symbol id="gesturePinch" viewBox="0 0 140 90"><path d="M34 28l24 22M106 28L82 50" class="gestureLine"/><path d="M50 22l8 28-28-8M90 22l-8 28 28-8M34 42l-4-18 18 4M92 28l18-4-4 18" class="gestureAccent"/><circle cx="30" cy="24" r="12" fill="#fff" fill-opacity=".18" stroke="#fff" stroke-width="2"/><circle cx="110" cy="24" r="12" fill="#fff" fill-opacity=".18" stroke="#fff" stroke-width="2"/></symbol>
-    <symbol id="gestureTapFocus" viewBox="0 0 96 96"><circle cx="48" cy="48" r="14" fill="#fff" fill-opacity=".18" stroke="#fff" stroke-width="2"/><path d="M48 8v16M48 72v16M8 48h16M72 48h16" class="gestureAccent"/><circle cx="48" cy="48" r="4" fill="#fff"/></symbol>
+    <symbol id="gestureTapFocus" viewBox="0 0 96 96"><use href="#focusIndicator" x="8" y="8" width="80" height="80"/><circle cx="48" cy="48" r="4" fill="#66a9ff"/></symbol>
     <symbol id="gestureLongPressDrag" viewBox="0 0 180 80"><path d="M20 40h42M118 40h42M32 28L20 40l12 12M148 28l12 12-12 12" class="gestureLine"/><circle cx="90" cy="40" r="14" fill="#fff" fill-opacity=".18" stroke="#fff" stroke-width="2"/><circle cx="90" cy="40" r="23" fill="none" stroke="#66a9ff" stroke-width="2" stroke-dasharray="4 4"/></symbol>
     <symbol id="gestureQueueEdgeSwipe" viewBox="0 0 150 48"><use href="#queueEdgeHandle" x="13" y="10" width="6" height="28"/><path d="M28 24h104M120 12l12 12-12 12" class="gestureLine"/></symbol>
     <symbol id="gestureSplit" viewBox="0 0 220 90"><rect x="18" y="26" width="56" height="42" rx="8" class="gestureBox"/><rect x="146" y="26" width="56" height="42" rx="8" class="gestureBox"/><path d="M110 18v54" class="gestureAccent"/><path d="M98 28l12-12 12 12M98 62l12 12 12-12" class="gestureAccent"/></symbol>
@@ -238,11 +238,11 @@
   <text x="316" y="1046" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Unavailable: disabled or omitted</text>
   <rect x="744" y="750" width="648" height="330" fill="#141414" rx="20" stroke="#2b2b2b"/>
   <text x="768" y="790" fill="#fff" font-family="Roboto,Arial,sans-serif" font-size="22" font-weight="700">Focus and touch ownership</text>
-  <text x="768" y="818" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Blue outlines are review guides, never product chrome.</text>
+  <text x="768" y="818" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Tap focus only: white ring; no lock or exposure controls.</text>
   <use href="#focusIndicator" x="768" y="838" width="80" height="80" />
   <use href="#hitTarget48" x="900" y="854" width="48" height="48" />
   <text x="972" y="880" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Focus is feedback, not a button</text>
-  <text x="768" y="950" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Small visual controls retain independent 48dp tap bounds.</text>
+  <text x="768" y="950" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Focus: radius 30dp / stroke 2dp / transparent center.</text>
   <text x="768" y="978" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Pinch claims multi-touch; never also switch mode or focus.</text>
   <text x="768" y="1006" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >PHOTO: flash + lens. VIDEO: mic + lens. VOICE: neither.</text>
   <text x="768" y="1034" fill="#aaa" font-family="Roboto,Arial,sans-serif" font-size="14" >Zoom is available for camera modes, including video recording.</text>
