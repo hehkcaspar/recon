@@ -136,9 +136,9 @@ try {
     // Exact reviewed artifact exception: sparse curve-edge coverage, not a global tolerance increase.
     // Any source OR raster change invalidates it. Evidence includes the alternate render and 8x comparison.
     const reviewedRasterException = name === 'recon-capture-design-system.svg'
-      && sha(svg) === '1ed444ca7960a7c16f680da53440b54c84a9f5c69bfad8f8553f5489fd942d2f'
-      && sha(png) === '101ef7e2a8427f309cbb225712cdda6d51f634081f61e2d91e72382ef1caf2ef'
-      && imagePngSha256 === 'd6463ed760732a9fbddda1124fc1889c1506d68db97184f05d7e8b098e08d3c6';
+      && sha(svg) === '517e78f5473b3cf566e58de5c9565eeababc67ac2c72a00df56046c4f895e098'
+      && sha(png) === '5fb4cf92a7f4a97969a7b1256a43c7c740acd9db23208476ae048fda7f709ce7'
+      && imagePngSha256 === '8afd4beadcfed0479ef24acc605cd446a01f0ac4918fe021b1953048d82c2aa4';
     const portabilityPassed = filePngSha256 === sha(png) && (strictImageContextPassed || reviewedRasterException);
     if (!portabilityPassed) {
       failures.push(`${name}: ${JSON.stringify(imageContextDifference)}`);

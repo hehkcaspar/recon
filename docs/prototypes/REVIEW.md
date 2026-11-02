@@ -135,3 +135,11 @@ User direction supersedes the preceding placement decision: modality is a less f
 Final manifest: **2026-11-02T02:24:39.736Z**, 708 local references, 36 valid geometries, all eight isolated-file renders identical to HTTP, seven strict image-context passes, and 288,000 exact phone/annotation pixels. Freshness, XML, JavaScript syntax and whitespace checks passed.
 
 The modified design-system source required another raster audit before repinning: 301 pixels exceed delta8, maximum81 at the same tutorial-marker curve; both inspected direct hotspot crops now match the original reviewed crops. Offset/centroid diagnostics remain consistent with curve-edge coverage. Current measurements and hashes are recorded in the raster evidence. Strict image-context comparison remains false for this one exact artifact; reviewer approval covers static visual composition, not native runtime behavior.
+
+## Modality selection without underline — 2026-11-01
+
+**PASS**, independently reviewed by GPT-6.1-SOL Archimedes (`01a19a24-f4d2-7bf0-84a3-a9eef12ce2cb`). Inspected fresh phone, cover, both inner matrices, design-system mode variants and recording references. No residual selection dashes, alignment defects or ambiguous selected states found.
+
+Removed the underline from all five shared modality variants. Selection uses solid white text at weight 700, with inactive gray text at weight 500; locked states retain their existing colors and bold selected weight. Top placement, touch targets, zoom, shutter and queue geometry are unchanged. This supersedes earlier underline guidance.
+
+Evidence refreshed at **2026-11-02T02:46:15.117Z**: all eight render sets regenerated, seven strict image-context passes, all isolated-file outputs exact, 708 resolved references and exact annotated-phone pixels. Layout/freshness, XML and whitespace checks pass. The design-system raster exception was reassessed: signed RGB document-versus-image residuals are identical at every pixel before and after this change. The exact artifact hashes are refreshed; strict result remains false for the same documented curve-edge exception. No native implementation changes.

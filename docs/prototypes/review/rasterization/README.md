@@ -1,6 +1,6 @@
 # Current raster exception — mode and zoom revision
 
-Reassessed 2026-11-01 for the 1440 × 7360 design-system sheet. The exact source/direct/image hashes are in [current-measurements.json](current-measurements.json) and pinned in `../../render-review.mjs`. Direct HTTP and isolated-file output match exactly. The strict HTML-image check remains false; this is a narrowly scoped reviewed exception, not a global tolerance increase.
+Reassessed 2026-11-01 for the 1440 × 7360 design-system sheet, including the later underline removal. The signed RGB document-minus-image difference is identical at every pixel before and after that refinement (zero changed residual pixels); only the reviewed artifact hashes needed refreshing. The exact source/direct/image hashes are in [current-measurements.json](current-measurements.json) and pinned in `../../render-review.mjs`. Direct HTTP and isolated-file output match exactly. The strict HTML-image check remains false; this is a narrowly scoped reviewed exception, not a global tolerance increase.
 
 - 10,598,400 total pixels; 23,517 have any channel difference.
 - 301 pixels exceed delta 8; 55 exceed delta 32; maximum 81 at (254,5410), on the tutorial marker curve.

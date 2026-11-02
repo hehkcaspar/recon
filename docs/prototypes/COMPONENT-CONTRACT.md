@@ -4,7 +4,7 @@ This is a **proposed static design contract for later Android implementation**, 
 
 ## Geometry and queue families
 
-All interactive specimens are at 1:1 dp-like units. Only camera-scene comparisons are reduced and labeled. Never scale a queue, font or touch target to fit a narrower window. Toolbar glyph boxes are 24dp inside allocated 48 × 48dp targets. Mode uses light text and a selected underline in a 250 × 40dp row, with three independent 83⅓ × 48dp targets. Zoom uses a 36dp selected circle within a 40dp-thick dark surface, independent 48 × 48dp targets and 55dp center pitch. Thumbnail media markers are decorative and are not separate controls.
+All interactive specimens are at 1:1 dp-like units. Only camera-scene comparisons are reduced and labeled. Never scale a queue, font or touch target to fit a narrower window. Toolbar glyph boxes are 24dp inside allocated 48 × 48dp targets. Mode uses solid white bold text for selection and gray medium-weight text for other choices in a 250 × 40dp row, with three independent 83⅓ × 48dp targets. Zoom uses a 36dp selected circle within a 40dp-thick dark surface, independent 48 × 48dp targets and 55dp center pitch. Thumbnail media markers are decorative and are not separate controls.
 
 | Component | Contract |
 | --- | --- |
@@ -31,7 +31,7 @@ Three visible items are a viewport, not a queue limit. Scroll the thumbnail tray
 
 ## Mode and zoom placement and meaning
 
-Keep VIDEO–PHOTO–VOICE horizontal, all three visible, centered in the top bar in every layout, including side docks and VOICE. Mode selection is less frequent; idle preview swipe is the quick path. Selection uses brighter text and a 24 × 2dp underline; the mode row has no selected white pill. The 250 × 40dp row starts at x=`window width / 2 − 125`, y28; its three equal targets span y24–72. The design-system VIDEO and VOICE recording compositions likewise keep their locked mode rows at the top. Preserve shutter and queue anchors across mode and zoom changes; hiding zoom for VOICE must not shift them.
+Keep VIDEO–PHOTO–VOICE horizontal, all three visible, centered in the top bar in every layout, including side docks and VOICE. Mode selection is less frequent; idle preview swipe is the quick path. Selection uses solid white text at weight 700; unselected labels use gray text at weight 500. No underline, dash or selected pill is drawn. Locked selection retains bold weight with its existing disabled-state colors. The 250 × 40dp row starts at x=`window width / 2 − 125`, y28; its three equal targets span y24–72. The design-system VIDEO and VOICE recording compositions likewise keep their locked mode rows at the top. Preserve shutter and queue anchors across mode and zoom changes; hiding zoom for VOICE must not shift them.
 
 Zoom is horizontal directly above the shutter on compact/bottom layouts and on side shells with wide frames: its top is 52dp above the shutter top. For side shells with tall frames, place a vertical rail opposite the shutter dock, centered on the fitted preview. Text stays upright; zoom values ascend bottom-to-top (0.5, 1×, 2, 5 in the illustrated fixture). Move the rail to the right for a left-hand shutter dock. This rule depends on shell and upright frame shape, not window orientation alone. Four-choice surfaces are 220 × 40dp horizontally or 40 × 220dp vertically; a single-choice surface is 40 × 40dp.
 
