@@ -1,32 +1,93 @@
 {
-  "generatedAt": "2026-11-02T04:53:52.257Z",
+  "generatedAt": "2026-11-04T08:07:45.615Z",
   "renderer": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-  "referencesValidated": 1137,
+  "referencesValidated": 1878,
+  "currentFiles": [
+    "recon-capture-design-system.svg",
+    "recon-capture-phone.svg",
+    "recon-capture-phone-annotated.svg",
+    "recon-capture-cover.svg",
+    "recon-capture-fold8-c.svg",
+    "recon-capture-fold8-ultra-c.svg",
+    "recon-capture-foldable-c-gesture-guide.svg",
+    "recon-capture-fold8-ultra-c-upright.svg",
+    "recon-capture-fold8-ultra-c-cw90.svg"
+  ],
+  "genericReferenceFiles": [
+    "recon-capture-layout-checks.svg",
+    "recon-capture-aspect-ratios.svg",
+    "recon-capture-recording-states.svg",
+    "recon-capture-display-metrics.svg"
+  ],
+  "archivedFiles": [
+    "recon-capture-fold8-inner.svg",
+    "recon-capture-fold8-ultra-inner.svg",
+    "recon-capture-fold8-ultra-fixed-dock.svg"
+  ],
   "portability": "Self-contained symbols and Roboto. Isolated file must match HTTP exactly. Img allows only compositor rounding: max channel delta 8/255 and mean pixel delta 0.05/255.",
+  "cProvenance": {
+    "sourceOfTruth": "foldable-c-geometry-source.json",
+    "sourceInputs": [
+      "foldable-c-geometry-source.json",
+      "queue-geometry.mjs",
+      "queue_geometry.py",
+      "foldable-c-study.py",
+      "ultra-c-study.py",
+      "ultra-c-cw90-study.py",
+      "recon-capture-fold8-inner.svg",
+      "recon-capture-fold8-ultra-inner.svg",
+      "recon-capture-design-system.svg"
+    ],
+    "archivedButRequiredFixtures": [
+      "recon-capture-fold8-inner.svg",
+      "recon-capture-fold8-ultra-inner.svg"
+    ],
+    "inputHashes": {
+      "foldable-c-geometry-source.json": "7a3c54823f9f159ee3755a6e131444a998c00272765ff08225a13deadd27718a",
+      "queue-geometry.mjs": "f8ef12fdafcc470ac9fbd11e4408701c35d8f34c62fc0c68fe7de210d7d9689a",
+      "queue_geometry.py": "eca60175db8608b5e4a57511af0190382b1047756f43cd18570dc7085a75d4f3",
+      "foldable-c-study.py": "61f0f25d77fff0c1d53d9f9c0366ddfbfbbe4356544b7329724cdf0f8915a5e6",
+      "ultra-c-study.py": "1caeb4b2d7ff7c98dfc1e84ee9a585cab50296f177e4e6ec0192db30048a6307",
+      "ultra-c-cw90-study.py": "33bf8b250c1ef590ea48dd448d2da0a7062d3fd169c06d7720fd98ca92e93161",
+      "recon-capture-fold8-inner.svg": "691984dfcca81995125219a92bba19b1f02d2b3ffd779684cd3f59375e61eabd",
+      "recon-capture-fold8-ultra-inner.svg": "2b468753ba2aaf6d84949f0ad5574c7f2be191dcf9d3f47241f72ee5f7f86ef6",
+      "recon-capture-design-system.svg": "bc5e2d8654dfaf8511f61c399a2b96773eb035c193443d96dfefc85ca7aa5c4d"
+    },
+    "generatorHashes": {
+      "foldable-c-geometry.mjs": "0238a78bf0056b7158af775e328294ab86eaef6fe4518821e6fe586fc0ce470b",
+      "queue-geometry.mjs": "f8ef12fdafcc470ac9fbd11e4408701c35d8f34c62fc0c68fe7de210d7d9689a",
+      "queue_geometry.py": "eca60175db8608b5e4a57511af0190382b1047756f43cd18570dc7085a75d4f3",
+      "foldable-c-study.py": "61f0f25d77fff0c1d53d9f9c0366ddfbfbbe4356544b7329724cdf0f8915a5e6",
+      "ultra-c-study.py": "1caeb4b2d7ff7c98dfc1e84ee9a585cab50296f177e4e6ec0192db30048a6307",
+      "ultra-c-cw90-study.py": "33bf8b250c1ef590ea48dd448d2da0a7062d3fd169c06d7720fd98ca92e93161"
+    }
+  },
   "files": {
     "recon-capture-design-system.svg": {
+      "role": "current",
       "width": 1440,
       "height": 9000,
-      "svgSha256": "da2e71f69ec4b27018ac1bd615135148335f03c958b01adc67cde14128d9a745",
-      "pngSha256": "1c234f449fadd1d6539bd398751a2fc2daf036ba091043785f5cec256198cd5b",
-      "filePngSha256": "1c234f449fadd1d6539bd398751a2fc2daf036ba091043785f5cec256198cd5b",
-      "imagePngSha256": "1a6910772f97d0716bc756349aa0fb553dfd78bf4c23155424f64cc7e3fb8246",
+      "svgSha256": "bc5e2d8654dfaf8511f61c399a2b96773eb035c193443d96dfefc85ca7aa5c4d",
+      "pngSha256": "f202a8145971f9d8d7e630cbee029c65372091ddc07b53f6f4a33fb64a2f6b2a",
+      "filePngSha256": "f202a8145971f9d8d7e630cbee029c65372091ddc07b53f6f4a33fb64a2f6b2a",
+      "imagePngSha256": "09252d77f0f798e8c8eba70f158e0b37087588ec6c95451443c188d954e302db",
       "imageContextDifference": {
         "maxChannelDelta": 81,
-        "changedPixels": 34131,
-        "meanPixelDelta": 0.0038819444444444444
+        "changedPixels": 35884,
+        "meanPixelDelta": 0.004024922839506173
       },
       "strictImageContextPassed": false,
       "portabilityPassed": true,
       "rasterException": "rasterization/README.md"
     },
     "recon-capture-phone.svg": {
+      "role": "current",
       "width": 360,
       "height": 800,
-      "svgSha256": "9c8dc56e5817a3b634e4b594eee70416a52d28cb1ce05955ecb7246b2186b6ed",
-      "pngSha256": "43d2643f15bbd93bbd4de6210a57daf221d52792effdada0dbe37c76bc5c0f1e",
-      "filePngSha256": "43d2643f15bbd93bbd4de6210a57daf221d52792effdada0dbe37c76bc5c0f1e",
-      "imagePngSha256": "43d2643f15bbd93bbd4de6210a57daf221d52792effdada0dbe37c76bc5c0f1e",
+      "svgSha256": "125aef7c5f183e712dfe8c9099f6883ecdec91f80ccf555709afa85cbe91ced2",
+      "pngSha256": "66e5abe084eaf0d828d9df158983c67cb9995e29a820fd2fd2e0e4f0934041fe",
+      "filePngSha256": "66e5abe084eaf0d828d9df158983c67cb9995e29a820fd2fd2e0e4f0934041fe",
+      "imagePngSha256": "66e5abe084eaf0d828d9df158983c67cb9995e29a820fd2fd2e0e4f0934041fe",
       "imageContextDifference": {
         "maxChannelDelta": 0,
         "changedPixels": 0,
@@ -37,12 +98,13 @@
       "rasterException": null
     },
     "recon-capture-phone-annotated.svg": {
+      "role": "current",
       "width": 960,
       "height": 920,
-      "svgSha256": "3aa9cd90891962b89aec703cf84f32d029f109d03f12088bd723a2bd49fa334f",
-      "pngSha256": "6041985850495be15bb34b5b3a47b1e41b81ee47e5a6d8a75d203b57b24b3806",
-      "filePngSha256": "6041985850495be15bb34b5b3a47b1e41b81ee47e5a6d8a75d203b57b24b3806",
-      "imagePngSha256": "6041985850495be15bb34b5b3a47b1e41b81ee47e5a6d8a75d203b57b24b3806",
+      "svgSha256": "b65b8ef146e19cd26c59499b4a136e62b5baa7624951117a4fe823aa6e091e7e",
+      "pngSha256": "aacbe73b019399eec16fa813d7644d76714f90ed5b510c98b3df5a0d4bea5d47",
+      "filePngSha256": "aacbe73b019399eec16fa813d7644d76714f90ed5b510c98b3df5a0d4bea5d47",
+      "imagePngSha256": "aacbe73b019399eec16fa813d7644d76714f90ed5b510c98b3df5a0d4bea5d47",
       "imageContextDifference": {
         "maxChannelDelta": 0,
         "changedPixels": 0,
@@ -53,12 +115,13 @@
       "rasterException": null
     },
     "recon-capture-cover.svg": {
+      "role": "current",
       "width": 360,
       "height": 576,
-      "svgSha256": "6f72ec961e66b73d391fdb999e483f5ee5ff546cb9f304b82d618d8647716eeb",
-      "pngSha256": "790c46ca89ed96024cee441ed002a37b9760fcf81606423b5701342a7235695e",
-      "filePngSha256": "790c46ca89ed96024cee441ed002a37b9760fcf81606423b5701342a7235695e",
-      "imagePngSha256": "790c46ca89ed96024cee441ed002a37b9760fcf81606423b5701342a7235695e",
+      "svgSha256": "8db2ee812806e6d3e61559091d4915d1249bb93bcc4a188142011ad304f26d86",
+      "pngSha256": "67f646daca316719a7f323486afcb9307406f819cda87c819fa97e56ed0525f5",
+      "filePngSha256": "67f646daca316719a7f323486afcb9307406f819cda87c819fa97e56ed0525f5",
+      "imagePngSha256": "67f646daca316719a7f323486afcb9307406f819cda87c819fa97e56ed0525f5",
       "imageContextDifference": {
         "maxChannelDelta": 0,
         "changedPixels": 0,
@@ -68,13 +131,14 @@
       "portabilityPassed": true,
       "rasterException": null
     },
-    "recon-capture-fold8-inner.svg": {
+    "recon-capture-fold8-c.svg": {
+      "role": "current",
       "width": 2040,
-      "height": 2180,
-      "svgSha256": "b912be5cccedc9204ff5cf342b866918a3b1bbec0db7b7381556a083a53b67b7",
-      "pngSha256": "37fc0f83c4e0e8f88a8d780d1982b7b70296b31dbd59b807dea75b64231fc7b4",
-      "filePngSha256": "37fc0f83c4e0e8f88a8d780d1982b7b70296b31dbd59b807dea75b64231fc7b4",
-      "imagePngSha256": "37fc0f83c4e0e8f88a8d780d1982b7b70296b31dbd59b807dea75b64231fc7b4",
+      "height": 4554,
+      "svgSha256": "80e9e62116d2e28fff900a2311baa03dcebb983393f434f6c0f39bd39c823187",
+      "pngSha256": "7e6a382ccd053199ee72eb08c8387c76fe5cff5eda1a213342ff237fbc1f985d",
+      "filePngSha256": "7e6a382ccd053199ee72eb08c8387c76fe5cff5eda1a213342ff237fbc1f985d",
+      "imagePngSha256": "7e6a382ccd053199ee72eb08c8387c76fe5cff5eda1a213342ff237fbc1f985d",
       "imageContextDifference": {
         "maxChannelDelta": 0,
         "changedPixels": 0,
@@ -84,13 +148,65 @@
       "portabilityPassed": true,
       "rasterException": null
     },
-    "recon-capture-fold8-ultra-inner.svg": {
+    "recon-capture-fold8-ultra-c.svg": {
+      "role": "current",
       "width": 2040,
-      "height": 4300,
-      "svgSha256": "350ecaa6c190ff1be08f7349b9f6a6f989b88fe514abe73f9246f6812022d05b",
-      "pngSha256": "bce30e9f20d6c6952314c4407b83e7ed8293320699200f346111bfe853c18df4",
-      "filePngSha256": "bce30e9f20d6c6952314c4407b83e7ed8293320699200f346111bfe853c18df4",
-      "imagePngSha256": "bce30e9f20d6c6952314c4407b83e7ed8293320699200f346111bfe853c18df4",
+      "height": 4554,
+      "svgSha256": "075ff2d5ba9565b80c840753dd23deae2f998f0d5f412d28ce57f3224d3d4f1d",
+      "pngSha256": "f5034fc16b2d0cc4882cd4149e5f8be56cc25a716d8828c32431fb1ef6ec27b4",
+      "filePngSha256": "f5034fc16b2d0cc4882cd4149e5f8be56cc25a716d8828c32431fb1ef6ec27b4",
+      "imagePngSha256": "f5034fc16b2d0cc4882cd4149e5f8be56cc25a716d8828c32431fb1ef6ec27b4",
+      "imageContextDifference": {
+        "maxChannelDelta": 0,
+        "changedPixels": 0,
+        "meanPixelDelta": 0
+      },
+      "strictImageContextPassed": true,
+      "portabilityPassed": true,
+      "rasterException": null
+    },
+    "recon-capture-foldable-c-gesture-guide.svg": {
+      "role": "current",
+      "width": 1400,
+      "height": 1640,
+      "svgSha256": "0629ed8226140c461ab08a72741f7312e59c2a0056f874c9ead28a8454cdc723",
+      "pngSha256": "9c25e2add166ebd9abc698c688e5b572c1bcd8870e0c86e705e9ca0542b6fe13",
+      "filePngSha256": "9c25e2add166ebd9abc698c688e5b572c1bcd8870e0c86e705e9ca0542b6fe13",
+      "imagePngSha256": "9c25e2add166ebd9abc698c688e5b572c1bcd8870e0c86e705e9ca0542b6fe13",
+      "imageContextDifference": {
+        "maxChannelDelta": 0,
+        "changedPixels": 0,
+        "meanPixelDelta": 0
+      },
+      "strictImageContextPassed": true,
+      "portabilityPassed": true,
+      "rasterException": null
+    },
+    "recon-capture-fold8-ultra-c-upright.svg": {
+      "role": "current",
+      "width": 1400,
+      "height": 1120,
+      "svgSha256": "c1703aca51bc3c81290ab72616588131bd1a3202addb0fa6d960d70370d177e7",
+      "pngSha256": "d60c9ca2c7287d90d8bacdcedc61f65f82a3ac05a04cbd312d3f840c52dd249d",
+      "filePngSha256": "d60c9ca2c7287d90d8bacdcedc61f65f82a3ac05a04cbd312d3f840c52dd249d",
+      "imagePngSha256": "d60c9ca2c7287d90d8bacdcedc61f65f82a3ac05a04cbd312d3f840c52dd249d",
+      "imageContextDifference": {
+        "maxChannelDelta": 0,
+        "changedPixels": 0,
+        "meanPixelDelta": 0
+      },
+      "strictImageContextPassed": true,
+      "portabilityPassed": true,
+      "rasterException": null
+    },
+    "recon-capture-fold8-ultra-c-cw90.svg": {
+      "role": "current",
+      "width": 1400,
+      "height": 1120,
+      "svgSha256": "8813b9d499855c19dfaeba5f28537ea822a0b1eddea04b375db35e0677562f8d",
+      "pngSha256": "5982f2c83030dca433b196a34b6ab9e6af6ef6d5fed16e711e9efb2c0885d70a",
+      "filePngSha256": "5982f2c83030dca433b196a34b6ab9e6af6ef6d5fed16e711e9efb2c0885d70a",
+      "imagePngSha256": "5982f2c83030dca433b196a34b6ab9e6af6ef6d5fed16e711e9efb2c0885d70a",
       "imageContextDifference": {
         "maxChannelDelta": 0,
         "changedPixels": 0,
@@ -101,12 +217,13 @@
       "rasterException": null
     },
     "recon-capture-layout-checks.svg": {
+      "role": "generic-reference",
       "width": 2040,
       "height": 5240,
-      "svgSha256": "0ab84caf99b1407405f4bf98aff78fa9de8f0397aa3fd24f6c3424203b13973e",
-      "pngSha256": "6f90cea74199e7cbc64016ea2f92fcecde47ac12c31bb0ea40653ffe2862d091",
-      "filePngSha256": "6f90cea74199e7cbc64016ea2f92fcecde47ac12c31bb0ea40653ffe2862d091",
-      "imagePngSha256": "6f90cea74199e7cbc64016ea2f92fcecde47ac12c31bb0ea40653ffe2862d091",
+      "svgSha256": "3328fdc5df755e416bc080482a4e891bd35e9fc8512dbb8ee39b06e27acde76a",
+      "pngSha256": "9a3ae98bee197a73944349181c37dc8920c3ed6b330ebb338f81b6b288694d4d",
+      "filePngSha256": "9a3ae98bee197a73944349181c37dc8920c3ed6b330ebb338f81b6b288694d4d",
+      "imagePngSha256": "9a3ae98bee197a73944349181c37dc8920c3ed6b330ebb338f81b6b288694d4d",
       "imageContextDifference": {
         "maxChannelDelta": 0,
         "changedPixels": 0,
@@ -117,12 +234,13 @@
       "rasterException": null
     },
     "recon-capture-aspect-ratios.svg": {
+      "role": "generic-reference",
       "width": 2040,
       "height": 4960,
-      "svgSha256": "1698220929de1ddb762a19d3b286dcd40acb5e310d1c3f0eaf4ab32009c1f38c",
-      "pngSha256": "acbc069167b44f7203cfd5d3208fcc1ae0b2d3ea9454d5e6cc256a718913fc1d",
-      "filePngSha256": "acbc069167b44f7203cfd5d3208fcc1ae0b2d3ea9454d5e6cc256a718913fc1d",
-      "imagePngSha256": "acbc069167b44f7203cfd5d3208fcc1ae0b2d3ea9454d5e6cc256a718913fc1d",
+      "svgSha256": "f54b556701521090b4b9ec3f3e1f408fa72c406dadef24cffbb1869d64378d95",
+      "pngSha256": "a66620ffac182bfcf794208f78238273d770b347acafee9a2da679314db5dfd9",
+      "filePngSha256": "a66620ffac182bfcf794208f78238273d770b347acafee9a2da679314db5dfd9",
+      "imagePngSha256": "a66620ffac182bfcf794208f78238273d770b347acafee9a2da679314db5dfd9",
       "imageContextDifference": {
         "maxChannelDelta": 0,
         "changedPixels": 0,
@@ -133,16 +251,85 @@
       "rasterException": null
     },
     "recon-capture-recording-states.svg": {
+      "role": "generic-reference",
       "width": 2040,
       "height": 4040,
-      "svgSha256": "7527f800d26c072879b0d3b4883ac0eff02ab7a4ea1fff865d32e31e95676c8f",
-      "pngSha256": "c4b9ce76067b380e997f47cb2bf0fda1a4504553ead72907e147a057d622c1cc",
-      "filePngSha256": "c4b9ce76067b380e997f47cb2bf0fda1a4504553ead72907e147a057d622c1cc",
-      "imagePngSha256": "f76d9668ef50a4311e5ce34d457ff5b0b1bed96d191db8f616ce8800b7bd389d",
+      "svgSha256": "e4940266a2e46907109031f5300cd0d0280836a0c28ecab0a28c20fb75da7780",
+      "pngSha256": "a3e09173a2d97fe8bd826178d6e72423b44acb4552fb752b687dd8608cde890d",
+      "filePngSha256": "a3e09173a2d97fe8bd826178d6e72423b44acb4552fb752b687dd8608cde890d",
+      "imagePngSha256": "f7c3e91b3bffbfb3eb36910c8a1c333b55764195d33d9e979a9a426d4c2babfe",
       "imageContextDifference": {
         "maxChannelDelta": 2,
-        "changedPixels": 33603,
-        "meanPixelDelta": 0.004081125024267132
+        "changedPixels": 20931,
+        "meanPixelDelta": 0.0025433168316831684
+      },
+      "strictImageContextPassed": true,
+      "portabilityPassed": true,
+      "rasterException": null
+    },
+    "recon-capture-display-metrics.svg": {
+      "role": "generic-reference",
+      "width": 1680,
+      "height": 1420,
+      "svgSha256": "4668c56ae9167cba08461f06c6b2a0512ddfc1fdd720dc4dfad46d717e390ad6",
+      "pngSha256": "7975dbaf978ead0e7dc8ebab142c3b4826e699d78590d42ad3493e1a50d57eda",
+      "filePngSha256": "7975dbaf978ead0e7dc8ebab142c3b4826e699d78590d42ad3493e1a50d57eda",
+      "imagePngSha256": "7975dbaf978ead0e7dc8ebab142c3b4826e699d78590d42ad3493e1a50d57eda",
+      "imageContextDifference": {
+        "maxChannelDelta": 0,
+        "changedPixels": 0,
+        "meanPixelDelta": 0
+      },
+      "strictImageContextPassed": true,
+      "portabilityPassed": true,
+      "rasterException": null
+    },
+    "recon-capture-fold8-inner.svg": {
+      "role": "archived",
+      "width": 2040,
+      "height": 4554,
+      "svgSha256": "691984dfcca81995125219a92bba19b1f02d2b3ffd779684cd3f59375e61eabd",
+      "pngSha256": "d677e00c7f3b7fb558090fc6b39edee171a441c5833a0c112bb838fbc51aa732",
+      "filePngSha256": "d677e00c7f3b7fb558090fc6b39edee171a441c5833a0c112bb838fbc51aa732",
+      "imagePngSha256": "d677e00c7f3b7fb558090fc6b39edee171a441c5833a0c112bb838fbc51aa732",
+      "imageContextDifference": {
+        "maxChannelDelta": 0,
+        "changedPixels": 0,
+        "meanPixelDelta": 0
+      },
+      "strictImageContextPassed": true,
+      "portabilityPassed": true,
+      "rasterException": null
+    },
+    "recon-capture-fold8-ultra-inner.svg": {
+      "role": "archived",
+      "width": 2040,
+      "height": 4554,
+      "svgSha256": "2b468753ba2aaf6d84949f0ad5574c7f2be191dcf9d3f47241f72ee5f7f86ef6",
+      "pngSha256": "b5c57898a08e414134264249fcbebfa3721fe642685412227d2b51ee0a898a29",
+      "filePngSha256": "b5c57898a08e414134264249fcbebfa3721fe642685412227d2b51ee0a898a29",
+      "imagePngSha256": "b5c57898a08e414134264249fcbebfa3721fe642685412227d2b51ee0a898a29",
+      "imageContextDifference": {
+        "maxChannelDelta": 0,
+        "changedPixels": 0,
+        "meanPixelDelta": 0
+      },
+      "strictImageContextPassed": true,
+      "portabilityPassed": true,
+      "rasterException": null
+    },
+    "recon-capture-fold8-ultra-fixed-dock.svg": {
+      "role": "archived",
+      "width": 2040,
+      "height": 5480,
+      "svgSha256": "e29eb80112c419d350d61a3f9178720001741d5321d1b0cd6baa03cf44992ed4",
+      "pngSha256": "632b395879fee91619eac218ab0673c276b47d4b06572d41518915bfbbf9cae3",
+      "filePngSha256": "632b395879fee91619eac218ab0673c276b47d4b06572d41518915bfbbf9cae3",
+      "imagePngSha256": "632b395879fee91619eac218ab0673c276b47d4b06572d41518915bfbbf9cae3",
+      "imageContextDifference": {
+        "maxChannelDelta": 0,
+        "changedPixels": 0,
+        "meanPixelDelta": 0
       },
       "strictImageContextPassed": true,
       "portabilityPassed": true,

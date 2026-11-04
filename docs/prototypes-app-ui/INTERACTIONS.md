@@ -1,0 +1,35 @@
+# Android app UI interaction contract
+
+The sheets specify the intended UI. Native starting behavior and the available emulator evidence are in [the baseline](BASELINE.md). Each frame ID in the [bounds directory](bounds/) names an exact window, active pane and set of enabled controls. Sheet coordinates use one unit per logical dp at default font scale. Text dimensions are in sp. The system indicators and bottom inset are illustrative.
+
+## Shared layout
+
+Use the app’s Material 3 color roles for surfaces, content, tonal controls and errors. The component sheet fixes a light and a dark palette for repeatable review. At runtime ReconTheme provides light/dark and dynamic color. Green plus a check signals selection, while destructive actions pair text or a bin icon with the error role. Use the Material Filled paths in the reference for 24dp icons, nominal 48dp target slots and the system Roboto family. [Component sheet](components.svg) · [Android Material 3](https://developer.android.com/develop/ui/compose/designsystems/material3) · [Touch targets](https://developer.android.com/develop/ui/compose/accessibility/api-defaults)
+
+Use the current usable pane, drawing and gesture insets. Keep the library and preferences columns within 560dp and the transfer sheet within 528dp. On a short window, scroll the body and keep Back, modal actions and the bottom system zone reachable. Keep font sizes and input targets when space runs short. Wrap long folder names, URIs, endpoint identities and filenames. Speak the full ID when the list abbreviates it. On a separating hinge, place each action and its completed gesture path within a usable pane. During resize, retain selections, scroll position, active dialog/transfer state and progress. Cancel an in-flight row drag back to its previous rest position.
+
+## Bundles and deletion
+
+- The list shows processing, ready and pending-deletion rows. At compact widths a representative media tile leaves room for the ID, counts and a persistent 48dp More target. At ≥520dp list width, show up to three adjacent thumbnails in a shared 176dp rail, preserving the title column when fewer are available. Processing rows become ready in their existing position. A pending-deletion row exposes Undo until it expires.
+- Start a swipe on the row body clear of Android’s Back edges and the trailing menu. Vertical intent scrolls. On release, a rightward swipe on a ready row selects it and reveals the 80dp green check. Left from selected can only deselect. While dragging back, the toolbar still counts that bundle. Cancel, interruption or a new layout restores the original selection. A selected check is tappable.
+- Preserve the current row gesture model. Selection crosses half the 80dp reveal, deletion from idle crosses 40% of the bounded row, and the existing direction-qualified fast flick is also supported. These are library gestures. The capture queue has its own thresholds. The destructive request goes through the user’s confirmation and Undo preferences.
+- The new visible More menu and screen-reader actions provide the same commands without a drag. Offer Select and Delete on a ready, unselected row and Deselect on a selected row. Use the bundle ID in the accessible label. Back/outside tap closes a menu or dialog without running a command. Restore focus to the invoking row, or the next surviving row if it was removed.
+- Confirm on shows the affected bundle and a truthful Undo or permanent-deletion message. Confirm off starts the same operation directly. With a 1–10 second Undo window, show the pending row and countdown. Undo restores its media and actions at the prior position. Off removes immediately. Deleting or cancelling one item never changes an unrelated bundle.
+- With any selection, the app bar shows the count, Clear selection and Send. Back first dismisses the top modal, otherwise clears a selection before leaving Bundles. Open folder delegates to the system file browser. A file-browser launch failure keeps the library available.
+
+## Setup and settings
+
+- Choose folder hands off to Android’s document-tree picker. Cancelling first run returns to the same choice. Cancelling Change keeps the existing folder. On a valid grant, configure the output root and return to the originating flow. When a previously configured root loses access, show the reconnect state with the last known folder label when available.
+- Recheck persisted read **and** write access on picker completion and on return to the app, even for the same URI. Distinguish an absent root from a remembered root with a revoked grant. The existing Android route memoizes its check by URI. This refresh and the recovery copy are implementation requirements.
+- Android owns the camera permission prompt. Allow continues to capture, denial offers a retry, and a permanently blocked request explains the route through Android Settings. The “Recon settings” action opens Recon’s own preferences. Recheck permission on resume after an external grant. Native currently samples permission on initial composition and in the request callback. Verify that return path on device.
+- Preferences apply on selection. At least one output stays on. Disable the sole-on switch, and disable Stitch quality when stitching is off. Folder and URI text wrap inside the content column. Menus close before Back leaves Settings. Show tutorial returns to capture and replays its existing tutorial.
+
+## LocalSend
+
+Send snapshots all selected bundles into one receiver session. During discovery show the receiver alias, model when provided, and the first eight fingerprint characters, including when a long alias wraps. After 12 seconds without a peer, offer Try again and Close. Picking a peer starts negotiation. Show indeterminate progress until byte totals exist and determinate total bytes, completed-file count and current path afterward.
+
+The modal owns focus and pointer input while visible. Cancel transfer, Back or a sheet dismissal during a send cancels the job and closes the sheet. Every dismissal returns to Bundles with the selection cleared. Announce discovery results and the terminal outcome once. Keep transient progress changes out of the screen reader’s focus order. Success identifies the delivered totals and the receiver. Already received identifies a deduplicated delivery. A failure states the recovery action appropriate to that error and retains the receiver identity. Done closes the outcome.
+
+## Native acceptance after handoff
+
+Exercise each route with gestures and with TalkBack or Switch Access, including direct row actions, return focus, same-URI regrant, permanently denied camera permission and a sheet cancelled in flight. Resize and rotate during selection, countdown and transfer. Check real navigation/taskbar insets, 2× font scale, independently sized touch targets and modal scrolling on a short cover. The static sheets establish alignment and behavior targets. Runtime permission, network, gesture and accessibility outcomes need native testing.

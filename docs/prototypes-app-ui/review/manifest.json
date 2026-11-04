@@ -1,0 +1,76 @@
+{
+  "files": {
+    "bundle-actions": {
+      "width": 1224,
+      "height": 4479,
+      "fonts": [
+        "Roboto"
+      ],
+      "overflow": [],
+      "filePngSha256": "9e9fb2f2616f3f81ac4ef6c7ee723a401a719a676556296ade8175c3fe7e110d",
+      "chrome": "156.0.8078.80",
+      "svgSha256": "12bfd8e296f2b26add3491b1a32d9168519a43c309c3db45186db000fedcc86d",
+      "pngSha256": "9e9fb2f2616f3f81ac4ef6c7ee723a401a719a676556296ade8175c3fe7e110d"
+    },
+    "bundles": {
+      "width": 1224,
+      "height": 4612,
+      "fonts": [
+        "Roboto"
+      ],
+      "overflow": [],
+      "filePngSha256": "93c41010458154cb15566ebc3a0e0bc1eb6c7e253cd1de881e385e29933fbeb3",
+      "chrome": "156.0.8078.80",
+      "svgSha256": "73932aaaf14c87645bac4e29a3ab580e00e7aa344ceedba72dd899fc8d065f81",
+      "pngSha256": "93c41010458154cb15566ebc3a0e0bc1eb6c7e253cd1de881e385e29933fbeb3"
+    },
+    "components": {
+      "width": 1224,
+      "height": 2673,
+      "fonts": [
+        "Roboto"
+      ],
+      "overflow": [],
+      "filePngSha256": "8782d101131813d6db0aa96f319e55ebe7c8251b6e2ad0653a8b1bff0bdfc01a",
+      "chrome": "156.0.8078.80",
+      "svgSha256": "e9da6bb0b824620cd771e2b9f0d0258f9a878041321283f79e4225f2801ac654",
+      "pngSha256": "8782d101131813d6db0aa96f319e55ebe7c8251b6e2ad0653a8b1bff0bdfc01a"
+    },
+    "localsend": {
+      "width": 1872,
+      "height": 4695,
+      "fonts": [
+        "Roboto"
+      ],
+      "overflow": [],
+      "filePngSha256": "77edd382e2297ed0e837b21d7b589edfed460ffe9dcbfae9d03476fe38884dba",
+      "chrome": "156.0.8078.80",
+      "svgSha256": "d57e0b0790486ef8e798927b36a40d0bfeec80ddefa5562bb4a27b0a6e9144cc",
+      "pngSha256": "77edd382e2297ed0e837b21d7b589edfed460ffe9dcbfae9d03476fe38884dba"
+    },
+    "settings": {
+      "width": 1392,
+      "height": 3678,
+      "fonts": [
+        "Roboto"
+      ],
+      "overflow": [],
+      "filePngSha256": "984ba805cb9e0fe19f8f09982caf1d58faaaaef50b5cbca1af96f9ce986b8b96",
+      "chrome": "156.0.8078.80",
+      "svgSha256": "525c800336ad7034c534300808a29f987be8ca475e959e3335a0a545c7ea09d7",
+      "pngSha256": "984ba805cb9e0fe19f8f09982caf1d58faaaaef50b5cbca1af96f9ce986b8b96"
+    },
+    "setup": {
+      "width": 1224,
+      "height": 2084,
+      "fonts": [
+        "Roboto"
+      ],
+      "overflow": [],
+      "filePngSha256": "37280a265caa27bd3ecf1b8d2263c1b67d56c99613d1fdd452822e3dbc01f535",
+      "chrome": "156.0.8078.80",
+      "svgSha256": "ddf6dcbcb6616be6a58fd0795761286961a0613bbd56836809e75710011658a2",
+      "pngSha256": "37280a265caa27bd3ecf1b8d2263c1b67d56c99613d1fdd452822e3dbc01f535"
+    }
+  }
+}

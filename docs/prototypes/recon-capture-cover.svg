@@ -47,7 +47,7 @@
 <symbol id="shared-queueDenseHandleLeft" viewBox="0 0 312 64"><rect x="0" y="8" width="48" height="48" fill="transparent" data-role="tap-target"/><use href="#shared-queueEdgeHandle" x="21" y="18" width="6" height="28" /></symbol>
 <symbol id="shared-queueDenseHandleRight" viewBox="0 0 312 64"><rect x="264" y="8" width="48" height="48" fill="transparent" data-role="tap-target"/><use href="#shared-queueEdgeHandle" x="285" y="18" width="6" height="28" /></symbol>
 <symbol id="shared-queueDenseHandles" viewBox="0 0 312 64"><use href="#shared-queueDenseHandleLeft" x="0" y="0" width="312" height="64" /><use href="#shared-queueDenseHandleRight" x="0" y="0" width="312" height="64" /></symbol>
-<symbol id="shared-queueDenseIdle" viewBox="0 0 312 64"><use href="#shared-queueDenseThumbPhoto" x="78" y="8" width="48" height="48" /><use href="#shared-queueDenseThumbVideo" x="132" y="8" width="48" height="48" /><use href="#shared-queueDenseThumbVoice" x="186" y="8" width="48" height="48" /><use href="#shared-queueDenseHandles" x="0" y="0" width="312" height="64" /></symbol>
+<symbol id="shared-queueDenseIdle" viewBox="0 0 312 64"><use href="#shared-queueDenseThumbPhoto" x="51" y="8" width="48" height="48" /><use href="#shared-queueDenseThumbVideo" x="105" y="8" width="48" height="48" /><use href="#shared-queueDenseThumbVoice" x="159" y="8" width="48" height="48" /><use href="#shared-queueDenseThumbPhoto" x="213" y="8" width="48" height="48" /><use href="#shared-queueDenseHandles" x="0" y="0" width="312" height="64" /></symbol>
 </defs>
 <!-- END GENERATED SHARED DEFINITIONS -->
 <title>Recon cover — clean app viewport</title>

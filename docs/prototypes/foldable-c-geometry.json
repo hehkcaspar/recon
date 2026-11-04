@@ -1,0 +1,714 @@
+{
+  "status": "current-static-design",
+  "design": "C",
+  "generatedBy": "foldable-c-geometry.mjs",
+  "sourceOfTruth": "foldable-c-geometry-source.json",
+  "sourceGraph": {
+    "sourceInputs": [
+      "foldable-c-geometry-source.json",
+      "queue-geometry.mjs",
+      "queue_geometry.py",
+      "foldable-c-study.py",
+      "ultra-c-study.py",
+      "ultra-c-cw90-study.py",
+      "recon-capture-fold8-inner.svg",
+      "recon-capture-fold8-ultra-inner.svg",
+      "recon-capture-design-system.svg"
+    ],
+    "generatedOutputs": [
+      "foldable-c-geometry.json",
+      "recon-capture-fold8-c.svg",
+      "recon-capture-fold8-ultra-c.svg",
+      "recon-capture-fold8-ultra-c-upright.svg",
+      "recon-capture-fold8-ultra-c-cw90.svg",
+      "recon-capture-foldable-c-gesture-guide.svg"
+    ],
+    "generators": [
+      "foldable-c-geometry.mjs",
+      "queue-geometry.mjs",
+      "queue_geometry.py",
+      "foldable-c-study.py",
+      "ultra-c-study.py",
+      "ultra-c-cw90-study.py"
+    ],
+    "archivedButRequiredFixtures": [
+      "recon-capture-fold8-inner.svg",
+      "recon-capture-fold8-ultra-inner.svg"
+    ]
+  },
+  "provenance": {
+    "sourceInputs": {
+      "foldable-c-geometry-source.json": "7a3c54823f9f159ee3755a6e131444a998c00272765ff08225a13deadd27718a",
+      "queue-geometry.mjs": "f8ef12fdafcc470ac9fbd11e4408701c35d8f34c62fc0c68fe7de210d7d9689a",
+      "queue_geometry.py": "eca60175db8608b5e4a57511af0190382b1047756f43cd18570dc7085a75d4f3",
+      "foldable-c-study.py": "61f0f25d77fff0c1d53d9f9c0366ddfbfbbe4356544b7329724cdf0f8915a5e6",
+      "ultra-c-study.py": "1caeb4b2d7ff7c98dfc1e84ee9a585cab50296f177e4e6ec0192db30048a6307",
+      "ultra-c-cw90-study.py": "33bf8b250c1ef590ea48dd448d2da0a7062d3fd169c06d7720fd98ca92e93161",
+      "recon-capture-fold8-inner.svg": "691984dfcca81995125219a92bba19b1f02d2b3ffd779684cd3f59375e61eabd",
+      "recon-capture-fold8-ultra-inner.svg": "2b468753ba2aaf6d84949f0ad5574c7f2be191dcf9d3f47241f72ee5f7f86ef6",
+      "recon-capture-design-system.svg": "bc5e2d8654dfaf8511f61c399a2b96773eb035c193443d96dfefc85ca7aa5c4d"
+    },
+    "generators": {
+      "foldable-c-geometry.mjs": "0238a78bf0056b7158af775e328294ab86eaef6fe4518821e6fe586fc0ce470b",
+      "queue-geometry.mjs": "f8ef12fdafcc470ac9fbd11e4408701c35d8f34c62fc0c68fe7de210d7d9689a",
+      "queue_geometry.py": "eca60175db8608b5e4a57511af0190382b1047756f43cd18570dc7085a75d4f3",
+      "foldable-c-study.py": "61f0f25d77fff0c1d53d9f9c0366ddfbfbbe4356544b7329724cdf0f8915a5e6",
+      "ultra-c-study.py": "1caeb4b2d7ff7c98dfc1e84ee9a585cab50296f177e4e6ec0192db30048a6307",
+      "ultra-c-cw90-study.py": "33bf8b250c1ef590ea48dd448d2da0a7062d3fd169c06d7720fd98ca92e93161"
+    }
+  },
+  "runtimeBoundary": "Static SVG geometry is not Android device acceptance; runtime uses WindowMetrics, density, insets, hinge/separator bounds and camera stream metadata.",
+  "principles": [
+    "preview remains physically stable across poses",
+    "queue is separated from the shutter group and follows pose axis",
+    "endpoint safety margins are chosen before capacity",
+    "visible count N is a fit outcome, never a product token",
+    "CW90 outer margins seek approximately 1:1:1 visual balance"
+  ],
+  "profiles": {
+    "standard56": {
+      "name": "standard56",
+      "media": 56,
+      "edgeTarget": 56,
+      "handlerWidth": 6,
+      "handler": 36,
+      "strip": 72,
+      "verticalPadding": 8,
+      "gap": 6
+    },
+    "compact48": {
+      "name": "compact48",
+      "media": 48,
+      "edgeTarget": 48,
+      "handlerWidth": 6,
+      "handler": 28,
+      "strip": 64,
+      "verticalPadding": 8,
+      "gap": 6
+    }
+  },
+  "devices": {
+    "Fold8": {
+      "upright": {
+        "viewport": {
+          "width": 960,
+          "height": 720
+        },
+        "previews": {
+          "photo": {
+            "x": 80,
+            "y": 0,
+            "width": 540,
+            "height": 720
+          },
+          "video": {
+            "x": 80,
+            "y": 0,
+            "width": 405,
+            "height": 720
+          }
+        },
+        "queue": {
+          "axis": "vertical",
+          "margins": {
+            "start": 0,
+            "end": 0
+          },
+          "endpointMargins": {
+            "start": 0,
+            "end": 0
+          },
+          "placementMargins": null,
+          "modes": {
+            "photo": {
+              "bounds": {
+                "x": 762,
+                "y": 92,
+                "width": 56,
+                "height": 428
+              },
+              "capacity": {
+                "profile": "standard56",
+                "availableAxis": 428,
+                "startMargin": 0,
+                "endMargin": 0,
+                "laneLength": 428,
+                "visibleCount": 5,
+                "endpointMediaGap": 6,
+                "itemStart": 62,
+                "media": 56,
+                "edgeTarget": 56,
+                "handlerWidth": 6,
+                "handler": 36,
+                "strip": 72,
+                "gap": 6
+              }
+            },
+            "video": {
+              "bounds": {
+                "x": 694.5,
+                "y": 92,
+                "width": 56,
+                "height": 428
+              },
+              "capacity": {
+                "profile": "standard56",
+                "availableAxis": 428,
+                "startMargin": 0,
+                "endMargin": 0,
+                "laneLength": 428,
+                "visibleCount": 5,
+                "endpointMediaGap": 6,
+                "itemStart": 62,
+                "media": 56,
+                "edgeTarget": 56,
+                "handlerWidth": 6,
+                "handler": 36,
+                "strip": 72,
+                "gap": 6
+              }
+            }
+          }
+        },
+        "controlBounds": {
+          "photo": {
+            "x": 694,
+            "y": 536,
+            "width": 192,
+            "height": 132,
+            "zoom": {
+              "rear": {
+                "x": 694,
+                "y": 536,
+                "width": 192,
+                "height": 40
+              },
+              "front": {
+                "x": 770,
+                "y": 536,
+                "width": 40,
+                "height": 40
+              }
+            },
+            "aux": {
+              "x": 694,
+              "y": 604,
+              "width": 48,
+              "height": 48
+            },
+            "shutter": {
+              "x": 750,
+              "y": 588,
+              "width": 80,
+              "height": 80
+            }
+          },
+          "video": {
+            "x": 626.5,
+            "y": 536,
+            "width": 192,
+            "height": 132,
+            "zoom": {
+              "rear": {
+                "x": 626.5,
+                "y": 536,
+                "width": 192,
+                "height": 40
+              },
+              "front": {
+                "x": 702.5,
+                "y": 536,
+                "width": 40,
+                "height": 40
+              }
+            },
+            "aux": {
+              "x": 626.5,
+              "y": 604,
+              "width": 48,
+              "height": 48
+            },
+            "shutter": {
+              "x": 682.5,
+              "y": 588,
+              "width": 80,
+              "height": 80
+            }
+          }
+        }
+      },
+      "cw90": {
+        "viewport": {
+          "width": 720,
+          "height": 960
+        },
+        "previews": {
+          "photo": {
+            "x": 0,
+            "y": 80,
+            "width": 720,
+            "height": 540
+          },
+          "video": {
+            "x": 0,
+            "y": 80,
+            "width": 720,
+            "height": 405
+          }
+        },
+        "queue": {
+          "axis": "horizontal",
+          "margins": {
+            "start": 34,
+            "between": 32,
+            "end": 34
+          },
+          "endpointMargins": {
+            "start": 0,
+            "end": 0
+          },
+          "placementMargins": {
+            "start": 34,
+            "between": 32,
+            "end": 34
+          },
+          "modes": {
+            "photo": {
+              "bounds": {
+                "x": 34,
+                "y": 820,
+                "width": 428,
+                "height": 56
+              },
+              "capacity": {
+                "profile": "standard56",
+                "availableAxis": 428,
+                "startMargin": 0,
+                "endMargin": 0,
+                "laneLength": 428,
+                "visibleCount": 5,
+                "endpointMediaGap": 6,
+                "itemStart": 62,
+                "media": 56,
+                "edgeTarget": 56,
+                "handlerWidth": 6,
+                "handler": 36,
+                "strip": 72,
+                "gap": 6
+              }
+            },
+            "video": {
+              "bounds": {
+                "x": 34,
+                "y": 820,
+                "width": 428,
+                "height": 56
+              },
+              "capacity": {
+                "profile": "standard56",
+                "availableAxis": 428,
+                "startMargin": 0,
+                "endMargin": 0,
+                "laneLength": 428,
+                "visibleCount": 5,
+                "endpointMediaGap": 6,
+                "itemStart": 62,
+                "media": 56,
+                "edgeTarget": 56,
+                "handlerWidth": 6,
+                "handler": 36,
+                "strip": 72,
+                "gap": 6
+              }
+            }
+          }
+        },
+        "controlBounds": {
+          "photo": {
+            "x": 494,
+            "y": 756,
+            "width": 192,
+            "height": 132,
+            "zoom": {
+              "rear": {
+                "x": 494,
+                "y": 756,
+                "width": 192,
+                "height": 40
+              },
+              "front": {
+                "x": 570,
+                "y": 756,
+                "width": 40,
+                "height": 40
+              }
+            },
+            "aux": {
+              "x": 494,
+              "y": 824,
+              "width": 48,
+              "height": 48
+            },
+            "shutter": {
+              "x": 550,
+              "y": 808,
+              "width": 80,
+              "height": 80
+            }
+          },
+          "video": {
+            "x": 494,
+            "y": 756,
+            "width": 192,
+            "height": 132,
+            "zoom": {
+              "rear": {
+                "x": 494,
+                "y": 756,
+                "width": 192,
+                "height": 40
+              },
+              "front": {
+                "x": 570,
+                "y": 756,
+                "width": 40,
+                "height": 40
+              }
+            },
+            "aux": {
+              "x": 494,
+              "y": 824,
+              "width": 48,
+              "height": 48
+            },
+            "shutter": {
+              "x": 550,
+              "y": 808,
+              "width": 80,
+              "height": 80
+            }
+          }
+        },
+        "visualBalance": {
+          "outerMargins": [
+            34,
+            32,
+            34
+          ],
+          "ratio": "approximately 1:1:1"
+        }
+      }
+    },
+    "Fold8 Ultra": {
+      "upright": {
+        "viewport": {
+          "width": 960,
+          "height": 864
+        },
+        "previews": {
+          "photo": {
+            "x": 80,
+            "y": 0,
+            "width": 648,
+            "height": 864
+          },
+          "video": {
+            "x": 80,
+            "y": 0,
+            "width": 486,
+            "height": 864
+          }
+        },
+        "queue": {
+          "axis": "vertical",
+          "margins": {
+            "start": 0,
+            "end": 0
+          },
+          "endpointMargins": {
+            "start": 0,
+            "end": 0
+          },
+          "placementMargins": null,
+          "modes": {
+            "photo": {
+              "bounds": {
+                "x": 816,
+                "y": 180,
+                "width": 56,
+                "height": 428
+              },
+              "capacity": {
+                "profile": "standard56",
+                "availableAxis": 428,
+                "startMargin": 0,
+                "endMargin": 0,
+                "laneLength": 428,
+                "visibleCount": 5,
+                "endpointMediaGap": 6,
+                "itemStart": 62,
+                "media": 56,
+                "edgeTarget": 56,
+                "handlerWidth": 6,
+                "handler": 36,
+                "strip": 72,
+                "gap": 6
+              }
+            },
+            "video": {
+              "bounds": {
+                "x": 735,
+                "y": 180,
+                "width": 56,
+                "height": 428
+              },
+              "capacity": {
+                "profile": "standard56",
+                "availableAxis": 428,
+                "startMargin": 0,
+                "endMargin": 0,
+                "laneLength": 428,
+                "visibleCount": 5,
+                "endpointMediaGap": 6,
+                "itemStart": 62,
+                "media": 56,
+                "edgeTarget": 56,
+                "handlerWidth": 6,
+                "handler": 36,
+                "strip": 72,
+                "gap": 6
+              }
+            }
+          }
+        },
+        "controlBounds": {
+          "photo": {
+            "x": 748,
+            "y": 640,
+            "width": 192,
+            "height": 132,
+            "zoom": {
+              "rear": {
+                "x": 748,
+                "y": 640,
+                "width": 192,
+                "height": 40
+              },
+              "front": {
+                "x": 824,
+                "y": 640,
+                "width": 40,
+                "height": 40
+              }
+            },
+            "aux": {
+              "x": 748,
+              "y": 708,
+              "width": 48,
+              "height": 48
+            },
+            "shutter": {
+              "x": 804,
+              "y": 692,
+              "width": 80,
+              "height": 80
+            }
+          },
+          "video": {
+            "x": 667,
+            "y": 640,
+            "width": 192,
+            "height": 132,
+            "zoom": {
+              "rear": {
+                "x": 667,
+                "y": 640,
+                "width": 192,
+                "height": 40
+              },
+              "front": {
+                "x": 743,
+                "y": 640,
+                "width": 40,
+                "height": 40
+              }
+            },
+            "aux": {
+              "x": 667,
+              "y": 708,
+              "width": 48,
+              "height": 48
+            },
+            "shutter": {
+              "x": 723,
+              "y": 692,
+              "width": 80,
+              "height": 80
+            }
+          }
+        }
+      },
+      "cw90": {
+        "viewport": {
+          "width": 864,
+          "height": 960
+        },
+        "previews": {
+          "photo": {
+            "x": 0,
+            "y": 80,
+            "width": 864,
+            "height": 648
+          },
+          "video": {
+            "x": 0,
+            "y": 80,
+            "width": 864,
+            "height": 486
+          }
+        },
+        "queue": {
+          "axis": "horizontal",
+          "margins": {
+            "start": 84,
+            "between": 80,
+            "end": 80
+          },
+          "endpointMargins": {
+            "start": 0,
+            "end": 0
+          },
+          "placementMargins": {
+            "start": 84,
+            "between": 80,
+            "end": 80
+          },
+          "modes": {
+            "photo": {
+              "bounds": {
+                "x": 84,
+                "y": 820,
+                "width": 428,
+                "height": 56
+              },
+              "capacity": {
+                "profile": "standard56",
+                "availableAxis": 428,
+                "startMargin": 0,
+                "endMargin": 0,
+                "laneLength": 428,
+                "visibleCount": 5,
+                "endpointMediaGap": 6,
+                "itemStart": 62,
+                "media": 56,
+                "edgeTarget": 56,
+                "handlerWidth": 6,
+                "handler": 36,
+                "strip": 72,
+                "gap": 6
+              }
+            },
+            "video": {
+              "bounds": {
+                "x": 84,
+                "y": 820,
+                "width": 428,
+                "height": 56
+              },
+              "capacity": {
+                "profile": "standard56",
+                "availableAxis": 428,
+                "startMargin": 0,
+                "endMargin": 0,
+                "laneLength": 428,
+                "visibleCount": 5,
+                "endpointMediaGap": 6,
+                "itemStart": 62,
+                "media": 56,
+                "edgeTarget": 56,
+                "handlerWidth": 6,
+                "handler": 36,
+                "strip": 72,
+                "gap": 6
+              }
+            }
+          }
+        },
+        "controlBounds": {
+          "photo": {
+            "x": 592,
+            "y": 756,
+            "width": 192,
+            "height": 132,
+            "zoom": {
+              "rear": {
+                "x": 592,
+                "y": 756,
+                "width": 192,
+                "height": 40
+              },
+              "front": {
+                "x": 668,
+                "y": 756,
+                "width": 40,
+                "height": 40
+              }
+            },
+            "aux": {
+              "x": 592,
+              "y": 824,
+              "width": 48,
+              "height": 48
+            },
+            "shutter": {
+              "x": 648,
+              "y": 808,
+              "width": 80,
+              "height": 80
+            }
+          },
+          "video": {
+            "x": 592,
+            "y": 756,
+            "width": 192,
+            "height": 132,
+            "zoom": {
+              "rear": {
+                "x": 592,
+                "y": 756,
+                "width": 192,
+                "height": 40
+              },
+              "front": {
+                "x": 668,
+                "y": 756,
+                "width": 40,
+                "height": 40
+              }
+            },
+            "aux": {
+              "x": 592,
+              "y": 824,
+              "width": 48,
+              "height": 48
+            },
+            "shutter": {
+              "x": 648,
+              "y": 808,
+              "width": 80,
+              "height": 80
+            }
+          }
+        },
+        "visualBalance": {
+          "outerMargins": [
+            84,
+            80,
+            80
+          ],
+          "ratio": "approximately 1:1:1"
+        }
+      }
+    }
+  }
+}

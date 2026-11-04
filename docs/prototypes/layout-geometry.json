@@ -28,10 +28,17 @@
         "y": 680,
         "w": 312,
         "h": 72,
-        "symbol": "queueCompact",
+        "symbol": "queueStandard312",
+        "profile": "standard56",
+        "visibleCount": 3,
+        "outerMargins": {
+          "start": 24,
+          "end": 24
+        },
+        "endpointMediaGap": 10,
         "locked": false
       },
-      "profile": "standard",
+      "profile": "standard56",
       "shutterSize": 80,
       "safe": {
         "top": 24,
@@ -154,9 +161,16 @@
         "w": 312,
         "h": 64,
         "symbol": "queueDenseIdle",
+        "profile": "compact48",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 24,
+          "end": 24
+        },
+        "endpointMediaGap": 3,
         "locked": false
       },
-      "profile": "dense",
+      "profile": "compact48",
       "shutterSize": 64,
       "safe": {
         "top": 24,
@@ -252,36 +266,64 @@
       ]
     },
     {
-      "id": "fold8-wide-rear-photo",
+      "id": "fold8-p0-rear-photo",
       "w": 960,
       "h": 720,
+      "pose": 0,
+      "physicalPreview": {
+        "x": 80,
+        "y": 0,
+        "w": 540,
+        "h": 720
+      },
+      "utilitySlots": {
+        "settings": {
+          "x": 16,
+          "y": 656,
+          "w": 48,
+          "h": 48
+        },
+        "library": {
+          "x": 16,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        }
+      },
       "compact": false,
       "overlay": false,
       "shell": "side",
       "hand": "right",
       "frame": "tall",
       "camera": "rear",
-      "zoomAxis": "vertical",
+      "zoomAxis": "horizontal",
       "mode": "photo",
       "recording": false,
       "statusBounds": [],
       "feedback": null,
       "preview": {
-        "x": 96,
-        "y": 86,
-        "w": 456,
-        "h": 608
+        "x": 80,
+        "y": 0,
+        "w": 540,
+        "h": 720
       },
       "ratio": 0.75,
       "queue": {
-        "x": 576,
+        "x": 644,
         "y": 576,
-        "w": 360,
+        "w": 292,
         "h": 72,
-        "symbol": "queueStrip",
+        "symbol": "innerQueue",
+        "profile": "standard56",
+        "visibleCount": 3,
+        "outerMargins": {
+          "start": 644,
+          "end": 24
+        },
+        "endpointMediaGap": 0,
         "locked": false
       },
-      "profile": "standard",
+      "profile": "standard56",
       "shutterSize": 80,
       "safe": {
         "top": 24,
@@ -293,83 +335,83 @@
         {
           "symbol": "iconSettings",
           "x": 24,
-          "y": 24,
+          "y": 648,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconLibrary",
-          "x": 888,
+          "x": 24,
           "y": 24,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "mode",
-          "x": 355,
+          "x": 665,
           "y": 24,
           "w": 83.33333333333333,
           "h": 48
         },
         {
           "symbol": "mode",
-          "x": 438.3333333333333,
+          "x": 748.3333333333334,
           "y": 24,
           "w": 83.33333333333333,
           "h": 48
         },
         {
           "symbol": "mode",
-          "x": 521.6666666666666,
+          "x": 831.6666666666666,
           "y": 24,
           "w": 83.33333333333333,
           "h": 48
         },
         {
           "symbol": "zoom",
-          "x": 24,
-          "y": 294,
+          "x": 694,
+          "y": 428,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
-          "x": 24,
-          "y": 342,
+          "x": 742,
+          "y": 428,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
-          "x": 24,
-          "y": 390,
+          "x": 790,
+          "y": 428,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
-          "x": 24,
-          "y": 438,
+          "x": 838,
+          "y": 428,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconFlashAuto",
-          "x": 636,
+          "x": 694,
           "y": 500,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "shutterPhoto",
-          "x": 716,
+          "x": 750,
           "y": 484,
           "w": 80,
           "h": 80
         },
         {
           "symbol": "iconLens",
-          "x": 828,
+          "x": 838,
           "y": 500,
           "w": 48,
           "h": 48
@@ -377,106 +419,30 @@
       ]
     },
     {
-      "id": "fold8-wide-front-photo",
-      "w": 960,
-      "h": 720,
-      "compact": false,
-      "overlay": false,
-      "shell": "side",
-      "hand": "right",
-      "frame": "tall",
-      "camera": "front",
-      "zoomAxis": "vertical",
-      "mode": "photo",
-      "recording": false,
-      "statusBounds": [],
-      "feedback": null,
-      "preview": {
-        "x": 96,
-        "y": 86,
-        "w": 456,
-        "h": 608
-      },
-      "ratio": 0.75,
-      "queue": {
-        "x": 576,
-        "y": 576,
-        "w": 360,
-        "h": 72,
-        "symbol": "queueStrip",
-        "locked": false
-      },
-      "profile": "standard",
-      "shutterSize": 80,
-      "safe": {
-        "top": 24,
-        "bottom": 24,
-        "side": 24
-      },
-      "travel": 48,
-      "targets": [
-        {
-          "symbol": "iconSettings",
-          "x": 24,
-          "y": 24,
-          "w": 48,
-          "h": 48
-        },
-        {
-          "symbol": "iconLibrary",
-          "x": 888,
-          "y": 24,
-          "w": 48,
-          "h": 48
-        },
-        {
-          "symbol": "mode",
-          "x": 355,
-          "y": 24,
-          "w": 83.33333333333333,
-          "h": 48
-        },
-        {
-          "symbol": "mode",
-          "x": 438.3333333333333,
-          "y": 24,
-          "w": 83.33333333333333,
-          "h": 48
-        },
-        {
-          "symbol": "mode",
-          "x": 521.6666666666666,
-          "y": 24,
-          "w": 83.33333333333333,
-          "h": 48
-        },
-        {
-          "symbol": "zoom1x",
-          "x": 24,
-          "y": 390,
-          "w": 48,
-          "h": 48
-        },
-        {
-          "symbol": "shutterPhoto",
-          "x": 716,
-          "y": 484,
-          "w": 80,
-          "h": 80
-        },
-        {
-          "symbol": "iconLens",
-          "x": 828,
-          "y": 500,
-          "w": 48,
-          "h": 48
-        }
-      ]
-    },
-    {
-      "id": "fold8-tall-rear-photo",
+      "id": "fold8-p90-rear-photo",
       "w": 720,
       "h": 960,
+      "pose": 90,
+      "physicalPreview": {
+        "x": 80,
+        "y": 0,
+        "w": 540,
+        "h": 720
+      },
+      "utilitySlots": {
+        "settings": {
+          "x": 16,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        },
+        "library": {
+          "x": 656,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        }
+      },
       "compact": false,
       "overlay": false,
       "shell": "bottom",
@@ -489,10 +455,10 @@
       "statusBounds": [],
       "feedback": null,
       "preview": {
-        "x": 24,
-        "y": 130,
-        "w": 672,
-        "h": 504
+        "x": 0,
+        "y": 80,
+        "w": 720,
+        "h": 540
       },
       "ratio": 1.3333333333333333,
       "queue": {
@@ -501,9 +467,16 @@
         "w": 360,
         "h": 72,
         "symbol": "queueStrip",
+        "profile": "standard56",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 180,
+          "end": 180
+        },
+        "endpointMediaGap": 3,
         "locked": false
       },
-      "profile": "standard",
+      "profile": "standard56",
       "shutterSize": 80,
       "safe": {
         "top": 24,
@@ -577,7 +550,7 @@
         },
         {
           "symbol": "iconFlashAuto",
-          "x": 240,
+          "x": 264,
           "y": 764,
           "w": 48,
           "h": 48
@@ -591,7 +564,7 @@
         },
         {
           "symbol": "iconLens",
-          "x": 432,
+          "x": 408,
           "y": 764,
           "w": 48,
           "h": 48
@@ -599,9 +572,155 @@
       ]
     },
     {
-      "id": "fold8-tall-front-photo",
+      "id": "fold8-p0-front-photo",
+      "w": 960,
+      "h": 720,
+      "pose": 0,
+      "physicalPreview": {
+        "x": 80,
+        "y": 0,
+        "w": 540,
+        "h": 720
+      },
+      "utilitySlots": {
+        "settings": {
+          "x": 16,
+          "y": 656,
+          "w": 48,
+          "h": 48
+        },
+        "library": {
+          "x": 16,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        }
+      },
+      "compact": false,
+      "overlay": false,
+      "shell": "side",
+      "hand": "right",
+      "frame": "tall",
+      "camera": "front",
+      "zoomAxis": "horizontal",
+      "mode": "photo",
+      "recording": false,
+      "statusBounds": [],
+      "feedback": null,
+      "preview": {
+        "x": 80,
+        "y": 0,
+        "w": 540,
+        "h": 720
+      },
+      "ratio": 0.75,
+      "queue": {
+        "x": 644,
+        "y": 576,
+        "w": 292,
+        "h": 72,
+        "symbol": "innerQueue",
+        "profile": "standard56",
+        "visibleCount": 3,
+        "outerMargins": {
+          "start": 644,
+          "end": 24
+        },
+        "endpointMediaGap": 0,
+        "locked": false
+      },
+      "profile": "standard56",
+      "shutterSize": 80,
+      "safe": {
+        "top": 24,
+        "bottom": 24,
+        "side": 24
+      },
+      "travel": 48,
+      "targets": [
+        {
+          "symbol": "iconSettings",
+          "x": 24,
+          "y": 648,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "iconLibrary",
+          "x": 24,
+          "y": 24,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 665,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 748.3333333333334,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 831.6666666666666,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "zoom1x",
+          "x": 766,
+          "y": 428,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "shutterPhoto",
+          "x": 750,
+          "y": 484,
+          "w": 80,
+          "h": 80
+        },
+        {
+          "symbol": "iconLens",
+          "x": 838,
+          "y": 500,
+          "w": 48,
+          "h": 48
+        }
+      ]
+    },
+    {
+      "id": "fold8-p90-front-photo",
       "w": 720,
       "h": 960,
+      "pose": 90,
+      "physicalPreview": {
+        "x": 80,
+        "y": 0,
+        "w": 540,
+        "h": 720
+      },
+      "utilitySlots": {
+        "settings": {
+          "x": 16,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        },
+        "library": {
+          "x": 656,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        }
+      },
       "compact": false,
       "overlay": false,
       "shell": "bottom",
@@ -614,10 +733,10 @@
       "statusBounds": [],
       "feedback": null,
       "preview": {
-        "x": 24,
-        "y": 130,
-        "w": 672,
-        "h": 504
+        "x": 0,
+        "y": 80,
+        "w": 720,
+        "h": 540
       },
       "ratio": 1.3333333333333333,
       "queue": {
@@ -626,9 +745,16 @@
         "w": 360,
         "h": 72,
         "symbol": "queueStrip",
+        "profile": "standard56",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 180,
+          "end": 180
+        },
+        "endpointMediaGap": 3,
         "locked": false
       },
-      "profile": "standard",
+      "profile": "standard56",
       "shutterSize": 80,
       "safe": {
         "top": 24,
@@ -674,7 +800,7 @@
         },
         {
           "symbol": "zoom1x",
-          "x": 312,
+          "x": 336,
           "y": 692,
           "w": 48,
           "h": 48
@@ -688,7 +814,7 @@
         },
         {
           "symbol": "iconLens",
-          "x": 432,
+          "x": 408,
           "y": 764,
           "w": 48,
           "h": 48
@@ -696,36 +822,64 @@
       ]
     },
     {
-      "id": "ultra-wide-rear-photo",
+      "id": "fold8-p0-rear-video",
       "w": 960,
-      "h": 864,
+      "h": 720,
+      "pose": 0,
+      "physicalPreview": {
+        "x": 80,
+        "y": 0,
+        "w": 405,
+        "h": 720
+      },
+      "utilitySlots": {
+        "settings": {
+          "x": 16,
+          "y": 656,
+          "w": 48,
+          "h": 48
+        },
+        "library": {
+          "x": 16,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        }
+      },
       "compact": false,
       "overlay": false,
       "shell": "side",
       "hand": "right",
       "frame": "tall",
       "camera": "rear",
-      "zoomAxis": "vertical",
-      "mode": "photo",
+      "zoomAxis": "horizontal",
+      "mode": "video",
       "recording": false,
       "statusBounds": [],
       "feedback": null,
       "preview": {
-        "x": 96,
-        "y": 158,
-        "w": 456,
-        "h": 608
+        "x": 80,
+        "y": 0,
+        "w": 405,
+        "h": 720
       },
-      "ratio": 0.75,
+      "ratio": 0.5625,
       "queue": {
-        "x": 576,
-        "y": 720,
+        "x": 542.5,
+        "y": 576,
         "w": 360,
         "h": 72,
-        "symbol": "queueStrip",
+        "symbol": "innerQueue",
+        "profile": "standard56",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 542.5,
+          "end": 57.5
+        },
+        "endpointMediaGap": 3,
         "locked": false
       },
-      "profile": "standard",
+      "profile": "standard56",
       "shutterSize": 80,
       "safe": {
         "top": 24,
@@ -737,120 +891,301 @@
         {
           "symbol": "iconSettings",
           "x": 24,
-          "y": 24,
+          "y": 648,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconLibrary",
-          "x": 888,
+          "x": 24,
           "y": 24,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "mode",
-          "x": 355,
+          "x": 597.5,
           "y": 24,
           "w": 83.33333333333333,
           "h": 48
         },
         {
           "symbol": "mode",
-          "x": 438.3333333333333,
+          "x": 680.8333333333334,
           "y": 24,
           "w": 83.33333333333333,
           "h": 48
         },
         {
           "symbol": "mode",
-          "x": 521.6666666666666,
+          "x": 764.1666666666666,
           "y": 24,
           "w": 83.33333333333333,
           "h": 48
         },
         {
           "symbol": "zoom",
-          "x": 24,
-          "y": 366,
+          "x": 626.5,
+          "y": 428,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
-          "x": 24,
-          "y": 414,
+          "x": 674.5,
+          "y": 428,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
-          "x": 24,
-          "y": 462,
+          "x": 722.5,
+          "y": 428,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
-          "x": 24,
-          "y": 510,
+          "x": 770.5,
+          "y": 428,
           "w": 48,
           "h": 48
         },
         {
-          "symbol": "iconFlashAuto",
-          "x": 636,
-          "y": 644,
+          "symbol": "iconMic",
+          "x": 626.5,
+          "y": 500,
           "w": 48,
           "h": 48
         },
         {
-          "symbol": "shutterPhoto",
-          "x": 716,
-          "y": 628,
+          "symbol": "shutterVideoIdle",
+          "x": 682.5,
+          "y": 484,
           "w": 80,
           "h": 80
         },
         {
           "symbol": "iconLens",
-          "x": 828,
-          "y": 644,
+          "x": 770.5,
+          "y": 500,
           "w": 48,
           "h": 48
         }
       ]
     },
     {
-      "id": "ultra-wide-front-photo",
+      "id": "fold8-p90-rear-video",
+      "w": 720,
+      "h": 960,
+      "pose": 90,
+      "physicalPreview": {
+        "x": 80,
+        "y": 0,
+        "w": 405,
+        "h": 720
+      },
+      "utilitySlots": {
+        "settings": {
+          "x": 16,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        },
+        "library": {
+          "x": 656,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        }
+      },
+      "compact": false,
+      "overlay": false,
+      "shell": "bottom",
+      "hand": "center",
+      "frame": "wide",
+      "camera": "rear",
+      "zoomAxis": "horizontal",
+      "mode": "video",
+      "recording": false,
+      "statusBounds": [],
+      "feedback": null,
+      "preview": {
+        "x": 0,
+        "y": 80,
+        "w": 720,
+        "h": 405
+      },
+      "ratio": 1.7777777777777777,
+      "queue": {
+        "x": 180,
+        "y": 840,
+        "w": 360,
+        "h": 72,
+        "symbol": "queueStrip",
+        "profile": "standard56",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 180,
+          "end": 180
+        },
+        "endpointMediaGap": 3,
+        "locked": false
+      },
+      "profile": "standard56",
+      "shutterSize": 80,
+      "safe": {
+        "top": 24,
+        "bottom": 24,
+        "side": 24
+      },
+      "travel": 24,
+      "targets": [
+        {
+          "symbol": "iconSettings",
+          "x": 24,
+          "y": 24,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "iconLibrary",
+          "x": 648,
+          "y": 24,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 235,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 318.3333333333333,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 401.66666666666663,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 264,
+          "y": 692,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 312,
+          "y": 692,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 360,
+          "y": 692,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 408,
+          "y": 692,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "iconMic",
+          "x": 264,
+          "y": 764,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "shutterVideoIdle",
+          "x": 320,
+          "y": 748,
+          "w": 80,
+          "h": 80
+        },
+        {
+          "symbol": "iconLens",
+          "x": 408,
+          "y": 764,
+          "w": 48,
+          "h": 48
+        }
+      ]
+    },
+    {
+      "id": "fold8-p0-front-video",
       "w": 960,
-      "h": 864,
+      "h": 720,
+      "pose": 0,
+      "physicalPreview": {
+        "x": 80,
+        "y": 0,
+        "w": 405,
+        "h": 720
+      },
+      "utilitySlots": {
+        "settings": {
+          "x": 16,
+          "y": 656,
+          "w": 48,
+          "h": 48
+        },
+        "library": {
+          "x": 16,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        }
+      },
       "compact": false,
       "overlay": false,
       "shell": "side",
       "hand": "right",
       "frame": "tall",
       "camera": "front",
-      "zoomAxis": "vertical",
-      "mode": "photo",
+      "zoomAxis": "horizontal",
+      "mode": "video",
       "recording": false,
       "statusBounds": [],
       "feedback": null,
       "preview": {
-        "x": 96,
-        "y": 158,
-        "w": 456,
-        "h": 608
+        "x": 80,
+        "y": 0,
+        "w": 405,
+        "h": 720
       },
-      "ratio": 0.75,
+      "ratio": 0.5625,
       "queue": {
-        "x": 576,
-        "y": 720,
+        "x": 542.5,
+        "y": 576,
         "w": 360,
         "h": 72,
-        "symbol": "queueStrip",
+        "symbol": "innerQueue",
+        "profile": "standard56",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 542.5,
+          "end": 57.5
+        },
+        "endpointMediaGap": 3,
         "locked": false
       },
-      "profile": "standard",
+      "profile": "standard56",
       "shutterSize": 80,
       "safe": {
         "top": 24,
@@ -862,55 +1197,347 @@
         {
           "symbol": "iconSettings",
           "x": 24,
-          "y": 24,
+          "y": 648,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconLibrary",
-          "x": 888,
+          "x": 24,
           "y": 24,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "mode",
-          "x": 355,
+          "x": 597.5,
           "y": 24,
           "w": 83.33333333333333,
           "h": 48
         },
         {
           "symbol": "mode",
-          "x": 438.3333333333333,
+          "x": 680.8333333333334,
           "y": 24,
           "w": 83.33333333333333,
           "h": 48
         },
         {
           "symbol": "mode",
-          "x": 521.6666666666666,
+          "x": 764.1666666666666,
           "y": 24,
           "w": 83.33333333333333,
           "h": 48
         },
         {
           "symbol": "zoom1x",
+          "x": 698.5,
+          "y": 428,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "iconMic",
+          "x": 626.5,
+          "y": 500,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "shutterVideoIdle",
+          "x": 682.5,
+          "y": 484,
+          "w": 80,
+          "h": 80
+        },
+        {
+          "symbol": "iconLens",
+          "x": 770.5,
+          "y": 500,
+          "w": 48,
+          "h": 48
+        }
+      ]
+    },
+    {
+      "id": "fold8-p90-front-video",
+      "w": 720,
+      "h": 960,
+      "pose": 90,
+      "physicalPreview": {
+        "x": 80,
+        "y": 0,
+        "w": 405,
+        "h": 720
+      },
+      "utilitySlots": {
+        "settings": {
+          "x": 16,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        },
+        "library": {
+          "x": 656,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        }
+      },
+      "compact": false,
+      "overlay": false,
+      "shell": "bottom",
+      "hand": "center",
+      "frame": "wide",
+      "camera": "front",
+      "zoomAxis": "horizontal",
+      "mode": "video",
+      "recording": false,
+      "statusBounds": [],
+      "feedback": null,
+      "preview": {
+        "x": 0,
+        "y": 80,
+        "w": 720,
+        "h": 405
+      },
+      "ratio": 1.7777777777777777,
+      "queue": {
+        "x": 180,
+        "y": 840,
+        "w": 360,
+        "h": 72,
+        "symbol": "queueStrip",
+        "profile": "standard56",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 180,
+          "end": 180
+        },
+        "endpointMediaGap": 3,
+        "locked": false
+      },
+      "profile": "standard56",
+      "shutterSize": 80,
+      "safe": {
+        "top": 24,
+        "bottom": 24,
+        "side": 24
+      },
+      "travel": 24,
+      "targets": [
+        {
+          "symbol": "iconSettings",
           "x": 24,
-          "y": 462,
+          "y": 24,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "iconLibrary",
+          "x": 648,
+          "y": 24,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 235,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 318.3333333333333,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 401.66666666666663,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "zoom1x",
+          "x": 336,
+          "y": 692,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "iconMic",
+          "x": 264,
+          "y": 764,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "shutterVideoIdle",
+          "x": 320,
+          "y": 748,
+          "w": 80,
+          "h": 80
+        },
+        {
+          "symbol": "iconLens",
+          "x": 408,
+          "y": 764,
+          "w": 48,
+          "h": 48
+        }
+      ]
+    },
+    {
+      "id": "ultra-p0-rear-photo",
+      "w": 960,
+      "h": 864,
+      "pose": 0,
+      "physicalPreview": {
+        "x": 80,
+        "y": 0,
+        "w": 648,
+        "h": 864
+      },
+      "utilitySlots": {
+        "settings": {
+          "x": 16,
+          "y": 800,
+          "w": 48,
+          "h": 48
+        },
+        "library": {
+          "x": 16,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        }
+      },
+      "compact": false,
+      "overlay": false,
+      "shell": "side",
+      "hand": "right",
+      "frame": "tall",
+      "camera": "rear",
+      "zoomAxis": "horizontal",
+      "mode": "photo",
+      "recording": false,
+      "statusBounds": [],
+      "feedback": null,
+      "preview": {
+        "x": 80,
+        "y": 0,
+        "w": 648,
+        "h": 864
+      },
+      "ratio": 0.75,
+      "queue": {
+        "x": 752,
+        "y": 720,
+        "w": 184,
+        "h": 72,
+        "symbol": "innerQueue",
+        "profile": "standard56",
+        "visibleCount": 1,
+        "outerMargins": {
+          "start": 752,
+          "end": 24
+        },
+        "endpointMediaGap": 8,
+        "locked": false
+      },
+      "profile": "standard56",
+      "shutterSize": 80,
+      "safe": {
+        "top": 24,
+        "bottom": 24,
+        "side": 24
+      },
+      "travel": 48,
+      "targets": [
+        {
+          "symbol": "iconSettings",
+          "x": 24,
+          "y": 792,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "iconLibrary",
+          "x": 24,
+          "y": 24,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 740,
+          "y": 24,
+          "w": 69.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 809.3333333333334,
+          "y": 24,
+          "w": 69.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 878.6666666666666,
+          "y": 24,
+          "w": 69.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 748,
+          "y": 572,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 796,
+          "y": 572,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 844,
+          "y": 572,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 892,
+          "y": 572,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "iconFlashAuto",
+          "x": 748,
+          "y": 644,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "shutterPhoto",
-          "x": 716,
+          "x": 804,
           "y": 628,
           "w": 80,
           "h": 80
         },
         {
           "symbol": "iconLens",
-          "x": 828,
+          "x": 892,
           "y": 644,
           "w": 48,
           "h": 48
@@ -918,9 +1545,30 @@
       ]
     },
     {
-      "id": "ultra-tall-rear-photo",
+      "id": "ultra-p90-rear-photo",
       "w": 864,
       "h": 960,
+      "pose": 90,
+      "physicalPreview": {
+        "x": 80,
+        "y": 0,
+        "w": 648,
+        "h": 864
+      },
+      "utilitySlots": {
+        "settings": {
+          "x": 16,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        },
+        "library": {
+          "x": 800,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        }
+      },
       "compact": false,
       "overlay": false,
       "shell": "bottom",
@@ -933,21 +1581,584 @@
       "statusBounds": [],
       "feedback": null,
       "preview": {
-        "x": 34.6667,
-        "y": 84,
-        "w": 794.6667,
-        "h": 596
+        "x": 0,
+        "y": 80,
+        "w": 864,
+        "h": 648
       },
       "ratio": 1.3333333333333333,
+      "queue": {
+        "x": 276,
+        "y": 848,
+        "w": 312,
+        "h": 64,
+        "symbol": "queueDenseIdle",
+        "profile": "compact48",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 276,
+          "end": 276
+        },
+        "endpointMediaGap": 3,
+        "locked": false
+      },
+      "profile": "compact48",
+      "shutterSize": 64,
+      "safe": {
+        "top": 24,
+        "bottom": 24,
+        "side": 24
+      },
+      "travel": 24,
+      "targets": [
+        {
+          "symbol": "iconSettings",
+          "x": 24,
+          "y": 24,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "iconLibrary",
+          "x": 792,
+          "y": 24,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 307,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 390.3333333333333,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 473.66666666666663,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 336,
+          "y": 728,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 384,
+          "y": 728,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 432,
+          "y": 728,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 480,
+          "y": 728,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "iconFlashAuto",
+          "x": 336,
+          "y": 784,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "shutterDensePhoto",
+          "x": 400,
+          "y": 776,
+          "w": 64,
+          "h": 64
+        },
+        {
+          "symbol": "iconLens",
+          "x": 480,
+          "y": 784,
+          "w": 48,
+          "h": 48
+        }
+      ]
+    },
+    {
+      "id": "ultra-p0-front-photo",
+      "w": 960,
+      "h": 864,
+      "pose": 0,
+      "physicalPreview": {
+        "x": 80,
+        "y": 0,
+        "w": 648,
+        "h": 864
+      },
+      "utilitySlots": {
+        "settings": {
+          "x": 16,
+          "y": 800,
+          "w": 48,
+          "h": 48
+        },
+        "library": {
+          "x": 16,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        }
+      },
+      "compact": false,
+      "overlay": false,
+      "shell": "side",
+      "hand": "right",
+      "frame": "tall",
+      "camera": "front",
+      "zoomAxis": "horizontal",
+      "mode": "photo",
+      "recording": false,
+      "statusBounds": [],
+      "feedback": null,
+      "preview": {
+        "x": 80,
+        "y": 0,
+        "w": 648,
+        "h": 864
+      },
+      "ratio": 0.75,
+      "queue": {
+        "x": 752,
+        "y": 720,
+        "w": 184,
+        "h": 72,
+        "symbol": "innerQueue",
+        "profile": "standard56",
+        "visibleCount": 1,
+        "outerMargins": {
+          "start": 752,
+          "end": 24
+        },
+        "endpointMediaGap": 8,
+        "locked": false
+      },
+      "profile": "standard56",
+      "shutterSize": 80,
+      "safe": {
+        "top": 24,
+        "bottom": 24,
+        "side": 24
+      },
+      "travel": 48,
+      "targets": [
+        {
+          "symbol": "iconSettings",
+          "x": 24,
+          "y": 792,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "iconLibrary",
+          "x": 24,
+          "y": 24,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 740,
+          "y": 24,
+          "w": 69.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 809.3333333333334,
+          "y": 24,
+          "w": 69.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 878.6666666666666,
+          "y": 24,
+          "w": 69.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "zoom1x",
+          "x": 820,
+          "y": 572,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "shutterPhoto",
+          "x": 804,
+          "y": 628,
+          "w": 80,
+          "h": 80
+        },
+        {
+          "symbol": "iconLens",
+          "x": 892,
+          "y": 644,
+          "w": 48,
+          "h": 48
+        }
+      ]
+    },
+    {
+      "id": "ultra-p90-front-photo",
+      "w": 864,
+      "h": 960,
+      "pose": 90,
+      "physicalPreview": {
+        "x": 80,
+        "y": 0,
+        "w": 648,
+        "h": 864
+      },
+      "utilitySlots": {
+        "settings": {
+          "x": 16,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        },
+        "library": {
+          "x": 800,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        }
+      },
+      "compact": false,
+      "overlay": false,
+      "shell": "bottom",
+      "hand": "center",
+      "frame": "wide",
+      "camera": "front",
+      "zoomAxis": "horizontal",
+      "mode": "photo",
+      "recording": false,
+      "statusBounds": [],
+      "feedback": null,
+      "preview": {
+        "x": 0,
+        "y": 80,
+        "w": 864,
+        "h": 648
+      },
+      "ratio": 1.3333333333333333,
+      "queue": {
+        "x": 276,
+        "y": 848,
+        "w": 312,
+        "h": 64,
+        "symbol": "queueDenseIdle",
+        "profile": "compact48",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 276,
+          "end": 276
+        },
+        "endpointMediaGap": 3,
+        "locked": false
+      },
+      "profile": "compact48",
+      "shutterSize": 64,
+      "safe": {
+        "top": 24,
+        "bottom": 24,
+        "side": 24
+      },
+      "travel": 24,
+      "targets": [
+        {
+          "symbol": "iconSettings",
+          "x": 24,
+          "y": 24,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "iconLibrary",
+          "x": 792,
+          "y": 24,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 307,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 390.3333333333333,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 473.66666666666663,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "zoom1x",
+          "x": 408,
+          "y": 728,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "shutterDensePhoto",
+          "x": 400,
+          "y": 776,
+          "w": 64,
+          "h": 64
+        },
+        {
+          "symbol": "iconLens",
+          "x": 480,
+          "y": 784,
+          "w": 48,
+          "h": 48
+        }
+      ]
+    },
+    {
+      "id": "ultra-p0-rear-video",
+      "w": 960,
+      "h": 864,
+      "pose": 0,
+      "physicalPreview": {
+        "x": 80,
+        "y": 0,
+        "w": 486,
+        "h": 864
+      },
+      "utilitySlots": {
+        "settings": {
+          "x": 16,
+          "y": 800,
+          "w": 48,
+          "h": 48
+        },
+        "library": {
+          "x": 16,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        }
+      },
+      "compact": false,
+      "overlay": false,
+      "shell": "side",
+      "hand": "right",
+      "frame": "tall",
+      "camera": "rear",
+      "zoomAxis": "horizontal",
+      "mode": "video",
+      "recording": false,
+      "statusBounds": [],
+      "feedback": null,
+      "preview": {
+        "x": 80,
+        "y": 0,
+        "w": 486,
+        "h": 864
+      },
+      "ratio": 0.5625,
+      "queue": {
+        "x": 590,
+        "y": 720,
+        "w": 346,
+        "h": 72,
+        "symbol": "innerQueue",
+        "profile": "standard56",
+        "visibleCount": 3,
+        "outerMargins": {
+          "start": 590,
+          "end": 24
+        },
+        "endpointMediaGap": 27,
+        "locked": false
+      },
+      "profile": "standard56",
+      "shutterSize": 80,
+      "safe": {
+        "top": 24,
+        "bottom": 24,
+        "side": 24
+      },
+      "travel": 48,
+      "targets": [
+        {
+          "symbol": "iconSettings",
+          "x": 24,
+          "y": 792,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "iconLibrary",
+          "x": 24,
+          "y": 24,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 638,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 721.3333333333334,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 804.6666666666666,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 667,
+          "y": 572,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 715,
+          "y": 572,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 763,
+          "y": 572,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 811,
+          "y": 572,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "iconMic",
+          "x": 667,
+          "y": 644,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "shutterVideoIdle",
+          "x": 723,
+          "y": 628,
+          "w": 80,
+          "h": 80
+        },
+        {
+          "symbol": "iconLens",
+          "x": 811,
+          "y": 644,
+          "w": 48,
+          "h": 48
+        }
+      ]
+    },
+    {
+      "id": "ultra-p90-rear-video",
+      "w": 864,
+      "h": 960,
+      "pose": 90,
+      "physicalPreview": {
+        "x": 80,
+        "y": 0,
+        "w": 486,
+        "h": 864
+      },
+      "utilitySlots": {
+        "settings": {
+          "x": 16,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        },
+        "library": {
+          "x": 800,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        }
+      },
+      "compact": false,
+      "overlay": false,
+      "shell": "bottom",
+      "hand": "center",
+      "frame": "wide",
+      "camera": "rear",
+      "zoomAxis": "horizontal",
+      "mode": "video",
+      "recording": false,
+      "statusBounds": [],
+      "feedback": null,
+      "preview": {
+        "x": 0,
+        "y": 80,
+        "w": 864,
+        "h": 486
+      },
+      "ratio": 1.7777777777777777,
       "queue": {
         "x": 252,
         "y": 840,
         "w": 360,
         "h": 72,
         "symbol": "queueStrip",
+        "profile": "standard56",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 252,
+          "end": 252
+        },
+        "endpointMediaGap": 3,
         "locked": false
       },
-      "profile": "standard",
+      "profile": "standard56",
       "shutterSize": 80,
       "safe": {
         "top": 24,
@@ -1020,459 +2231,8 @@
           "h": 48
         },
         {
-          "symbol": "iconFlashAuto",
-          "x": 312,
-          "y": 764,
-          "w": 48,
-          "h": 48
-        },
-        {
-          "symbol": "shutterPhoto",
-          "x": 392,
-          "y": 748,
-          "w": 80,
-          "h": 80
-        },
-        {
-          "symbol": "iconLens",
-          "x": 504,
-          "y": 764,
-          "w": 48,
-          "h": 48
-        }
-      ]
-    },
-    {
-      "id": "ultra-tall-front-photo",
-      "w": 864,
-      "h": 960,
-      "compact": false,
-      "overlay": false,
-      "shell": "bottom",
-      "hand": "center",
-      "frame": "wide",
-      "camera": "front",
-      "zoomAxis": "horizontal",
-      "mode": "photo",
-      "recording": false,
-      "statusBounds": [],
-      "feedback": null,
-      "preview": {
-        "x": 34.6667,
-        "y": 84,
-        "w": 794.6667,
-        "h": 596
-      },
-      "ratio": 1.3333333333333333,
-      "queue": {
-        "x": 252,
-        "y": 840,
-        "w": 360,
-        "h": 72,
-        "symbol": "queueStrip",
-        "locked": false
-      },
-      "profile": "standard",
-      "shutterSize": 80,
-      "safe": {
-        "top": 24,
-        "bottom": 24,
-        "side": 24
-      },
-      "travel": 24,
-      "targets": [
-        {
-          "symbol": "iconSettings",
-          "x": 24,
-          "y": 24,
-          "w": 48,
-          "h": 48
-        },
-        {
-          "symbol": "iconLibrary",
-          "x": 792,
-          "y": 24,
-          "w": 48,
-          "h": 48
-        },
-        {
-          "symbol": "mode",
-          "x": 307,
-          "y": 24,
-          "w": 83.33333333333333,
-          "h": 48
-        },
-        {
-          "symbol": "mode",
-          "x": 390.3333333333333,
-          "y": 24,
-          "w": 83.33333333333333,
-          "h": 48
-        },
-        {
-          "symbol": "mode",
-          "x": 473.66666666666663,
-          "y": 24,
-          "w": 83.33333333333333,
-          "h": 48
-        },
-        {
-          "symbol": "zoom1x",
-          "x": 384,
-          "y": 692,
-          "w": 48,
-          "h": 48
-        },
-        {
-          "symbol": "shutterPhoto",
-          "x": 392,
-          "y": 748,
-          "w": 80,
-          "h": 80
-        },
-        {
-          "symbol": "iconLens",
-          "x": 504,
-          "y": 764,
-          "w": 48,
-          "h": 48
-        }
-      ]
-    },
-    {
-      "id": "ultra-wide-rear-video",
-      "w": 960,
-      "h": 864,
-      "compact": false,
-      "overlay": false,
-      "shell": "side",
-      "hand": "right",
-      "frame": "tall",
-      "camera": "rear",
-      "zoomAxis": "vertical",
-      "mode": "video",
-      "recording": false,
-      "statusBounds": [],
-      "feedback": null,
-      "preview": {
-        "x": 111.375,
-        "y": 84,
-        "w": 425.25,
-        "h": 756
-      },
-      "ratio": 0.5625,
-      "queue": {
-        "x": 576,
-        "y": 720,
-        "w": 360,
-        "h": 72,
-        "symbol": "queueStrip",
-        "locked": false
-      },
-      "profile": "standard",
-      "shutterSize": 80,
-      "safe": {
-        "top": 24,
-        "bottom": 24,
-        "side": 24
-      },
-      "travel": 48,
-      "targets": [
-        {
-          "symbol": "iconSettings",
-          "x": 24,
-          "y": 24,
-          "w": 48,
-          "h": 48
-        },
-        {
-          "symbol": "iconLibrary",
-          "x": 888,
-          "y": 24,
-          "w": 48,
-          "h": 48
-        },
-        {
-          "symbol": "mode",
-          "x": 355,
-          "y": 24,
-          "w": 83.33333333333333,
-          "h": 48
-        },
-        {
-          "symbol": "mode",
-          "x": 438.3333333333333,
-          "y": 24,
-          "w": 83.33333333333333,
-          "h": 48
-        },
-        {
-          "symbol": "mode",
-          "x": 521.6666666666666,
-          "y": 24,
-          "w": 83.33333333333333,
-          "h": 48
-        },
-        {
-          "symbol": "zoom",
-          "x": 24,
-          "y": 366,
-          "w": 48,
-          "h": 48
-        },
-        {
-          "symbol": "zoom",
-          "x": 24,
-          "y": 414,
-          "w": 48,
-          "h": 48
-        },
-        {
-          "symbol": "zoom",
-          "x": 24,
-          "y": 462,
-          "w": 48,
-          "h": 48
-        },
-        {
-          "symbol": "zoom",
-          "x": 24,
-          "y": 510,
-          "w": 48,
-          "h": 48
-        },
-        {
           "symbol": "iconMic",
-          "x": 636,
-          "y": 644,
-          "w": 48,
-          "h": 48
-        },
-        {
-          "symbol": "shutterVideoIdle",
-          "x": 716,
-          "y": 628,
-          "w": 80,
-          "h": 80
-        },
-        {
-          "symbol": "iconLens",
-          "x": 828,
-          "y": 644,
-          "w": 48,
-          "h": 48
-        }
-      ]
-    },
-    {
-      "id": "ultra-wide-front-video",
-      "w": 960,
-      "h": 864,
-      "compact": false,
-      "overlay": false,
-      "shell": "side",
-      "hand": "right",
-      "frame": "tall",
-      "camera": "front",
-      "zoomAxis": "vertical",
-      "mode": "video",
-      "recording": false,
-      "statusBounds": [],
-      "feedback": null,
-      "preview": {
-        "x": 111.375,
-        "y": 84,
-        "w": 425.25,
-        "h": 756
-      },
-      "ratio": 0.5625,
-      "queue": {
-        "x": 576,
-        "y": 720,
-        "w": 360,
-        "h": 72,
-        "symbol": "queueStrip",
-        "locked": false
-      },
-      "profile": "standard",
-      "shutterSize": 80,
-      "safe": {
-        "top": 24,
-        "bottom": 24,
-        "side": 24
-      },
-      "travel": 48,
-      "targets": [
-        {
-          "symbol": "iconSettings",
-          "x": 24,
-          "y": 24,
-          "w": 48,
-          "h": 48
-        },
-        {
-          "symbol": "iconLibrary",
-          "x": 888,
-          "y": 24,
-          "w": 48,
-          "h": 48
-        },
-        {
-          "symbol": "mode",
-          "x": 355,
-          "y": 24,
-          "w": 83.33333333333333,
-          "h": 48
-        },
-        {
-          "symbol": "mode",
-          "x": 438.3333333333333,
-          "y": 24,
-          "w": 83.33333333333333,
-          "h": 48
-        },
-        {
-          "symbol": "mode",
-          "x": 521.6666666666666,
-          "y": 24,
-          "w": 83.33333333333333,
-          "h": 48
-        },
-        {
-          "symbol": "zoom1x",
-          "x": 24,
-          "y": 462,
-          "w": 48,
-          "h": 48
-        },
-        {
-          "symbol": "iconMic",
-          "x": 636,
-          "y": 644,
-          "w": 48,
-          "h": 48
-        },
-        {
-          "symbol": "shutterVideoIdle",
-          "x": 716,
-          "y": 628,
-          "w": 80,
-          "h": 80
-        },
-        {
-          "symbol": "iconLens",
-          "x": 828,
-          "y": 644,
-          "w": 48,
-          "h": 48
-        }
-      ]
-    },
-    {
-      "id": "ultra-tall-rear-video",
-      "w": 864,
-      "h": 960,
-      "compact": false,
-      "overlay": false,
-      "shell": "bottom",
-      "hand": "center",
-      "frame": "wide",
-      "camera": "rear",
-      "zoomAxis": "horizontal",
-      "mode": "video",
-      "recording": false,
-      "statusBounds": [],
-      "feedback": null,
-      "preview": {
-        "x": 24,
-        "y": 152.5,
-        "w": 816,
-        "h": 459
-      },
-      "ratio": 1.7777777777777777,
-      "queue": {
-        "x": 252,
-        "y": 840,
-        "w": 360,
-        "h": 72,
-        "symbol": "queueStrip",
-        "locked": false
-      },
-      "profile": "standard",
-      "shutterSize": 80,
-      "safe": {
-        "top": 24,
-        "bottom": 24,
-        "side": 24
-      },
-      "travel": 24,
-      "targets": [
-        {
-          "symbol": "iconSettings",
-          "x": 24,
-          "y": 24,
-          "w": 48,
-          "h": 48
-        },
-        {
-          "symbol": "iconLibrary",
-          "x": 792,
-          "y": 24,
-          "w": 48,
-          "h": 48
-        },
-        {
-          "symbol": "mode",
-          "x": 307,
-          "y": 24,
-          "w": 83.33333333333333,
-          "h": 48
-        },
-        {
-          "symbol": "mode",
-          "x": 390.3333333333333,
-          "y": 24,
-          "w": 83.33333333333333,
-          "h": 48
-        },
-        {
-          "symbol": "mode",
-          "x": 473.66666666666663,
-          "y": 24,
-          "w": 83.33333333333333,
-          "h": 48
-        },
-        {
-          "symbol": "zoom",
           "x": 336,
-          "y": 692,
-          "w": 48,
-          "h": 48
-        },
-        {
-          "symbol": "zoom",
-          "x": 384,
-          "y": 692,
-          "w": 48,
-          "h": 48
-        },
-        {
-          "symbol": "zoom",
-          "x": 432,
-          "y": 692,
-          "w": 48,
-          "h": 48
-        },
-        {
-          "symbol": "zoom",
-          "x": 480,
-          "y": 692,
-          "w": 48,
-          "h": 48
-        },
-        {
-          "symbol": "iconMic",
-          "x": 312,
           "y": 764,
           "w": 48,
           "h": 48
@@ -1486,7 +2246,7 @@
         },
         {
           "symbol": "iconLens",
-          "x": 504,
+          "x": 480,
           "y": 764,
           "w": 48,
           "h": 48
@@ -1494,9 +2254,162 @@
       ]
     },
     {
-      "id": "ultra-tall-front-video",
+      "id": "ultra-p0-front-video",
+      "w": 960,
+      "h": 864,
+      "pose": 0,
+      "physicalPreview": {
+        "x": 80,
+        "y": 0,
+        "w": 486,
+        "h": 864
+      },
+      "utilitySlots": {
+        "settings": {
+          "x": 16,
+          "y": 800,
+          "w": 48,
+          "h": 48
+        },
+        "library": {
+          "x": 16,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        }
+      },
+      "compact": false,
+      "overlay": false,
+      "shell": "side",
+      "hand": "right",
+      "frame": "tall",
+      "camera": "front",
+      "zoomAxis": "horizontal",
+      "mode": "video",
+      "recording": false,
+      "statusBounds": [],
+      "feedback": null,
+      "preview": {
+        "x": 80,
+        "y": 0,
+        "w": 486,
+        "h": 864
+      },
+      "ratio": 0.5625,
+      "queue": {
+        "x": 590,
+        "y": 720,
+        "w": 346,
+        "h": 72,
+        "symbol": "innerQueue",
+        "profile": "standard56",
+        "visibleCount": 3,
+        "outerMargins": {
+          "start": 590,
+          "end": 24
+        },
+        "endpointMediaGap": 27,
+        "locked": false
+      },
+      "profile": "standard56",
+      "shutterSize": 80,
+      "safe": {
+        "top": 24,
+        "bottom": 24,
+        "side": 24
+      },
+      "travel": 48,
+      "targets": [
+        {
+          "symbol": "iconSettings",
+          "x": 24,
+          "y": 792,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "iconLibrary",
+          "x": 24,
+          "y": 24,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 638,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 721.3333333333334,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "mode",
+          "x": 804.6666666666666,
+          "y": 24,
+          "w": 83.33333333333333,
+          "h": 48
+        },
+        {
+          "symbol": "zoom1x",
+          "x": 739,
+          "y": 572,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "iconMic",
+          "x": 667,
+          "y": 644,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "shutterVideoIdle",
+          "x": 723,
+          "y": 628,
+          "w": 80,
+          "h": 80
+        },
+        {
+          "symbol": "iconLens",
+          "x": 811,
+          "y": 644,
+          "w": 48,
+          "h": 48
+        }
+      ]
+    },
+    {
+      "id": "ultra-p90-front-video",
       "w": 864,
       "h": 960,
+      "pose": 90,
+      "physicalPreview": {
+        "x": 80,
+        "y": 0,
+        "w": 486,
+        "h": 864
+      },
+      "utilitySlots": {
+        "settings": {
+          "x": 16,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        },
+        "library": {
+          "x": 800,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        }
+      },
       "compact": false,
       "overlay": false,
       "shell": "bottom",
@@ -1509,10 +2422,10 @@
       "statusBounds": [],
       "feedback": null,
       "preview": {
-        "x": 24,
-        "y": 152.5,
-        "w": 816,
-        "h": 459
+        "x": 0,
+        "y": 80,
+        "w": 864,
+        "h": 486
       },
       "ratio": 1.7777777777777777,
       "queue": {
@@ -1521,9 +2434,16 @@
         "w": 360,
         "h": 72,
         "symbol": "queueStrip",
+        "profile": "standard56",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 252,
+          "end": 252
+        },
+        "endpointMediaGap": 3,
         "locked": false
       },
-      "profile": "standard",
+      "profile": "standard56",
       "shutterSize": 80,
       "safe": {
         "top": 24,
@@ -1569,14 +2489,14 @@
         },
         {
           "symbol": "zoom1x",
-          "x": 384,
+          "x": 408,
           "y": 692,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconMic",
-          "x": 312,
+          "x": 336,
           "y": 764,
           "w": 48,
           "h": 48
@@ -1590,7 +2510,7 @@
         },
         {
           "symbol": "iconLens",
-          "x": 504,
+          "x": 480,
           "y": 764,
           "w": 48,
           "h": 48
@@ -1625,9 +2545,16 @@
         "w": 360,
         "h": 72,
         "symbol": "queueStrip",
+        "profile": "standard56",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 576,
+          "end": 24
+        },
+        "endpointMediaGap": 3,
         "locked": false
       },
-      "profile": "standard",
+      "profile": "standard56",
       "shutterSize": 80,
       "safe": {
         "top": 24,
@@ -1750,9 +2677,16 @@
         "w": 360,
         "h": 72,
         "symbol": "queueSplit",
+        "profile": "standard56",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 24,
+          "end": 576
+        },
+        "endpointMediaGap": 3,
         "locked": false
       },
-      "profile": "standard",
+      "profile": "standard56",
       "shutterSize": 80,
       "safe": {
         "top": 24,
@@ -1875,9 +2809,16 @@
         "w": 360,
         "h": 72,
         "symbol": "queueStrip",
+        "profile": "standard56",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 180,
+          "end": 180
+        },
+        "endpointMediaGap": 3,
         "locked": false
       },
-      "profile": "standard",
+      "profile": "standard56",
       "shutterSize": 80,
       "safe": {
         "top": 24,
@@ -2000,9 +2941,16 @@
         "w": 360,
         "h": 72,
         "symbol": "queueStrip",
+        "profile": "standard56",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 252,
+          "end": 252
+        },
+        "endpointMediaGap": 3,
         "locked": false
       },
-      "profile": "standard",
+      "profile": "standard56",
       "shutterSize": 80,
       "safe": {
         "top": 24,
@@ -2124,10 +3072,17 @@
         "y": 680,
         "w": 312,
         "h": 72,
-        "symbol": "queueCompact",
+        "symbol": "queueStandard312",
+        "profile": "standard56",
+        "visibleCount": 3,
+        "outerMargins": {
+          "start": 24,
+          "end": 24
+        },
+        "endpointMediaGap": 10,
         "locked": false
       },
-      "profile": "standard",
+      "profile": "standard56",
       "shutterSize": 80,
       "safe": {
         "top": 24,
@@ -2250,9 +3205,16 @@
         "w": 312,
         "h": 64,
         "symbol": "queueDenseIdle",
+        "profile": "compact48",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 24,
+          "end": 24
+        },
+        "endpointMediaGap": 3,
         "locked": false
       },
-      "profile": "dense",
+      "profile": "compact48",
       "shutterSize": 64,
       "safe": {
         "top": 24,
@@ -2375,9 +3337,16 @@
         "w": 312,
         "h": 64,
         "symbol": "queueDenseIdle",
+        "profile": "compact48",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 24,
+          "end": 24
+        },
+        "endpointMediaGap": 3,
         "locked": false
       },
-      "profile": "dense",
+      "profile": "compact48",
       "shutterSize": 64,
       "safe": {
         "top": 24,
@@ -2500,9 +3469,16 @@
         "w": 312,
         "h": 64,
         "symbol": "queueDenseLongStart",
+        "profile": "compact48",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 24,
+          "end": 24
+        },
+        "endpointMediaGap": 3,
         "locked": false
       },
-      "profile": "dense",
+      "profile": "compact48",
       "shutterSize": 64,
       "safe": {
         "top": 24,
@@ -2625,9 +3601,16 @@
         "w": 312,
         "h": 64,
         "symbol": "queueDenseLongMiddle",
+        "profile": "compact48",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 24,
+          "end": 24
+        },
+        "endpointMediaGap": 3,
         "locked": false
       },
-      "profile": "dense",
+      "profile": "compact48",
       "shutterSize": 64,
       "safe": {
         "top": 24,
@@ -2750,9 +3733,16 @@
         "w": 312,
         "h": 64,
         "symbol": "queueDenseLongEnd",
+        "profile": "compact48",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 24,
+          "end": 24
+        },
+        "endpointMediaGap": 3,
         "locked": false
       },
-      "profile": "dense",
+      "profile": "compact48",
       "shutterSize": 64,
       "safe": {
         "top": 24,
@@ -2875,9 +3865,16 @@
         "w": 312,
         "h": 64,
         "symbol": "queueDenseLongSplit",
+        "profile": "compact48",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 24,
+          "end": 24
+        },
+        "endpointMediaGap": 3,
         "locked": false
       },
-      "profile": "dense",
+      "profile": "compact48",
       "shutterSize": 64,
       "safe": {
         "top": 24,
@@ -3000,9 +3997,16 @@
         "w": 312,
         "h": 64,
         "symbol": "queueDenseIdle",
+        "profile": "compact48",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 24,
+          "end": 24
+        },
+        "endpointMediaGap": 3,
         "locked": false
       },
-      "profile": "dense",
+      "profile": "compact48",
       "shutterSize": 64,
       "safe": {
         "top": 24,
@@ -3125,9 +4129,16 @@
         "w": 312,
         "h": 64,
         "symbol": "queueDenseIdle",
+        "profile": "compact48",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 24,
+          "end": 24
+        },
+        "endpointMediaGap": 3,
         "locked": false
       },
-      "profile": "dense",
+      "profile": "compact48",
       "shutterSize": 64,
       "safe": {
         "top": 24,
@@ -3250,9 +4261,16 @@
         "w": 312,
         "h": 64,
         "symbol": "queueDenseDeleteArmed",
+        "profile": "compact48",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 24,
+          "end": 24
+        },
+        "endpointMediaGap": 3,
         "locked": false
       },
-      "profile": "dense",
+      "profile": "compact48",
       "shutterSize": 64,
       "safe": {
         "top": 24,
@@ -3375,9 +4393,16 @@
         "w": 312,
         "h": 64,
         "symbol": "queueDenseIdle",
+        "profile": "compact48",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 24,
+          "end": 24
+        },
+        "endpointMediaGap": 3,
         "locked": false
       },
-      "profile": "dense",
+      "profile": "compact48",
       "shutterSize": 64,
       "safe": {
         "top": 24,
@@ -3499,10 +4524,17 @@
         "y": 680,
         "w": 312,
         "h": 72,
-        "symbol": "queueCompact",
+        "symbol": "queueStandard312",
+        "profile": "standard56",
+        "visibleCount": 3,
+        "outerMargins": {
+          "start": 24,
+          "end": 24
+        },
+        "endpointMediaGap": 10,
         "locked": false
       },
-      "profile": "standard",
+      "profile": "standard56",
       "shutterSize": 80,
       "safe": {
         "top": 24,
@@ -3625,9 +4657,16 @@
         "w": 312,
         "h": 64,
         "symbol": "queueDenseIdle",
+        "profile": "compact48",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 24,
+          "end": 24
+        },
+        "endpointMediaGap": 3,
         "locked": false
       },
-      "profile": "dense",
+      "profile": "compact48",
       "shutterSize": 64,
       "safe": {
         "top": 24,
@@ -3726,33 +4765,61 @@
       "id": "ratio-0-inner",
       "w": 960,
       "h": 720,
+      "pose": 0,
+      "physicalPreview": {
+        "x": 80,
+        "y": 0,
+        "w": 540,
+        "h": 720
+      },
+      "utilitySlots": {
+        "settings": {
+          "x": 16,
+          "y": 656,
+          "w": 48,
+          "h": 48
+        },
+        "library": {
+          "x": 16,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        }
+      },
       "compact": false,
       "overlay": false,
       "shell": "side",
       "hand": "right",
       "frame": "tall",
       "camera": "rear",
-      "zoomAxis": "vertical",
+      "zoomAxis": "horizontal",
       "mode": "photo",
       "recording": false,
       "statusBounds": [],
       "feedback": null,
       "preview": {
-        "x": 96,
-        "y": 86,
-        "w": 456,
-        "h": 608
+        "x": 80,
+        "y": 0,
+        "w": 540,
+        "h": 720
       },
       "ratio": 0.75,
       "queue": {
-        "x": 576,
+        "x": 644,
         "y": 576,
-        "w": 360,
+        "w": 292,
         "h": 72,
-        "symbol": "queueStrip",
+        "symbol": "innerQueue",
+        "profile": "standard56",
+        "visibleCount": 3,
+        "outerMargins": {
+          "start": 644,
+          "end": 24
+        },
+        "endpointMediaGap": 0,
         "locked": false
       },
-      "profile": "standard",
+      "profile": "standard56",
       "shutterSize": 80,
       "safe": {
         "top": 24,
@@ -3764,83 +4831,83 @@
         {
           "symbol": "iconSettings",
           "x": 24,
-          "y": 24,
+          "y": 648,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconLibrary",
-          "x": 888,
+          "x": 24,
           "y": 24,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "mode",
-          "x": 355,
+          "x": 665,
           "y": 24,
           "w": 83.33333333333333,
           "h": 48
         },
         {
           "symbol": "mode",
-          "x": 438.3333333333333,
+          "x": 748.3333333333334,
           "y": 24,
           "w": 83.33333333333333,
           "h": 48
         },
         {
           "symbol": "mode",
-          "x": 521.6666666666666,
+          "x": 831.6666666666666,
           "y": 24,
           "w": 83.33333333333333,
           "h": 48
         },
         {
           "symbol": "zoom",
-          "x": 24,
-          "y": 294,
+          "x": 694,
+          "y": 428,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
-          "x": 24,
-          "y": 342,
+          "x": 742,
+          "y": 428,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
-          "x": 24,
-          "y": 390,
+          "x": 790,
+          "y": 428,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
-          "x": 24,
-          "y": 438,
+          "x": 838,
+          "y": 428,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconFlashAuto",
-          "x": 636,
+          "x": 694,
           "y": 500,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "shutterPhoto",
-          "x": 716,
+          "x": 750,
           "y": 484,
           "w": 80,
           "h": 80
         },
         {
           "symbol": "iconLens",
-          "x": 828,
+          "x": 838,
           "y": 500,
           "w": 48,
           "h": 48
@@ -3874,10 +4941,17 @@
         "y": 680,
         "w": 312,
         "h": 72,
-        "symbol": "queueCompact",
+        "symbol": "queueStandard312",
+        "profile": "standard56",
+        "visibleCount": 3,
+        "outerMargins": {
+          "start": 24,
+          "end": 24
+        },
+        "endpointMediaGap": 10,
         "locked": false
       },
-      "profile": "standard",
+      "profile": "standard56",
       "shutterSize": 80,
       "safe": {
         "top": 24,
@@ -4000,9 +5074,16 @@
         "w": 312,
         "h": 64,
         "symbol": "queueDenseIdle",
+        "profile": "compact48",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 24,
+          "end": 24
+        },
+        "endpointMediaGap": 3,
         "locked": false
       },
-      "profile": "dense",
+      "profile": "compact48",
       "shutterSize": 64,
       "safe": {
         "top": 24,
@@ -4101,33 +5182,61 @@
       "id": "ratio-1-inner",
       "w": 960,
       "h": 720,
+      "pose": 0,
+      "physicalPreview": {
+        "x": 80,
+        "y": 0,
+        "w": 405,
+        "h": 720
+      },
+      "utilitySlots": {
+        "settings": {
+          "x": 16,
+          "y": 656,
+          "w": 48,
+          "h": 48
+        },
+        "library": {
+          "x": 16,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        }
+      },
       "compact": false,
       "overlay": false,
       "shell": "side",
       "hand": "right",
       "frame": "tall",
       "camera": "rear",
-      "zoomAxis": "vertical",
+      "zoomAxis": "horizontal",
       "mode": "photo",
       "recording": false,
       "statusBounds": [],
       "feedback": null,
       "preview": {
-        "x": 151.875,
-        "y": 84,
-        "w": 344.25,
-        "h": 612
+        "x": 80,
+        "y": 0,
+        "w": 405,
+        "h": 720
       },
       "ratio": 0.5625,
       "queue": {
-        "x": 576,
+        "x": 542.5,
         "y": 576,
         "w": 360,
         "h": 72,
-        "symbol": "queueStrip",
+        "symbol": "innerQueue",
+        "profile": "standard56",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 542.5,
+          "end": 57.5
+        },
+        "endpointMediaGap": 3,
         "locked": false
       },
-      "profile": "standard",
+      "profile": "standard56",
       "shutterSize": 80,
       "safe": {
         "top": 24,
@@ -4139,83 +5248,83 @@
         {
           "symbol": "iconSettings",
           "x": 24,
-          "y": 24,
+          "y": 648,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconLibrary",
-          "x": 888,
+          "x": 24,
           "y": 24,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "mode",
-          "x": 355,
+          "x": 597.5,
           "y": 24,
           "w": 83.33333333333333,
           "h": 48
         },
         {
           "symbol": "mode",
-          "x": 438.3333333333333,
+          "x": 680.8333333333334,
           "y": 24,
           "w": 83.33333333333333,
           "h": 48
         },
         {
           "symbol": "mode",
-          "x": 521.6666666666666,
+          "x": 764.1666666666666,
           "y": 24,
           "w": 83.33333333333333,
           "h": 48
         },
         {
           "symbol": "zoom",
-          "x": 24,
-          "y": 294,
+          "x": 626.5,
+          "y": 428,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
-          "x": 24,
-          "y": 342,
+          "x": 674.5,
+          "y": 428,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
-          "x": 24,
-          "y": 390,
+          "x": 722.5,
+          "y": 428,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
-          "x": 24,
-          "y": 438,
+          "x": 770.5,
+          "y": 428,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconFlashAuto",
-          "x": 636,
+          "x": 626.5,
           "y": 500,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "shutterPhoto",
-          "x": 716,
+          "x": 682.5,
           "y": 484,
           "w": 80,
           "h": 80
         },
         {
           "symbol": "iconLens",
-          "x": 828,
+          "x": 770.5,
           "y": 500,
           "w": 48,
           "h": 48
@@ -4249,10 +5358,17 @@
         "y": 680,
         "w": 312,
         "h": 72,
-        "symbol": "queueCompact",
+        "symbol": "queueStandard312",
+        "profile": "standard56",
+        "visibleCount": 3,
+        "outerMargins": {
+          "start": 24,
+          "end": 24
+        },
+        "endpointMediaGap": 10,
         "locked": false
       },
-      "profile": "standard",
+      "profile": "standard56",
       "shutterSize": 80,
       "safe": {
         "top": 24,
@@ -4375,9 +5491,16 @@
         "w": 312,
         "h": 64,
         "symbol": "queueDenseIdle",
+        "profile": "compact48",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 24,
+          "end": 24
+        },
+        "endpointMediaGap": 3,
         "locked": false
       },
-      "profile": "dense",
+      "profile": "compact48",
       "shutterSize": 64,
       "safe": {
         "top": 24,
@@ -4476,10 +5599,31 @@
       "id": "ratio-2-inner",
       "w": 960,
       "h": 720,
+      "pose": 0,
+      "physicalPreview": {
+        "x": 80,
+        "y": 173.25,
+        "w": 664,
+        "h": 373.5
+      },
+      "utilitySlots": {
+        "settings": {
+          "x": 16,
+          "y": 656,
+          "w": 48,
+          "h": 48
+        },
+        "library": {
+          "x": 16,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        }
+      },
       "compact": false,
       "overlay": false,
-      "shell": "bottom",
-      "hand": "center",
+      "shell": "side",
+      "hand": "right",
       "frame": "wide",
       "camera": "rear",
       "zoomAxis": "horizontal",
@@ -4488,110 +5632,117 @@
       "statusBounds": [],
       "feedback": null,
       "preview": {
-        "x": 163.5556,
-        "y": 84,
-        "w": 632.8889,
-        "h": 356
+        "x": 80,
+        "y": 173.25,
+        "w": 664,
+        "h": 373.5
       },
       "ratio": 1.7777777777777777,
       "queue": {
-        "x": 300,
-        "y": 600,
-        "w": 360,
+        "x": 768,
+        "y": 576,
+        "w": 168,
         "h": 72,
-        "symbol": "queueStrip",
+        "symbol": "innerQueue",
+        "profile": "standard56",
+        "visibleCount": 1,
+        "outerMargins": {
+          "start": 768,
+          "end": 24
+        },
+        "endpointMediaGap": 0,
         "locked": false
       },
-      "profile": "standard",
+      "profile": "standard56",
       "shutterSize": 80,
       "safe": {
         "top": 24,
         "bottom": 24,
         "side": 24
       },
-      "travel": 24,
+      "travel": 48,
       "targets": [
         {
           "symbol": "iconSettings",
+          "x": 24,
+          "y": 648,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "iconLibrary",
           "x": 24,
           "y": 24,
           "w": 48,
           "h": 48
         },
         {
-          "symbol": "iconLibrary",
-          "x": 888,
+          "symbol": "mode",
+          "x": 756,
           "y": 24,
-          "w": 48,
+          "w": 64,
           "h": 48
         },
         {
           "symbol": "mode",
-          "x": 355,
+          "x": 820,
           "y": 24,
-          "w": 83.33333333333333,
+          "w": 64,
           "h": 48
         },
         {
           "symbol": "mode",
-          "x": 438.3333333333333,
+          "x": 884,
           "y": 24,
-          "w": 83.33333333333333,
-          "h": 48
-        },
-        {
-          "symbol": "mode",
-          "x": 521.6666666666666,
-          "y": 24,
-          "w": 83.33333333333333,
+          "w": 64,
           "h": 48
         },
         {
           "symbol": "zoom",
-          "x": 384,
-          "y": 452,
+          "x": 756,
+          "y": 428,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
-          "x": 432,
-          "y": 452,
+          "x": 804,
+          "y": 428,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
-          "x": 480,
-          "y": 452,
+          "x": 852,
+          "y": 428,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
-          "x": 528,
-          "y": 452,
+          "x": 900,
+          "y": 428,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconMic",
-          "x": 360,
-          "y": 524,
+          "x": 756,
+          "y": 500,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "shutterVideoIdle",
-          "x": 440,
-          "y": 508,
+          "x": 812,
+          "y": 484,
           "w": 80,
           "h": 80
         },
         {
           "symbol": "iconLens",
-          "x": 552,
-          "y": 524,
+          "x": 900,
+          "y": 500,
           "w": 48,
           "h": 48
         }
@@ -4624,10 +5775,17 @@
         "y": 680,
         "w": 312,
         "h": 72,
-        "symbol": "queueCompact",
+        "symbol": "queueStandard312",
+        "profile": "standard56",
+        "visibleCount": 3,
+        "outerMargins": {
+          "start": 24,
+          "end": 24
+        },
+        "endpointMediaGap": 10,
         "locked": false
       },
-      "profile": "standard",
+      "profile": "standard56",
       "shutterSize": 80,
       "safe": {
         "top": 24,
@@ -4750,9 +5908,16 @@
         "w": 312,
         "h": 64,
         "symbol": "queueDenseIdle",
+        "profile": "compact48",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 24,
+          "end": 24
+        },
+        "endpointMediaGap": 3,
         "locked": false
       },
-      "profile": "dense",
+      "profile": "compact48",
       "shutterSize": 64,
       "safe": {
         "top": 24,
@@ -4851,6 +6016,27 @@
       "id": "ratio-3-inner",
       "w": 960,
       "h": 720,
+      "pose": 0,
+      "physicalPreview": {
+        "x": 80,
+        "y": 28,
+        "w": 664,
+        "h": 664
+      },
+      "utilitySlots": {
+        "settings": {
+          "x": 16,
+          "y": 656,
+          "w": 48,
+          "h": 48
+        },
+        "library": {
+          "x": 16,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        }
+      },
       "compact": false,
       "overlay": false,
       "shell": "side",
@@ -4863,21 +6049,28 @@
       "statusBounds": [],
       "feedback": null,
       "preview": {
-        "x": 24,
-        "y": 126,
-        "w": 528,
-        "h": 528
+        "x": 80,
+        "y": 28,
+        "w": 664,
+        "h": 664
       },
       "ratio": 1,
       "queue": {
-        "x": 576,
+        "x": 768,
         "y": 576,
-        "w": 360,
+        "w": 168,
         "h": 72,
-        "symbol": "queueStrip",
+        "symbol": "innerQueue",
+        "profile": "standard56",
+        "visibleCount": 1,
+        "outerMargins": {
+          "start": 768,
+          "end": 24
+        },
+        "endpointMediaGap": 0,
         "locked": false
       },
-      "profile": "standard",
+      "profile": "standard56",
       "shutterSize": 80,
       "safe": {
         "top": 24,
@@ -4889,50 +6082,36 @@
         {
           "symbol": "iconSettings",
           "x": 24,
-          "y": 24,
+          "y": 648,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconLibrary",
-          "x": 888,
+          "x": 24,
           "y": 24,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "mode",
-          "x": 355,
+          "x": 756,
           "y": 24,
-          "w": 83.33333333333333,
+          "w": 64,
           "h": 48
         },
         {
           "symbol": "mode",
-          "x": 438.3333333333333,
+          "x": 820,
           "y": 24,
-          "w": 83.33333333333333,
+          "w": 64,
           "h": 48
         },
         {
           "symbol": "mode",
-          "x": 521.6666666666666,
+          "x": 884,
           "y": 24,
-          "w": 83.33333333333333,
-          "h": 48
-        },
-        {
-          "symbol": "zoom",
-          "x": 660,
-          "y": 428,
-          "w": 48,
-          "h": 48
-        },
-        {
-          "symbol": "zoom",
-          "x": 708,
-          "y": 428,
-          "w": 48,
+          "w": 64,
           "h": 48
         },
         {
@@ -4950,22 +6129,36 @@
           "h": 48
         },
         {
+          "symbol": "zoom",
+          "x": 852,
+          "y": 428,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 900,
+          "y": 428,
+          "w": 48,
+          "h": 48
+        },
+        {
           "symbol": "iconFlashAuto",
-          "x": 636,
+          "x": 756,
           "y": 500,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "shutterPhoto",
-          "x": 716,
+          "x": 812,
           "y": 484,
           "w": 80,
           "h": 80
         },
         {
           "symbol": "iconLens",
-          "x": 828,
+          "x": 900,
           "y": 500,
           "w": 48,
           "h": 48
@@ -4999,10 +6192,17 @@
         "y": 680,
         "w": 312,
         "h": 72,
-        "symbol": "queueCompact",
+        "symbol": "queueStandard312",
+        "profile": "standard56",
+        "visibleCount": 3,
+        "outerMargins": {
+          "start": 24,
+          "end": 24
+        },
+        "endpointMediaGap": 10,
         "locked": false
       },
-      "profile": "standard",
+      "profile": "standard56",
       "shutterSize": 80,
       "safe": {
         "top": 24,
@@ -5125,9 +6325,16 @@
         "w": 312,
         "h": 64,
         "symbol": "queueDenseIdle",
+        "profile": "compact48",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 24,
+          "end": 24
+        },
+        "endpointMediaGap": 3,
         "locked": false
       },
-      "profile": "dense",
+      "profile": "compact48",
       "shutterSize": 64,
       "safe": {
         "top": 24,
@@ -5226,6 +6433,27 @@
       "id": "ratio-4-inner",
       "w": 960,
       "h": 720,
+      "pose": 0,
+      "physicalPreview": {
+        "x": 80,
+        "y": 111,
+        "w": 664,
+        "h": 498
+      },
+      "utilitySlots": {
+        "settings": {
+          "x": 16,
+          "y": 656,
+          "w": 48,
+          "h": 48
+        },
+        "library": {
+          "x": 16,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        }
+      },
       "compact": false,
       "overlay": false,
       "shell": "side",
@@ -5238,21 +6466,28 @@
       "statusBounds": [],
       "feedback": null,
       "preview": {
-        "x": 24,
-        "y": 192,
-        "w": 528,
-        "h": 396
+        "x": 80,
+        "y": 111,
+        "w": 664,
+        "h": 498
       },
       "ratio": 1.3333333333333333,
       "queue": {
-        "x": 576,
+        "x": 768,
         "y": 576,
-        "w": 360,
+        "w": 168,
         "h": 72,
-        "symbol": "queueStrip",
+        "symbol": "innerQueue",
+        "profile": "standard56",
+        "visibleCount": 1,
+        "outerMargins": {
+          "start": 768,
+          "end": 24
+        },
+        "endpointMediaGap": 0,
         "locked": false
       },
-      "profile": "standard",
+      "profile": "standard56",
       "shutterSize": 80,
       "safe": {
         "top": 24,
@@ -5264,50 +6499,36 @@
         {
           "symbol": "iconSettings",
           "x": 24,
-          "y": 24,
+          "y": 648,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconLibrary",
-          "x": 888,
+          "x": 24,
           "y": 24,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "mode",
-          "x": 355,
+          "x": 756,
           "y": 24,
-          "w": 83.33333333333333,
+          "w": 64,
           "h": 48
         },
         {
           "symbol": "mode",
-          "x": 438.3333333333333,
+          "x": 820,
           "y": 24,
-          "w": 83.33333333333333,
+          "w": 64,
           "h": 48
         },
         {
           "symbol": "mode",
-          "x": 521.6666666666666,
+          "x": 884,
           "y": 24,
-          "w": 83.33333333333333,
-          "h": 48
-        },
-        {
-          "symbol": "zoom",
-          "x": 660,
-          "y": 428,
-          "w": 48,
-          "h": 48
-        },
-        {
-          "symbol": "zoom",
-          "x": 708,
-          "y": 428,
-          "w": 48,
+          "w": 64,
           "h": 48
         },
         {
@@ -5325,22 +6546,36 @@
           "h": 48
         },
         {
+          "symbol": "zoom",
+          "x": 852,
+          "y": 428,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "symbol": "zoom",
+          "x": 900,
+          "y": 428,
+          "w": 48,
+          "h": 48
+        },
+        {
           "symbol": "iconFlashAuto",
-          "x": 636,
+          "x": 756,
           "y": 500,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "shutterPhoto",
-          "x": 716,
+          "x": 812,
           "y": 484,
           "w": 80,
           "h": 80
         },
         {
           "symbol": "iconLens",
-          "x": 828,
+          "x": 900,
           "y": 500,
           "w": 48,
           "h": 48
@@ -5381,10 +6616,17 @@
         "y": 680,
         "w": 312,
         "h": 72,
-        "symbol": "queueCompact",
+        "symbol": "queueStandard312",
+        "profile": "standard56",
+        "visibleCount": 3,
+        "outerMargins": {
+          "start": 24,
+          "end": 24
+        },
+        "endpointMediaGap": 10,
         "locked": true
       },
-      "profile": "standard",
+      "profile": "standard56",
       "shutterSize": 80,
       "safe": {
         "top": 24,
@@ -5465,9 +6707,16 @@
         "w": 312,
         "h": 64,
         "symbol": "queueDenseIdle",
+        "profile": "compact48",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 24,
+          "end": 24
+        },
+        "endpointMediaGap": 3,
         "locked": true
       },
-      "profile": "dense",
+      "profile": "compact48",
       "shutterSize": 64,
       "safe": {
         "top": 24,
@@ -5517,40 +6766,68 @@
       "id": "state-inner-0",
       "w": 960,
       "h": 720,
+      "pose": 0,
+      "physicalPreview": {
+        "x": 80,
+        "y": 0,
+        "w": 405,
+        "h": 720
+      },
+      "utilitySlots": {
+        "settings": {
+          "x": 16,
+          "y": 656,
+          "w": 48,
+          "h": 48
+        },
+        "library": {
+          "x": 16,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        }
+      },
       "compact": false,
       "overlay": false,
       "shell": "side",
       "hand": "right",
       "frame": "tall",
       "camera": "rear",
-      "zoomAxis": "vertical",
+      "zoomAxis": "horizontal",
       "mode": "video",
       "recording": true,
       "statusBounds": [
         {
-          "x": 249,
-          "y": 96,
+          "x": 207.5,
+          "y": 84,
           "w": 150,
           "h": 32
         }
       ],
       "feedback": null,
       "preview": {
-        "x": 151.875,
-        "y": 84,
-        "w": 344.25,
-        "h": 612
+        "x": 80,
+        "y": 0,
+        "w": 405,
+        "h": 720
       },
       "ratio": 0.5625,
       "queue": {
-        "x": 576,
+        "x": 542.5,
         "y": 576,
         "w": 360,
         "h": 72,
-        "symbol": "queueStrip",
+        "symbol": "innerQueue",
+        "profile": "standard56",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 542.5,
+          "end": 57.5
+        },
+        "endpointMediaGap": 3,
         "locked": true
       },
-      "profile": "standard",
+      "profile": "standard56",
       "shutterSize": 80,
       "safe": {
         "top": 24,
@@ -5561,35 +6838,35 @@
       "targets": [
         {
           "symbol": "zoom",
-          "x": 24,
-          "y": 294,
+          "x": 626.5,
+          "y": 428,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
-          "x": 24,
-          "y": 342,
+          "x": 674.5,
+          "y": 428,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
-          "x": 24,
-          "y": 390,
+          "x": 722.5,
+          "y": 428,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "zoom",
-          "x": 24,
-          "y": 438,
+          "x": 770.5,
+          "y": 428,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "shutterVideoRecording",
-          "x": 716,
+          "x": 682.5,
           "y": 484,
           "w": 80,
           "h": 80
@@ -5625,10 +6902,17 @@
         "y": 680,
         "w": 312,
         "h": 72,
-        "symbol": "queueCompact",
+        "symbol": "queueStandard312",
+        "profile": "standard56",
+        "visibleCount": 3,
+        "outerMargins": {
+          "start": 24,
+          "end": 24
+        },
+        "endpointMediaGap": 10,
         "locked": false
       },
-      "profile": "standard",
+      "profile": "standard56",
       "shutterSize": 80,
       "safe": {
         "top": 24,
@@ -5711,9 +6995,16 @@
         "w": 312,
         "h": 64,
         "symbol": "queueDenseIdle",
+        "profile": "compact48",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 24,
+          "end": 24
+        },
+        "endpointMediaGap": 3,
         "locked": false
       },
-      "profile": "dense",
+      "profile": "compact48",
       "shutterSize": 64,
       "safe": {
         "top": 24,
@@ -5770,6 +7061,22 @@
       "id": "state-inner-1",
       "w": 960,
       "h": 720,
+      "pose": 0,
+      "physicalPreview": null,
+      "utilitySlots": {
+        "settings": {
+          "x": 16,
+          "y": 656,
+          "w": 48,
+          "h": 48
+        },
+        "library": {
+          "x": 16,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        }
+      },
       "compact": false,
       "overlay": false,
       "shell": "side",
@@ -5781,8 +7088,8 @@
       "recording": false,
       "statusBounds": [
         {
-          "x": 138,
-          "y": 302,
+          "x": 200,
+          "y": 272,
           "w": 300,
           "h": 176
         }
@@ -5791,14 +7098,21 @@
       "preview": null,
       "ratio": null,
       "queue": {
-        "x": 576,
+        "x": 644,
         "y": 576,
-        "w": 360,
+        "w": 292,
         "h": 72,
-        "symbol": "queueStrip",
+        "symbol": "innerQueue",
+        "profile": "standard56",
+        "visibleCount": 3,
+        "outerMargins": {
+          "start": 644,
+          "end": 24
+        },
+        "endpointMediaGap": 0,
         "locked": false
       },
-      "profile": "standard",
+      "profile": "standard56",
       "shutterSize": 80,
       "safe": {
         "top": 24,
@@ -5810,41 +7124,41 @@
         {
           "symbol": "iconSettings",
           "x": 24,
-          "y": 24,
+          "y": 648,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "iconLibrary",
-          "x": 888,
+          "x": 24,
           "y": 24,
           "w": 48,
           "h": 48
         },
         {
           "symbol": "mode",
-          "x": 355,
+          "x": 665,
           "y": 24,
           "w": 83.33333333333333,
           "h": 48
         },
         {
           "symbol": "mode",
-          "x": 438.3333333333333,
+          "x": 748.3333333333334,
           "y": 24,
           "w": 83.33333333333333,
           "h": 48
         },
         {
           "symbol": "mode",
-          "x": 521.6666666666666,
+          "x": 831.6666666666666,
           "y": 24,
           "w": 83.33333333333333,
           "h": 48
         },
         {
           "symbol": "shutterVoiceIdle",
-          "x": 716,
+          "x": 750,
           "y": 484,
           "w": 80,
           "h": 80
@@ -5880,10 +7194,17 @@
         "y": 680,
         "w": 312,
         "h": 72,
-        "symbol": "queueCompact",
+        "symbol": "queueStandard312",
+        "profile": "standard56",
+        "visibleCount": 3,
+        "outerMargins": {
+          "start": 24,
+          "end": 24
+        },
+        "endpointMediaGap": 10,
         "locked": true
       },
-      "profile": "standard",
+      "profile": "standard56",
       "shutterSize": 80,
       "safe": {
         "top": 24,
@@ -5931,9 +7252,16 @@
         "w": 312,
         "h": 64,
         "symbol": "queueDenseIdle",
+        "profile": "compact48",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 24,
+          "end": 24
+        },
+        "endpointMediaGap": 3,
         "locked": true
       },
-      "profile": "dense",
+      "profile": "compact48",
       "shutterSize": 64,
       "safe": {
         "top": 24,
@@ -5955,6 +7283,22 @@
       "id": "state-inner-2",
       "w": 960,
       "h": 720,
+      "pose": 0,
+      "physicalPreview": null,
+      "utilitySlots": {
+        "settings": {
+          "x": 16,
+          "y": 656,
+          "w": 48,
+          "h": 48
+        },
+        "library": {
+          "x": 16,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        }
+      },
       "compact": false,
       "overlay": false,
       "shell": "side",
@@ -5966,8 +7310,8 @@
       "recording": true,
       "statusBounds": [
         {
-          "x": 138,
-          "y": 302,
+          "x": 200,
+          "y": 272,
           "w": 300,
           "h": 176
         }
@@ -5976,14 +7320,21 @@
       "preview": null,
       "ratio": null,
       "queue": {
-        "x": 576,
+        "x": 644,
         "y": 576,
-        "w": 360,
+        "w": 292,
         "h": 72,
-        "symbol": "queueStrip",
+        "symbol": "innerQueue",
+        "profile": "standard56",
+        "visibleCount": 3,
+        "outerMargins": {
+          "start": 644,
+          "end": 24
+        },
+        "endpointMediaGap": 0,
         "locked": true
       },
-      "profile": "standard",
+      "profile": "standard56",
       "shutterSize": 80,
       "safe": {
         "top": 24,
@@ -5994,7 +7345,7 @@
       "targets": [
         {
           "symbol": "shutterVoiceRecording",
-          "x": 716,
+          "x": 750,
           "y": 484,
           "w": 80,
           "h": 80
@@ -6041,9 +7392,16 @@
         "w": 312,
         "h": 64,
         "symbol": "queueDenseIdle",
+        "profile": "compact48",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 24,
+          "end": 24
+        },
+        "endpointMediaGap": 3,
         "locked": true
       },
-      "profile": "dense",
+      "profile": "compact48",
       "shutterSize": 64,
       "safe": {
         "top": 24,
@@ -6100,6 +7458,27 @@
       "id": "recording-inner-tall",
       "w": 720,
       "h": 960,
+      "pose": 90,
+      "physicalPreview": {
+        "x": 80,
+        "y": 0,
+        "w": 405,
+        "h": 720
+      },
+      "utilitySlots": {
+        "settings": {
+          "x": 16,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        },
+        "library": {
+          "x": 656,
+          "y": 16,
+          "w": 48,
+          "h": 48
+        }
+      },
       "compact": false,
       "overlay": false,
       "shell": "bottom",
@@ -6112,17 +7491,17 @@
       "statusBounds": [
         {
           "x": 285,
-          "y": 205,
+          "y": 92,
           "w": 150,
           "h": 32
         }
       ],
       "feedback": null,
       "preview": {
-        "x": 24,
-        "y": 193,
-        "w": 672,
-        "h": 378
+        "x": 0,
+        "y": 80,
+        "w": 720,
+        "h": 405
       },
       "ratio": 1.7777777777777777,
       "queue": {
@@ -6131,9 +7510,16 @@
         "w": 360,
         "h": 72,
         "symbol": "queueStrip",
+        "profile": "standard56",
+        "visibleCount": 4,
+        "outerMargins": {
+          "start": 180,
+          "end": 180
+        },
+        "endpointMediaGap": 3,
         "locked": true
       },
-      "profile": "standard",
+      "profile": "standard56",
       "shutterSize": 80,
       "safe": {
         "top": 24,

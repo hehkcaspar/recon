@@ -1,0 +1,187 @@
+{
+  "units": "logical dp at 1x",
+  "frames": [
+    {
+      "id": "setup-first",
+      "window": [
+        360,
+        800
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        800
+      ],
+      "bottomInset": 24,
+      "theme": "light",
+      "targets": [
+        {
+          "label": "Choose folder",
+          "x": 100.0,
+          "y": 472,
+          "w": 160,
+          "h": 48
+        }
+      ],
+      "sheetOrigin": [
+        40,
+        240
+      ]
+    },
+    {
+      "id": "setup-cancelled",
+      "window": [
+        360,
+        576
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        576
+      ],
+      "bottomInset": 24,
+      "theme": "light",
+      "targets": [
+        {
+          "label": "Choose folder",
+          "x": 100.0,
+          "y": 360,
+          "w": 160,
+          "h": 48
+        }
+      ],
+      "sheetOrigin": [
+        432,
+        240
+      ]
+    },
+    {
+      "id": "setup-lost",
+      "window": [
+        360,
+        576
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        576
+      ],
+      "bottomInset": 24,
+      "theme": "dark",
+      "targets": [
+        {
+          "label": "Choose folder",
+          "x": 100.0,
+          "y": 408,
+          "w": 160,
+          "h": 48
+        }
+      ],
+      "sheetOrigin": [
+        824,
+        240
+      ]
+    },
+    {
+      "id": "setup-camera",
+      "window": [
+        360,
+        800
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        800
+      ],
+      "bottomInset": 24,
+      "theme": "dark",
+      "targets": [
+        {
+          "label": "Recon settings",
+          "x": 224,
+          "y": 32,
+          "w": 120,
+          "h": 48
+        },
+        {
+          "label": "Grant camera permission",
+          "x": 72.0,
+          "y": 504,
+          "w": 216,
+          "h": 48
+        }
+      ],
+      "sheetOrigin": [
+        40,
+        1189
+      ]
+    },
+    {
+      "id": "setup-denied",
+      "window": [
+        360,
+        576
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        576
+      ],
+      "bottomInset": 24,
+      "theme": "dark",
+      "targets": [
+        {
+          "label": "Recon settings",
+          "x": 224,
+          "y": 32,
+          "w": 120,
+          "h": 48
+        },
+        {
+          "label": "Grant camera permission",
+          "x": 72.0,
+          "y": 392,
+          "w": 216,
+          "h": 48
+        }
+      ],
+      "sheetOrigin": [
+        432,
+        1189
+      ]
+    },
+    {
+      "id": "setup-blocked",
+      "window": [
+        360,
+        576
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        576
+      ],
+      "bottomInset": 24,
+      "theme": "dark",
+      "targets": [
+        {
+          "label": "Recon settings",
+          "x": 224,
+          "y": 32,
+          "w": 120,
+          "h": 48
+        }
+      ],
+      "sheetOrigin": [
+        824,
+        1189
+      ]
+    }
+  ]
+}

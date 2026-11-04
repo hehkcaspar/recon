@@ -1,0 +1,9 @@
+Captured 2026-11-03, AVD recon-fold-api36 (pixel_9_pro_fold), isolated read-only instance.
+Commands: getprop ro.build.fingerprint; cmd device_state state; wm size; wm density; dumpsys window displays
+google/sdk_gphone64_arm64/emu64a:16/BE2A.250530.026.F3/13894323:userdebug/dev-keys
+Committed state: DeviceState{identifier=2, name='OPENED', app_accessible=true, cancel_when_requester_not_on_top=false}
+Physical size: 2076x2152
+Physical density: 390
+    init=2076x2152 390dpi mMinSizeOfResizeableTaskDp=220 cur=2076x2152 app=2076x2152 rng=2076x2076-2152x2152
+  overrideConfig={1.0 310mcc260mnc [en_US] ldltr sw852dp w852dp h883dp 390dpi lrg port finger -keyb/v/h -nav/h winConfig={ mBounds=Rect(0, 0 - 2076, 2152) mAppBounds=Rect(0, 0 - 2076, 2152) mMaxBounds=Rect(0, 0 - 2076, 2152) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} as.3 s.37 fontWeightAdjustment=0}
+      overrideConfig={0.0 ?mcc0mnc ?localeList ?layoutDir ?swdp ?wdp ?hdp ?density ?lsize ?long ?ldr ?wideColorGamut ?orien ?uimode ?night ?touch ?keyb/?/? ?nav/? winConfig={ mBounds=Rect(0, 0 - 0, 0) mAppBounds=null mMaxBounds=Rect(0, 0 - 0, 0) mDisplayRotation=undefined mWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=undefined} ?fontWeightAdjustment}

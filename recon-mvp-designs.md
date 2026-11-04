@@ -2,7 +2,7 @@
 
 _Pure multimodal capture tool. Photos, videos, and voice recordings go into one interleaved queue, the user commits a bundle, files land in folders. That's it._
 
-This document records the **existing product and architecture baseline** for Recon, based on the Android reference implementation. It remains useful for storage, resilience and ports. For the proposed Android adaptive capture UI, the [current SVG/component contract](docs/prototypes/README.md) supersedes capture-layout and interaction details here (including pill styling, geometry and gesture proposals). Those proposals have not yet changed native behavior; this baseline is not their implementation specification.
+This document records the **existing product and architecture baseline** for Recon, based on the Android reference implementation. It remains useful for storage, resilience and ports. For the current static Android adaptive capture design, the [Design C SVG/component contract](docs/prototypes/README.md) supersedes capture-layout and interaction details here (including pill styling, geometry and gesture semantics). Design C has not yet replaced the native implementation; this baseline remains the implementation reference until the [adaptive capture plan](docs/adaptive-foldable-capture-plan.md) and runtime/device acceptance are complete.
 
 For the Android-specific technical reference (file layout, module responsibilities, dependency versions), see [`README.md`](./README.md). For release/signing runbook, see [`RELEASE.md`](./RELEASE.md). For post-MVP ideas (OCR / LAN peer-to-peer transfer, tutorial polish), see [`BACKLOG.md`](./BACKLOG.md).
 

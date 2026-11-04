@@ -1,219 +1,95 @@
 # Adaptive Foldable Capture Plan
 
-Status: planning only. No implementation changes are included in this document.
+**设计 C 是当前折叠屏静态方向 / Design C is the current foldable static direction · 2026-11-03.** Native foundations and simulator acceptance are in progress. A/B is archived for comparison; the C matrices, gesture guide and generated machine-readable geometry are the current static design outputs. The hand-authored [C geometry source](prototypes/foldable-c-geometry-source.json) is the numeric source of truth; [generated C geometry](prototypes/foldable-c-geometry.json) must not be edited directly. Runtime selection still uses measured WindowMetrics, density, insets, hinge/separator bounds and camera stream metadata; there is no fixed 400dp product switch. [Design index](prototypes/README.md) · [A/B archive](archive/foldable-layout-a-b.md) · [C source](prototypes/foldable-c-geometry-source.json) · [C geometry](prototypes/foldable-c-geometry.json) · [Display measurements](prototypes/recon-capture-display-metrics.svg)
 
-2026-11-01 correction: read the [archived camera orientation investigation](archive/foldable-camera-orientation-ux-review.md). Wide/tall window shape does not determine upright camera frame shape. The inner SVGs now correct the opposite-axis combinations shown in the supplied native-camera screenshots. Use the revised [prototype contract](prototypes/README.md) and [coding guidance/backlog](prototypes/camera-layout-implementation.md); remaining device validation does not block these design corrections.
+The agreed recording policy remains rotation continues the take, fold/unfold finalizes once. C is the unified foldable composition: preview geometry remains stable, controls and queue reflow with pose, upright queue axis is vertical, and CW90 queue axis is horizontal in the blank band below the preview. Physical phone/foldable testing is outside the current implementation goal.
 
-## Goal
+## What ships
 
-Preserve Recon's current compact phone capture experience while supporting larger, unfolded, and hinge-separated windows with a small, maintainable layout design.
+One Android capture screen for PHOTO, VIDEO and VOICE, on traditional phones, foldable covers, flat inner displays and hinge-separated windows. Use the same preview host, capture commands and queue semantics throughout; the C foldable composition chooses queue axis from pose while ordinary phone/cover bottom docks may remain horizontal. The window determines where they fit. The active camera determines what the user is framing.
 
-The implementation should respond to the app window and available usable regions, not to Samsung model names, a future iPhone Duo model, or other device-specific checks.
+| While VIDEO or VOICE is recording | Required result |
+| --- | --- |
+| Rotate, including a half-turn, or resize the app in split-screen | Continue the same take. Keep the recorder, file, start time and audio session. The live presentation follows the active display. Video playback retains its start orientation. |
+| Fold from inner to cover, or unfold from cover to inner, including during rotation | Stop and finalize the current take once. Append one playable item to its staging session, preserve earlier items and splits, return to idle on the destination display. The next take starts with a shutter press. |
+| Enter book or tabletop posture while the same inner display remains active | Adapt to the usable panes. A posture-only change follows the resize policy. |
+| Leave capture for the background, turn the screen off, or lose the recording source | Preserve the foreground-only recording policy. Route termination through the same finalizer. Surface a failure if the file cannot be saved. |
 
-## Product decisions
+Settings, Bundle Preview, folder setup and LocalSend retain their existing designs. Scope excludes iOS implementation, dual-display presentation, a new ratio picker, focus lock and exposure adjustment. The left-hand fixture establishes how the controls relocate. The preference UI and default handedness tuning remain in the grip-test backlog.
 
-### Recording transition policy
+## Starting point in the Android app
 
-- Rotation: continue the same video or voice recording seamlessly.
-- Fold or unfold: stop and finalize the active recording once, then adapt the UI.
-- Ordinary window resize: continue recording unless the transition is classified as a fold/unfold boundary.
-- A continuous video remains one output file. Its video orientation metadata is based on the orientation at recording start.
+| Area | Existing behavior and consequence |
+| --- | --- |
+| Activity and preview | Before this work, the app targeted API 36 with a portrait request, a fixed 3:4 slab, counter-rotated controls and an `ON_PAUSE` stop path. The active implementation is resizable, uses one remembered `PreviewView`, and treats handled orientation/size changes separately from genuine backgrounding. [Android large-screen behavior](https://developer.android.com/develop/adaptive-apps/guides/app-orientation-aspect-ratio-resizability) |
+| Camera | `CaptureController.bind` calls `unbindAll()` and creates a new Recorder. Preview and ImageCapture prefer 4:3, while video negotiates by quality. Combined binding can fall back to photo-only. The in-memory JPEG path copies the first image plane and its rotation, so a proposed crop needs checking against the bytes actually saved. |
+| Recording | Before this work, `CaptureViewModel` used a rebinding state and consumed CameraX Finalize only through explicit Stop. The active implementation separates camera readiness, identifies video takes by token, converges explicit Stop and unsolicited Finalize once, and preserves the existing staged-file/order-log path. |
+| Queue and overlays | `QueueStrip` expands edge zones, requests OS gesture exclusion and routes drag cancellation to its release handler. Reorder and Undo need the same recording guards as the other commands. Existing banners and tutorial need the reviewed placement, accessible actions and timeout behavior. |
 
-### Layout scope
+Source locations include [CaptureScreen](../app/src/main/java/com/example/bundlecam/ui/capture/CaptureScreen.kt), [CameraPreview](../app/src/main/java/com/example/bundlecam/ui/capture/CameraPreview.kt), [CaptureController](../app/src/main/java/com/example/bundlecam/data/camera/CaptureController.kt), [CaptureViewModel](../app/src/main/java/com/example/bundlecam/ui/capture/CaptureViewModel.kt) and [QueueStrip](../app/src/main/java/com/example/bundlecam/ui/capture/QueueStrip.kt).
 
-Use two capture layout shells:
+## Implementation batches
 
-1. **Compact layout** — preserve the capture hierarchy, with full-width fitted previews, overlay controls and bottom anchoring from the current SVG contract. Short windows use explicitly smaller visuals while retaining at least 48dp interaction targets.
-2. **Wide layout** — use a bounded camera preview with controls and the queue placed beside or below it, depending on the available usable region.
+Each batch ends with the checks below and an independent review of the diff and evidence. For UI batches, the reviewer inspects native renders alongside the corresponding SVGs and exercises or reviews recordings of the gestures. Resolve findings, rerun affected checks, then commit the verified batch separately. Record outstanding device cases in the existing runtime backlog with the device, configuration and missing evidence.
 
-For a separating hinge, never span the preview, shutter, focus indicator, queue, or primary gesture target across the hinge.
+### 1. Protect the recording before unlocking rotation
 
-## Design principles
+- Separate camera readiness from the lifecycle of the current take in the VM. Identify the take by its allocated file or session token. Explicit Stop, fold, backgrounding, recorder failure and unsolicited CameraX Finalize must converge on one completion. Remember a stop that arrives while start is in flight. A stale callback cannot complete a later take.
+- Reuse the video Finalize result and the voice stop result. A successful take is staged and queued once. An unusable file produces one error and no broken queue entry. Preserve the order log and orphan recovery, including process death between file completion and queue insertion. Gate new capture and recorder-replacing binds while completion is outstanding.
+- Add a small platform adapter for window/fold observations and a pure transition classifier. WindowManager supplies hinge bounds, separation and occlusion. It exposes flat and half-open postures. A split window that misses the hinge can report an empty feature list. [WindowManager behavior](https://developer.android.com/codelabs/android-window-manager-dual-screen-foldables) · [Fold features](https://developer.android.com/develop/adaptive-apps/guides/foldables/make-your-app-fold-aware)
+- Seed the classifier with the initial observation. Retain the last confirmed cover/inner state through transient unknowns and stop only on a confirmed crossing. For example, on hardware exposing a hinge-angle sensor, correlate a stable closed/open crossing with the active internal display. Include devices that reuse a logical display ID. A size class, display ID change, pause or missing hinge alone is insufficient. While evidence is ambiguous and the source is live, keep recording. Validate the available signals in both directions on each supported device path. [Hinge sensor](https://developer.android.com/reference/android/hardware/Sensor#TYPE_HINGE_ANGLE)
+- Remove the portrait restriction together with lifecycle protection. Start with Activity handling of the orientation and size configuration changes that otherwise recreate the capture host. Keep the preview host at one Compose location and the recorder bound to the same lifecycle as controls move. Replace portrait-specific icon counter-rotation with display-relative presentation. Retain the VM across actual recreation, handle genuine backgrounding explicitly, and update display listeners on attachment changes. A retained VM alone cannot keep a destroyed lifecycle-bound camera running. [Android configuration changes](https://developer.android.com/guide/topics/resources/runtime-changes)
 
-- Use current window size and hinge geometry, not device-type detection.
-- Keep adaptive state in the UI/window layer; do not pass it into storage or bundle-processing code.
-- Keep the existing CameraX pipeline stable during ordinary rotation and resizing.
-- Add only the smallest abstractions needed to share existing controls between the compact and wide shells.
-- Treat rotation as a presentation change and folding between display regions as a capture-session boundary.
-- Preserve the current `FIT_CENTER` preview behavior until crop, focus, and capture-coordinate behavior are verified.
+**Exit check.** Replay startup, duplicate, missing and reordered window callbacks in JVM tests. Race manual Stop, background and fold against both starting and recording. On the regular and foldable simulators exercise both modalities through rotation and resize, observe one continuous timer, and check the resulting file when the AVD camera provider is available. Exercise an independent recorder failure and a second take after finalization. Verify the manifest change also permits rotating through setup, Settings and Library.
 
-## Planned adaptive window model
+### 2. Make the viewfinder predict the saved frame
 
-Add a small UI-layer model containing:
+- Keep `PreviewView` and `FIT_CENTER`. Read the bound Preview’s delivered crop and rotation from `resolutionInfo`. Swap crop dimensions for 90°/270°, fit that upright rectangle with uniform scale, then place it in the chosen pane. Let CameraX transform the pixels. Refresh on bind, rotation, lens or active display change. During a transient missing/zero-sized stream, retain valid geometry or show a neutral surface and gate camera capture. [Camera preview](https://developer.android.com/media/camera/camera2/camera-preview) · [ResolutionInfo](https://developer.android.com/reference/androidx/camera/core/ResolutionInfo)
+- Keep preview rotation in the active display’s coordinates. Set still and *next* video capture rotation from physical pose relative to that display’s reference, including rotation lock and 180° changes. Inspect actual lens capabilities, crop and mirror behavior separately. CameraX may realize the start orientation in pixels, metadata or both. Keep the existing recording running. [CameraX rotation](https://developer.android.com/media/camera/camerax/orientation-rotation) · [VideoCapture](https://developer.android.com/reference/androidx/camera/video/VideoCapture#setTargetRotation(int))
+- Retain the existing still preference and video quality fallback. Compare preview with the delivered output for each modality. If the crops differ, align them to the selected capture framing, using a CameraX ViewPort/UseCaseGroup where appropriate. Honor the crop in the in-memory JPEG save path as well. Pure window resizing must never renegotiate a recording. Map tap focus through the fitted PreviewView’s metering-point factory. Ignore taps on letterbox bars and overlay controls. [CameraX crop configuration](https://developer.android.com/media/camera/camerax/configuration#crop-rect)
 
-- current window width and height;
-- width/height size class;
-- current display rotation;
-- separating fold or hinge bounds, when present;
-- safe drawing and gesture insets;
-- a transition classification: `Rotation`, `Fold`, `Unfold`, or `Resize`.
+**Exit check.** Test dimension math with 0°, 90°, 180° and 270° rotations. On the regular and Pixel Fold simulators use a four-corner target with upright lettering, a circle and an off-center marker when an AVD camera provider is available. Compare the live frame, staged JPEG with EXIF applied, video playback, and tap position for front/rear and cover/inner. In the foldable simulator, exercise open/half-open/closed posture changes with and without a turn. Also exercise same-axis cases, locked rotation, ZSL/Extensions and photo-only fallback. [Original Fold8 captures](references/samsung-fold8-camera/README.md) · [Aspect-ratio fixtures](prototypes/recon-capture-aspect-ratios.svg)
 
-The transition classifier should be a pure, unit-tested function. It should not grow into a large posture hierarchy.
+### 3. Place the shared controls in the available space
 
-## Recording and lifecycle behavior
+- Use a small, pure layout function with measured window bounds, actual drawing/gesture insets, hinge bounds, upright frame ratio and dock side. Return preview, control, queue, overlay and gesture-travel rectangles in a single coordinate system. Convert coordinates once and apply overlapping insets once. On a separating or occluding hinge, keep the complete preview, primary controls and their gesture paths inside usable panes. A flat nonseparating crease permits a continuous layout. [Android insets](https://developer.android.com/develop/ui/compose/system/insets) · [Layout fixtures](prototypes/recon-capture-layout-checks.svg)
+- For compact phones and covers, maximize the fitted frame and overlay controls when needed. On flat full-screen inner displays use the physical rotation contract below. For separately resized or constrained windows compare side and bottom placement by fitted area and available gesture travel.
+- Bottom docks anchor the queue above the real bottom inset plus 24dp of downward travel. Side docks reserve 48dp. First measure the candidate queue rectangle and choose `standard56` or `compact48` from its primary/cross-axis fit; use 80/56/72dp or 64/48/64dp accordingly, with interactive controls retaining at least 48dp targets. The provisional `<600dp` usable-height check is only a fallback when runtime queue bounds are unavailable, not a product breakpoint. For smaller panes than the fixtures, prioritize reachable Stop/shutter and direct queue actions and test a bounded or scrollable arrangement. Avoid scaling the entire screen.
+- On a flat, full-screen inner display the utility edge is 80dp in chassis coordinates. Bundles and Settings have 48dp targets set 24dp from both adjoining edges, leaving 8dp between the touch target and the preview. The visible glyph centers are 40dp from each adjacent chassis edge and 40dp from the frame. Align every selected frame to the inside of that strip. C preserves the measured preview and reflows the control group and queue: upright queue is vertical in the blank side rail; CW90 queue is horizontal in the blank band below the preview and visually y-centered with the shutter. The three control rows share one centerline, zoom remains visually light, and the CW90 outer margins seek an approximately 1:1:1 balance. Compute the settled frame once per display/framing/usable-pane configuration; map its corners into active display coordinates on each turn. CameraX owns the pixel transform. Resizes, separating hinges and changed stream geometry may require a new fit. [Fold8 C](prototypes/recon-capture-fold8-c.svg) · [Ultra C](prototypes/recon-capture-fold8-ultra-c.svg) · [C geometry](prototypes/foldable-c-geometry.json)
 
-### Rotation
+**Exit check.** Compare deterministic Compose layouts with the generated coordinates and clean SVGs at matching dp, insets and font scale. Exercise the regular phone AVD, both Pixel Fold inner/cover directions, square/wide exceptions, the left dock, reversible constrained windows, vertical hinges, horizontal tabletop panes, gesture and three-button navigation. Check actual target bounds and gesture travel as well as pixels.
 
-- Ordinary orientation changes must not destroy the active recorder.
-- Keep `CaptureController` and recording state alive across rotation.
-- Update preview transforms for the active display. Select capture target rotation according to the supported physical-orientation/rotation-lock policy, normalized to the active display's reference basis; window width/height must never determine it. Audit 180-degree changes and display switches.
-- Resize or reconnect the preview without stopping the recorder.
-- Do not invoke the current blanket `ON_PAUSE` stop path for a rotation.
+### 4. Deliver the queue, feedback and recording interactions
 
-Use the smallest reliable mechanism for preserving the activity/controller across orientation changes. Do not introduce a foreground service or process-wide recording architecture unless real-device testing proves it is necessary.
+- Land the queue and its interaction rules together. Keep the adaptive screen internal until this batch passes. The queue axis follows the active C pose on Fold8/Fold8 Ultra; ordinary phone/cover bottom docks may remain horizontal. Short queues center their items after endpoint safety margins. Overflow media and dividers fade under stationary profile-sized handles. The initiating colored swiper replaces its handle and fades toward travel. A split opens a 24dp gap around a centered 4dp divider. Edge controls take priority at pointer-down. An item keeps its gesture when it crosses a handle, including during reorder auto-scroll.
+- Use net travel at release. Left-inward saves and right-inward discards at ≥96dp. Item pull-down removes at >24dp, with visible travel capped at 32dp. A gap pull down/up splits/joins at ≥24dp. Reorder in either direction from a held thumbnail using actual slot bounds. A cancelled, interrupted or disarmed drag restores the queue. Freeze the gesture geometry or cancel safely before relayout. Preserve OS Back/Home and provide the selected-item menu and semantic equivalents for all commands.
+- Exposed preview accepts tap focus, pinch zoom and one-step idle mode swipe. A pinch consumes the whole sequence. Controls above the preview own their input. VIDEO recording keeps zoom and Stop available. VOICE shows its waveform and removes camera controls and their hit regions. Recording locks navigation, mode, side controls and queue mutations at both input and command level. Position the VIDEO timer relative to the fitted frame. [Recording and VOICE states](prototypes/recon-capture-recording-states.svg)
+- Use one feedback host with Error, Undo, Saved priority in that order. Pause a pending Undo’s timeout while it is covered. Wrap or scroll long feedback with a reachable action and Stop. The six-step tutorial demonstrates on its own layer, traps input and accessibility focus, and restores focus on dismissal. [Design system](prototypes/recon-capture-design-system.svg) · [Gesture and accessibility contract](prototypes/COMPONENT-CONTRACT.md)
 
-### Fold or unfold
+**Exit check.** Exercise start/middle/end overflow, both edges, expanded gaps, cross-split reorder, reversal, cancellation after arming, system Back and a rotation or recording start mid-drag. Assert final item IDs, order and dividers. Test the same commands via TalkBack and direct actions, especially while locked. Compare all eleven recording/voice fixtures, banner collision at large text, tutorial focus and return from VOICE by swipe.
 
-Observe WindowManager layout changes and classify fold/unfold separately from rotation.
+### 5. Accept on Android simulators
 
-When a fold or unfold is detected:
+Run `./gradlew :app:testDebugUnitTest :app:assembleDebug` and the Compose tests via `:app:connectedDebugAndroidTest` on both the regular API 36 `recon-api36` AVD and the Pixel Fold API 36 `recon-fold-api36` AVD. Use injected window/stream geometry for reproducible layout tests. Exercise normal camera and storage entry points, fold posture, rotation, resize, permissions and accessibility through simulator controls. Physical phone/foldable testing is not part of this goal. The repository now has JVM and Compose tests; broader simulator capture instrumentation remains part of acceptance.
 
-1. Acquire a single transition guard so repeated callbacks cannot finalize twice.
-2. Stop video or voice recording.
-3. Await finalization and add the completed item to the current queue.
-4. Allow the new compact or wide layout to settle.
-5. Rebind only if the camera surface or lens configuration actually requires it.
+| Release evidence | Pass condition |
+| --- | --- |
+| VIDEO and VOICE, ordinary and reverse rotation, resize | A single playable file per take, continuous duration/timer and uninterrupted audio where enabled. Check video playback across the turn, including start orientation. |
+| Cover → inner and inner → cover, with and without a turn | Each transition finalizes once, shows one correctly ordered queue item, and allows a fresh take. Include user Stop near the transition, early start, repeated callbacks, genuine backgrounding and process restart/recovery. |
+| Framing and touch targets | Four corners visible, round target undistorted, upright scene and correct focus mapping when an AVD camera provider is available. Test simulator touch targets, zoom and safe queue travel; physical grip testing is out of scope for this goal. |
+| Accessible operation and existing data | Complete capture, split, reorder, commit, discard and Undo with gesture and direct alternatives. Check large fonts, longer strings, TalkBack, Switch Access, permission denial, mixed-media bundle output and recovery of existing staged files. |
 
-The stop/finalize operation must be idempotent and must preserve capture order and staged-file recovery behavior.
+Release sign-off requires native simulator screenshots, recording/playback and queue evidence for these cases. Keep measured exceptions, reproduction steps and proposed tuning in the [runtime backlog](prototypes/camera-layout-implementation.md), including any AVD camera-provider limitation. Update the code-facing README and product baseline as their native behavior lands.
 
-## Camera plan
+## Retained display research
 
-- Remove the portrait-only activity restriction.
-- Separate display-following preview from capture orientation under rotation lock; use CameraX's documented listener/target-rotation policies and verify active-display coordinate bases. Do not infer rotation from window aspect.
-- Keep the existing 4:3 capture configuration initially.
-- Do not rebind for ordinary rotation or resize.
-- Rebind only for actual camera configuration changes, such as lens or camera mode.
-- Keep `PreviewView` as the preview surface.
-- Verify preview and selected photo/video output framing under `FIT_CENTER`. Use CameraX `ViewPort`/`UseCaseGroup` when synchronized crop regions are needed, including demonstrated mismatches with `FIT_CENTER`; this decision is not conditional on switching to `FILL_CENTER`. Derive the viewport from the intended capture framing and correct rotation, not an arbitrary window-filling rectangle.
+The November 1 research provides physical comparison points. Runtime layout uses the app window in dp after accounting for insets, cutouts and any separating feature. Android’s width breakpoints are 600, 840, 1200 and 1600dp. Height breakpoints are 480 and 900dp. The prototype’s `<600dp` check is only a fallback for missing measured queue bounds; it is not the profile-selection principle or a product breakpoint. [Android window size classes](https://developer.android.com/develop/adaptive-apps/guides/use-window-size-classes)
 
-## UI plan
+| Comparison fixture | Panel or research observation |
+| --- | --- |
+| Traditional phones | Pixel 10, 6.3″, 1080 × 2424. Galaxy S25, 6.2″, 1080 × 2340. iPhone 17, 6.3″, 1206 × 2622. [Pixel](https://store.google.com/product/pixel_10_specs) · [Galaxy](https://www.samsung.com/us/smartphones/galaxy-s/s25-navy-256gb-sm-s931udbexaa/) · [iPhone](https://www.apple.com/iphone-17/specs/) |
+| Galaxy Z Fold8 | Cover 5.5″, 1248 × 1972. Inner 7.6″, 1848 × 2448. Dual 50MP rear cameras and 10MP cover/main cameras. [Samsung specifications](https://news.samsung.com/us/samsung-galaxy-z-fold8-ultra-fold8-flip8-foldables-perfected-every-way-of-living/) |
+| Galaxy Z Fold8 Ultra | Cover 6.5″, 1080 × 2520. Inner 8.0″, 2504 × 2256. Rear 200MP wide, 50MP ultrawide and 10MP telephoto, with 10MP cover/main cameras. [Samsung specifications](https://news.samsung.com/us/samsung-galaxy-z-fold8-ultra-fold8-flip8-foldables-perfected-every-way-of-living/) |
+| iPhone Duo, visual comparison | Cover 5.4″, 1398 × 2034. Inner 7.6″, 1878 × 2670. Apple describes compact outer width and regular inner width/height. [Apple specifications](https://www.apple.com/iphone-duo/specs/) · [Developer guidance](https://developer.apple.com/videos/play/tech-talks/111465/) |
 
-Reuse the existing components:
-
-- `CameraPreview`
-- modality selector
-- shutter buttons
-- zoom control
-- recording indicators
-- queue strip
-
-Extract shared controls once, then build the compact overlay and side/bottom arrangements from the revised SVG contract. On short compact windows, maximize the fitted preview and layer controls over a contrast scrim rather than reducing the camera to a thumbnail. Share component definitions and behavior across shells, with explicit standard/dense sizes: shutter 80/64dp, thumbnails 56/48dp, queue height 72/64dp. Keep interaction targets at least 48dp. Bottom docks reserve 24dp below the queue plus actual safe insets; balanced side docks retain 48dp. These distances and the provisional 600dp usable-height density breakpoint are design parameters, not Android constants. The [component contract](prototypes/COMPONENT-CONTRACT.md) is authoritative for current geometry and gesture proposals.
-
-The wide shell should fit the independently oriented camera frame, then place controls in usable regions. A wide window may contain a tall preview, and a tall window a wide preview. Compare a compact side control group and bottom control group using available space and grip reach, rather than width greater than height alone. Keep the less-frequent modality switch at the top, with preview swipe as its quick alternative. Place zoom above the shutter for bottom docks or wide frames, and on the opposite side rail for tall frames in side docks. Evaluate a left/right dock preference without reversing queue chronology or gesture meanings.
-
-Design the horizontal queue's placement, complete gesture travel and safe cancellation alongside the capture group, before accepting layout geometry. Queue gestures are core product behavior, not a later decoration. Keep this one shared queue component; do not rotate its interaction axes with the camera image.
-
-## Research facts: screen geometry and camera orientation
-
-Verified 2026-11-01. These are reference facts, not device-specific layout rules.
-
-### App-usable window sizes
-
-Use the actual app window in dp, including split-screen and hinge-separated regions. Do not use physical screen inches or model names for layout decisions.
-
-| Width class | Range | Typical examples |
-| --- | --- | --- |
-| Compact | `<600dp` | Traditional phone portrait; foldable cover display |
-| Medium | `600–839dp` | Many unfolded foldables in portrait |
-| Expanded | `>=840dp` | Many unfolded foldables in landscape |
-| Large | `>=1200dp` | Large tablets and desktop-style windows |
-
-Height matters too: an open flippable in landscape can have medium width but compact height, so it may not have enough height for a two-pane layout.
-
-Representative current display geometries:
-
-- Traditional phones are commonly 6.2–6.9 inches with approximately 19.5:9–21:9 panels. Current examples include Pixel 10 at 6.3 inches/`1080 x 2424`, Galaxy S25 at 6.2 inches/`1080 x 2340`, and iPhone 17 at 6.3 inches/`1206 x 2622`.
-- Galaxy Z Fold8 cover: 5.5 inches, `1248 x 1972`, approximately 10:16; inner: 7.6 inches, `1848 x 2448`, approximately 4:3 when open. It has dual 50MP rear cameras and 10MP cover/main cameras.
-- Galaxy Z Fold8 Ultra cover: 6.5 inches, `1080 x 2520`, approximately 21:9; inner: 8.0 inches, `2504 x 2256`, near-square at approximately 1.11:1. It has 200MP wide, 50MP ultrawide, 10MP telephoto, and 10MP cover/main cameras.
-- iPhone Duo outer display: 5.4 inches, `1398 x 2034`; inner display: 7.6 inches, `1878 x 2670`. Apple describes the outer display as compact-width and the inner display as regular-width/regular-height.
-
-Rounded corners, camera cutouts, system bars, safe areas, and hinges reduce the usable content area. The raw display resolution must not become a layout constant.
-
-### Camera aspect and direction
-
-- Camera sensors commonly produce landscape-oriented buffers, with 4:3 the most common sensor aspect ratio.
-- Typical Android metadata is rear `SENSOR_ORIENTATION = 90` and front `SENSOR_ORIENTATION = 270`, but the app must query the actual camera characteristics.
-- Photo capture should default to 4:3; portrait presentation is 3:4 after rotation.
-- Video commonly uses 16:9; portrait presentation is 9:16.
-- CameraX commonly supports 4:3 and 16:9 and defaults image capture/image analysis to 4:3.
-- Samsung camera apps commonly expose 3:4, 9:16, 1:1, and full-screen choices. These are framing/output choices, not necessarily the sensor-native shape.
-- A 4:3 or 16:9 frame cannot fill every foldable panel without either cropping or letterboxing. `FIT_CENTER` preserves the whole frame; `FILL_CENTER` crops.
-- Camera direction has two meanings: image rotation and which physical camera faces the user. On foldables, “front” does not always mean “facing the active display.” Keep lens selection, sensor orientation, display rotation, and user-facing direction conceptually separate.
-
-### Fold8-specific camera layout consequences
-
-- The standard Fold8's numerical 4:3 panel ratio does not imply matching camera axes. The supplied native screenshots show a tall 3:4 rear preview in the wide inner window and a wide 4:3 rear preview in the tall inner window. Front-camera and Ultra mappings require separate evidence.
-- The Fold8 Ultra inner display is near-square, so a 4:3 photo preview or 16:9 video preview should be bounded with preserved aspect ratio; use the remaining region for controls or accept letterboxing.
-- Both cover displays should use the compact phone shell.
-- Do not rotate the preview merely because an unfolded window becomes wide. Use window bounds for Compose layout and CameraX sensor metadata plus actual display rotation for the camera transform.
-
-### Recording implication
-
-CameraX `VideoCapture.setTargetRotation()` does not change an already-running `Recorder` output; it affects recordings started afterward. Therefore:
-
-- rotation may continue in the same recording;
-- the live UI and preview may adapt to the new window;
-- the output orientation is based on the recording's start configuration;
-- fold/unfold remains an appropriate stop/finalize boundary before starting a new configuration.
-
-## Implementation sequence
-
-1. Add and unit-test the rotation/fold/unfold transition classifier.
-2. Separate camera-binding readiness from capture `BusyState` so binding changes cannot make an active recording appear idle.
-3. Remove portrait-only manifest and documentation assumptions.
-4. Verify active-display, physical-pose and camera-transform coordinate bases for preview and EXIF/video setup; derive frame direction independently of window shape.
-5. Extract shared controls and implement the compact preview/overlay geometry from the revised prototypes.
-6. Add the shared side/bottom dock arrangements, fitting the actual upright stream ratio independently of window shape.
-7. Add hinge-boundary and safe-inset placement.
-8. Validate queue reach/travel, system-gesture boundaries and cancel-without-action behavior; update external tutorial annotations for both shells.
-9. Add Compose/layout and transition tests.
-10. Validate on real foldable hardware.
-
-## Verification matrix
-
-Test at minimum:
-
-- compact phone portrait;
-- compact phone landscape;
-- folded cover display;
-- unfolded portrait;
-- unfolded landscape;
-- flat inner display;
-- separating hinge with vertical and horizontal bounds;
-- split-screen and resizable windows;
-- display cutouts and side navigation bars;
-- rotation during video recording;
-- rotation during voice recording;
-- fold/unfold during video recording;
-- fold/unfold during voice recording;
-- preview focus, zoom, photo EXIF, video orientation, and queue order.
-
-The current repository has pure JVM tests but no Android instrumented camera/layout tests. Gradle verification also requires a configured Android SDK in the development environment.
-
-## Explicitly deferred
-
-- OEM-specific Samsung APIs.
-- Apple/iOS-specific implementation, which is outside this Android app's scope.
-- Rear-display and dual-screen presentation modes.
-- Dynamic camera resolution switching for every window size.
-- A five-state posture architecture.
-- Camera rebinding on every fold or resize.
-- Foreground-service recording.
-- Full `CaptureViewModel` or storage-pipeline rewrites.
-
-## Official references
-
-- [Android window size classes](https://developer.android.com/develop/adaptive-apps/guides/use-window-size-classes)
-- [Android orientation, aspect ratio, and resizability](https://developer.android.com/develop/adaptive-apps/guides/app-orientation-aspect-ratio-resizability)
-- [Camera preview on multiple form factors](https://developer.android.com/media/camera/camera2/camera-preview)
-- [Camera support for foldable devices](https://developer.android.com/agents/skills/camera/camerax/references/foldables)
-- [Jetpack `FoldingFeature`](https://developer.android.com/reference/androidx/window/layout/FoldingFeature)
-- [Compose window insets](https://developer.android.com/develop/ui/compose/system/insets)
-- [CameraX configuration and aspect ratios](https://developer.android.com/media/camera/camerax/configuration)
-- [CameraX `VideoCapture` rotation](https://developer.android.com/reference/androidx/camera/video/VideoCapture#setTargetRotation(int))
-- [Google Pixel 10 specifications](https://store.google.com/product/pixel_10_specs)
-- [Samsung Galaxy S25 specifications](https://www.samsung.com/us/smartphones/galaxy-s/s25-navy-256gb-sm-s931udbexaa/)
-- [Apple iPhone 17 specifications](https://www.apple.com/iphone-17/specs/)
-- [Samsung Galaxy Z Fold8/Fold8 Ultra announcement](https://news.samsung.com/us/samsung-galaxy-z-fold8-ultra-fold8-flip8-foldables-perfected-every-way-of-living/)
-- [Apple iPhone Duo technical specifications](https://www.apple.com/iphone-duo/specs/)
-- [Apple iPhone Duo camera guidance](https://developer.apple.com/videos/play/tech-talks/111465/)
+4:3 stills and 16:9 video are common. Some cameras also offer wide stills, square and Full. A selected output can intentionally crop the sensor. The viewfinder should show that entire selected frame without a second crop to fill the window. Query the bound camera’s orientation and capabilities independently for each lens/display combination. [Ratio research and camera exceptions](prototypes/camera-layout-implementation.md) · [Original references](references/README.md)

@@ -1,0 +1,381 @@
+{
+  "units": "logical dp at 1x",
+  "frames": [
+    {
+      "id": "palette-light",
+      "window": [
+        360,
+        286
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        286
+      ],
+      "bottomInset": 24,
+      "theme": "light",
+      "targets": [],
+      "sheetOrigin": [
+        40,
+        240
+      ]
+    },
+    {
+      "id": "palette-dark",
+      "window": [
+        360,
+        286
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        286
+      ],
+      "bottomInset": 24,
+      "theme": "dark",
+      "targets": [],
+      "sheetOrigin": [
+        432,
+        240
+      ]
+    },
+    {
+      "id": "bars",
+      "window": [
+        360,
+        304
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        304
+      ],
+      "bottomInset": 24,
+      "theme": "light",
+      "targets": [
+        {
+          "label": "Back",
+          "x": 4,
+          "y": 32,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "label": "Open output folder",
+          "x": 308,
+          "y": 32,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "label": "Clear selection",
+          "x": 4,
+          "y": 120,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "label": "Send selected bundles",
+          "x": 308,
+          "y": 120,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "label": "Choose folder",
+          "x": 16,
+          "y": 216,
+          "w": 144,
+          "h": 48
+        },
+        {
+          "label": "Cancel",
+          "x": 174,
+          "y": 216,
+          "w": 86,
+          "h": 48
+        },
+        {
+          "label": "Done",
+          "x": 268,
+          "y": 216,
+          "w": 76,
+          "h": 48
+        }
+      ],
+      "sheetOrigin": [
+        40,
+        675
+      ]
+    },
+    {
+      "id": "settings-rows",
+      "window": [
+        360,
+        304
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        304
+      ],
+      "bottomInset": 24,
+      "theme": "dark",
+      "targets": [
+        {
+          "label": "Vertical stitched image",
+          "x": 16,
+          "y": 120,
+          "w": 328,
+          "h": 56
+        }
+      ],
+      "sheetOrigin": [
+        432,
+        675
+      ]
+    },
+    {
+      "id": "bundle-rows",
+      "window": [
+        360,
+        368
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        368
+      ],
+      "bottomInset": 24,
+      "theme": "light",
+      "targets": [
+        {
+          "label": "Actions for 2026-11-02-s-0006",
+          "x": 312,
+          "y": 40,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "label": "Swipe 2026-11-02-s-0006",
+          "x": 24,
+          "y": 24,
+          "w": 288,
+          "h": 80
+        },
+        {
+          "label": "Deselect 2026-11-02-s-0005",
+          "x": 0,
+          "y": 104,
+          "w": 80,
+          "h": 80
+        },
+        {
+          "label": "Actions for 2026-11-02-s-0005",
+          "x": 312,
+          "y": 120,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "label": "Swipe 2026-11-02-s-0005",
+          "x": 80,
+          "y": 104,
+          "w": 232,
+          "h": 80
+        },
+        {
+          "label": "Undo deletion of 2026-11-02-s-0004",
+          "x": 280,
+          "y": 200,
+          "w": 72,
+          "h": 48
+        }
+      ],
+      "sheetOrigin": [
+        40,
+        1128
+      ]
+    },
+    {
+      "id": "media-feedback",
+      "window": [
+        360,
+        368
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        368
+      ],
+      "bottomInset": 24,
+      "theme": "dark",
+      "targets": [
+        {
+          "label": "Dismiss",
+          "x": 261,
+          "y": 268,
+          "w": 72,
+          "h": 48
+        }
+      ],
+      "sheetOrigin": [
+        432,
+        1128
+      ]
+    },
+    {
+      "id": "modal-menu",
+      "window": [
+        360,
+        576
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        576
+      ],
+      "bottomInset": 24,
+      "theme": "light",
+      "targets": [
+        {
+          "label": "Select",
+          "x": 188,
+          "y": 208,
+          "w": 156,
+          "h": 48
+        },
+        {
+          "label": "Delete",
+          "x": 188,
+          "y": 256,
+          "w": 156,
+          "h": 48
+        }
+      ],
+      "sheetOrigin": [
+        40,
+        1645
+      ]
+    },
+    {
+      "id": "modal-dialog",
+      "window": [
+        360,
+        576
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        576
+      ],
+      "bottomInset": 24,
+      "theme": "light",
+      "targets": [
+        {
+          "label": "Cancel",
+          "x": 152.0,
+          "y": 332.0,
+          "w": 76,
+          "h": 48
+        },
+        {
+          "label": "Delete bundle",
+          "x": 236.0,
+          "y": 332.0,
+          "w": 80,
+          "h": 48
+        }
+      ],
+      "sheetOrigin": [
+        432,
+        1645
+      ]
+    },
+    {
+      "id": "modal-sheet",
+      "window": [
+        360,
+        576
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        576
+      ],
+      "bottomInset": 24,
+      "theme": "light",
+      "targets": [
+        {
+          "label": "Close",
+          "x": 248,
+          "y": 496,
+          "w": 88,
+          "h": 48
+        }
+      ],
+      "sheetOrigin": [
+        824,
+        1645
+      ]
+    },
+    {
+      "id": "wide-media-rows",
+      "window": [
+        560,
+        208
+      ],
+      "pane": [
+        0,
+        0,
+        560,
+        208
+      ],
+      "bottomInset": 24,
+      "theme": "light",
+      "targets": [
+        {
+          "label": "Actions for 2026-11-02-s-0006",
+          "x": 512,
+          "y": 40,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "label": "Swipe 2026-11-02-s-0006",
+          "x": 24,
+          "y": 24,
+          "w": 488,
+          "h": 80
+        },
+        {
+          "label": "Actions for 2026-11-02-s-0002",
+          "x": 512,
+          "y": 120,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "label": "Swipe 2026-11-02-s-0002",
+          "x": 24,
+          "y": 104,
+          "w": 488,
+          "h": 80
+        }
+      ],
+      "sheetOrigin": [
+        40,
+        2370
+      ]
+    }
+  ]
+}

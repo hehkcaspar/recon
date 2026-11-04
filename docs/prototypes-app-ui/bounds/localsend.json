@@ -1,0 +1,439 @@
+{
+  "units": "logical dp at 1x",
+  "frames": [
+    {
+      "id": "localsend-searching",
+      "window": [
+        360,
+        800
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        800
+      ],
+      "bottomInset": 24,
+      "theme": "light",
+      "targets": [
+        {
+          "label": "Close",
+          "x": 248,
+          "y": 712,
+          "w": 88,
+          "h": 48
+        }
+      ],
+      "sheetOrigin": [
+        40,
+        240
+      ]
+    },
+    {
+      "id": "localsend-peers",
+      "window": [
+        360,
+        576
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        576
+      ],
+      "bottomInset": 24,
+      "theme": "light",
+      "targets": [
+        {
+          "label": "Send 2 bundles to Field station, MacBook Air, 8e21b74a",
+          "x": 24,
+          "y": 294,
+          "w": 312,
+          "h": 64
+        },
+        {
+          "label": "Send 2 bundles to North Shore Field Station \u2013 Acoustic Monitoring and Calibration Workstation, Pixel Tablet, 57a90d3c",
+          "x": 24,
+          "y": 359,
+          "w": 312,
+          "h": 104
+        },
+        {
+          "label": "Close",
+          "x": 248,
+          "y": 488,
+          "w": 88,
+          "h": 48
+        }
+      ],
+      "sheetOrigin": [
+        432,
+        240
+      ]
+    },
+    {
+      "id": "localsend-timeout",
+      "window": [
+        360,
+        576
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        576
+      ],
+      "bottomInset": 24,
+      "theme": "dark",
+      "targets": [
+        {
+          "label": "Close",
+          "x": 24,
+          "y": 488,
+          "w": 88,
+          "h": 48
+        },
+        {
+          "label": "Try again",
+          "x": 216,
+          "y": 488,
+          "w": 120,
+          "h": 48
+        }
+      ],
+      "sheetOrigin": [
+        824,
+        240
+      ]
+    },
+    {
+      "id": "localsend-negotiation",
+      "window": [
+        360,
+        800
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        800
+      ],
+      "bottomInset": 24,
+      "theme": "light",
+      "targets": [
+        {
+          "label": "Cancel transfer",
+          "x": 24,
+          "y": 712,
+          "w": 312,
+          "h": 48
+        }
+      ],
+      "sheetOrigin": [
+        40,
+        1170
+      ]
+    },
+    {
+      "id": "localsend-progress-inner",
+      "window": [
+        960,
+        720
+      ],
+      "pane": [
+        0,
+        0,
+        960,
+        720
+      ],
+      "bottomInset": 24,
+      "theme": "light",
+      "targets": [
+        {
+          "label": "Cancel transfer",
+          "x": 240,
+          "y": 632,
+          "w": 480,
+          "h": 48
+        }
+      ],
+      "sheetOrigin": [
+        432,
+        1170
+      ]
+    },
+    {
+      "id": "localsend-success",
+      "window": [
+        360,
+        800
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        800
+      ],
+      "bottomInset": 24,
+      "theme": "light",
+      "targets": [
+        {
+          "label": "Done",
+          "x": 24,
+          "y": 712,
+          "w": 312,
+          "h": 48
+        }
+      ],
+      "sheetOrigin": [
+        40,
+        2100
+      ]
+    },
+    {
+      "id": "localsend-already-received",
+      "window": [
+        360,
+        800
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        800
+      ],
+      "bottomInset": 24,
+      "theme": "dark",
+      "targets": [
+        {
+          "label": "Done",
+          "x": 24,
+          "y": 712,
+          "w": 312,
+          "h": 48
+        }
+      ],
+      "sheetOrigin": [
+        432,
+        2100
+      ]
+    },
+    {
+      "id": "localsend-failure",
+      "window": [
+        360,
+        800
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        800
+      ],
+      "bottomInset": 24,
+      "theme": "light",
+      "targets": [
+        {
+          "label": "Done",
+          "x": 24,
+          "y": 712,
+          "w": 312,
+          "h": 48
+        }
+      ],
+      "sheetOrigin": [
+        824,
+        2100
+      ]
+    },
+    {
+      "id": "localsend-progress-cover",
+      "window": [
+        360,
+        576
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        576
+      ],
+      "bottomInset": 24,
+      "theme": "dark",
+      "targets": [
+        {
+          "label": "Cancel transfer",
+          "x": 24,
+          "y": 488,
+          "w": 312,
+          "h": 48
+        }
+      ],
+      "sheetOrigin": [
+        40,
+        3030
+      ]
+    },
+    {
+      "id": "localsend-return",
+      "window": [
+        360,
+        576
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        576
+      ],
+      "bottomInset": 24,
+      "theme": "dark",
+      "targets": [
+        {
+          "label": "Back",
+          "x": 4,
+          "y": 32,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "label": "Open output folder",
+          "x": 308,
+          "y": 32,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "label": "Actions for 2026-11-02-s-0006",
+          "x": 312.0,
+          "y": 152,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "label": "Swipe 2026-11-02-s-0006",
+          "x": 24.0,
+          "y": 136,
+          "w": 288,
+          "h": 80
+        },
+        {
+          "label": "Actions for 2026-11-02-s-0005",
+          "x": 312.0,
+          "y": 232,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "label": "Swipe 2026-11-02-s-0005",
+          "x": 24.0,
+          "y": 216,
+          "w": 288,
+          "h": 80
+        },
+        {
+          "label": "Actions for 2026-11-02-s-0004",
+          "x": 312.0,
+          "y": 312,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "label": "Swipe 2026-11-02-s-0004",
+          "x": 24.0,
+          "y": 296,
+          "w": 288,
+          "h": 80
+        },
+        {
+          "label": "Actions for 2026-11-02-s-0003",
+          "x": 312.0,
+          "y": 392,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "label": "Swipe 2026-11-02-s-0003",
+          "x": 24.0,
+          "y": 376,
+          "w": 288,
+          "h": 80
+        },
+        {
+          "label": "Actions for 2026-11-02-s-0002",
+          "x": 312.0,
+          "y": 472,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "label": "Swipe 2026-11-02-s-0002",
+          "x": 24.0,
+          "y": 456,
+          "w": 288,
+          "h": 80
+        }
+      ],
+      "sheetOrigin": [
+        432,
+        3030
+      ]
+    },
+    {
+      "id": "localsend-short-landscape",
+      "window": [
+        800,
+        360
+      ],
+      "pane": [
+        0,
+        0,
+        800,
+        360
+      ],
+      "bottomInset": 24,
+      "theme": "light",
+      "targets": [
+        {
+          "label": "Cancel transfer",
+          "x": 160,
+          "y": 272,
+          "w": 480,
+          "h": 48
+        }
+      ],
+      "sheetOrigin": [
+        40,
+        3755
+      ]
+    },
+    {
+      "id": "localsend-near-square",
+      "window": [
+        960,
+        864
+      ],
+      "pane": [
+        0,
+        0,
+        960,
+        864
+      ],
+      "bottomInset": 24,
+      "theme": "dark",
+      "targets": [
+        {
+          "label": "Cancel transfer",
+          "x": 240,
+          "y": 776,
+          "w": 480,
+          "h": 48
+        }
+      ],
+      "sheetOrigin": [
+        872,
+        3755
+      ]
+    }
+  ]
+}

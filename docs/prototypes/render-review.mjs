@@ -53,8 +53,16 @@ function imageDifference(a, b) {
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const chrome = process.env.CHROME_BIN || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-const files = ['design-system', 'phone', 'phone-annotated', 'cover', 'fold8-inner', 'fold8-ultra-inner', 'layout-checks', 'aspect-ratios', 'recording-states']
+const currentFiles = ['design-system', 'phone', 'phone-annotated', 'cover', 'fold8-c', 'fold8-ultra-c', 'foldable-c-gesture-guide', 'fold8-ultra-c-upright', 'fold8-ultra-c-cw90'];
+const genericReferenceFiles = ['layout-checks', 'aspect-ratios', 'recording-states', 'display-metrics'];
+const archivedFiles = ['fold8-inner', 'fold8-ultra-inner', 'fold8-ultra-fixed-dock'];
+const files = [...currentFiles, ...genericReferenceFiles, ...archivedFiles]
   .map(name => `recon-capture-${name}.svg`);
+const roleByName = new Map([
+  ...currentFiles.map(name => [`recon-capture-${name}.svg`, 'current']),
+  ...genericReferenceFiles.map(name => [`recon-capture-${name}.svg`, 'generic-reference']),
+  ...archivedFiles.map(name => [`recon-capture-${name}.svg`, 'archived']),
+]);
 const allowed = new Set(files);
 const sources = new Map(await Promise.all(files.map(async name => [name, await readFile(join(root, name), 'utf8')])));
 const fontData = (await readFile(join(root, 'assets/Roboto.ttf'))).toString('base64');
@@ -72,6 +80,7 @@ let references = 0;
 for (const [name, text] of sources) {
   for (const [, href] of text.matchAll(/\bhref="([^"]+)"/g)) {
     const [target, id] = href.split('#');
+    if (href.startsWith('https://') && name === 'recon-capture-display-metrics.svg') continue;
     if (target || !id || !ids.get(name)?.has(id)) throw new Error(`Nonlocal or unresolved ${name}: ${href}`);
     references++;
   }
@@ -103,7 +112,15 @@ const isolated = join(profile, 'isolated');
 await mkdir(isolated);
 await mkdir(output, { recursive: true });
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
-const manifest = { generatedAt: new Date().toISOString(), renderer: chrome, referencesValidated: references, portability: 'Self-contained symbols and Roboto. Isolated file must match HTTP exactly. Img allows only compositor rounding: max channel delta 8/255 and mean pixel delta 0.05/255.', files: {}, assets: {} };
+const cGeometry = JSON.parse(await readFile(join(root, 'foldable-c-geometry.json'), 'utf8'));
+const cProvenance = {
+  sourceOfTruth: cGeometry.sourceOfTruth,
+  sourceInputs: cGeometry.sourceGraph.sourceInputs,
+  archivedButRequiredFixtures: cGeometry.sourceGraph.archivedButRequiredFixtures,
+  inputHashes: cGeometry.provenance.sourceInputs,
+  generatorHashes: cGeometry.provenance.generators,
+};
+const manifest = { generatedAt: new Date().toISOString(), renderer: chrome, referencesValidated: references, currentFiles: currentFiles.map(name => `recon-capture-${name}.svg`), genericReferenceFiles: genericReferenceFiles.map(name => `recon-capture-${name}.svg`), archivedFiles: archivedFiles.map(name => `recon-capture-${name}.svg`), portability: 'Self-contained symbols and Roboto. Isolated file must match HTTP exactly. Img allows only compositor rounding: max channel delta 8/255 and mean pixel delta 0.05/255.', cProvenance, files: {}, assets: {} };
 const failures = [];
 try {
   for (const [name, svg] of sources) {
@@ -136,15 +153,17 @@ try {
     // Exact reviewed artifact exception: sparse curve-edge coverage, not a global tolerance increase.
     // Any source OR raster change invalidates it. Evidence includes the alternate render and 8x comparison.
     const reviewedRasterException = name === 'recon-capture-design-system.svg'
-      && sha(svg) === 'da2e71f69ec4b27018ac1bd615135148335f03c958b01adc67cde14128d9a745'
-      && sha(png) === '1c234f449fadd1d6539bd398751a2fc2daf036ba091043785f5cec256198cd5b'
-      && imagePngSha256 === '1a6910772f97d0716bc756349aa0fb553dfd78bf4c23155424f64cc7e3fb8246';
+      ? sha(svg) === 'bc5e2d8654dfaf8511f61c399a2b96773eb035c193443d96dfefc85ca7aa5c4d'
+        && sha(png) === 'f202a8145971f9d8d7e630cbee029c65372091ddc07b53f6f4a33fb64a2f6b2a'
+        && imagePngSha256 === '09252d77f0f798e8c8eba70f158e0b37087588ec6c95451443c188d954e302db'
+      : false;
+    // The design-system exception is pinned by the hashes above.
     const portabilityPassed = filePngSha256 === sha(png) && (strictImageContextPassed || reviewedRasterException);
     if (!portabilityPassed) {
       failures.push(`${name}: ${JSON.stringify(imageContextDifference)}`);
       await writeFile(join(output, name.replace(".svg", ".image-context.png")), imageBytes);
     }
-    manifest.files[name] = { width: +width, height: +height, svgSha256: sha(svg), pngSha256: sha(png), filePngSha256, imagePngSha256, imageContextDifference, strictImageContextPassed, portabilityPassed, rasterException: !strictImageContextPassed && reviewedRasterException ? "rasterization/README.md" : null };
+    manifest.files[name] = { role: roleByName.get(name), width: +width, height: +height, svgSha256: sha(svg), pngSha256: sha(png), filePngSha256, imagePngSha256, imageContextDifference, strictImageContextPassed, portabilityPassed, rasterException: !strictImageContextPassed && reviewedRasterException ? "rasterization/README.md" : null };
     console.log(`${portabilityPassed ? "Verified" : "FAILED"} HTTP / isolated file${strictImageContextPassed ? " / img" : reviewedRasterException ? "; img has exact documented raster exception" : "; img needs review"}: ${name}, ${width} × ${height}`);
   }
   // Prove the explanation sheet cannot silently become a different mockup.

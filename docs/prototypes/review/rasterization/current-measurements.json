@@ -3,13 +3,14 @@
     1440,
     9000
   ],
-  "pixelsOver8": 673,
-  "pixelsOver32": 95,
+  "pixelsOver8": 681,
+  "pixelsOver32": 96,
   "max": 81,
   "maxAt": [
     254,
     5410
   ],
+  "changedPixels": 35884,
   "regions": [
     {
       "region": [
@@ -73,32 +74,21 @@
     }
   ],
   "hashes": {
-    "svgSha256": "da2e71f69ec4b27018ac1bd615135148335f03c958b01adc67cde14128d9a745",
-    "pngSha256": "1c234f449fadd1d6539bd398751a2fc2daf036ba091043785f5cec256198cd5b",
-    "filePngSha256": "1c234f449fadd1d6539bd398751a2fc2daf036ba091043785f5cec256198cd5b",
-    "imagePngSha256": "1a6910772f97d0716bc756349aa0fb553dfd78bf4c23155424f64cc7e3fb8246"
+    "svgSha256": "bc5e2d8654dfaf8511f61c399a2b96773eb035c193443d96dfefc85ca7aa5c4d",
+    "pngSha256": "f202a8145971f9d8d7e630cbee029c65372091ddc07b53f6f4a33fb64a2f6b2a",
+    "filePngSha256": "f202a8145971f9d8d7e630cbee029c65372091ddc07b53f6f4a33fb64a2f6b2a",
+    "imagePngSha256": "09252d77f0f798e8c8eba70f158e0b37087588ec6c95451443c188d954e302db"
   },
   "imageContextDifference": {
     "maxChannelDelta": 81,
-    "changedPixels": 34131,
-    "meanPixelDelta": 0.0038819444444444444
+    "changedPixels": 35884,
+    "meanPixelDelta": 0.004024922839506173
   },
   "revisionComparison": {
-    "changedResiduals": 11090,
-    "newOver8": 1,
-    "maxNew": 12,
-    "addedMax": 0,
-    "addedOver8": 0,
-    "addedChanged": 0,
-    "peaks": [
-      [
-        253,
-        4235,
-        12
-      ]
-    ]
+    "scope": "Current pin versus the previously pinned design-system artifact",
+    "note": "The C unification intentionally changes canonical queue labels and standard56 edge-target annotations. The prior residual counts are historical evidence only; this pin is accepted only after the current independent visual review."
   },
-  "revisionBaseline": "933d32a direct and image renders; same 1440x9000 canvas",
+  "revisionBaseline": "05deac7 prior pinned direct/image artifact; same 1440x9000 canvas",
   "historicalRegionComparison": "directCropIdenticalToPrevious compares with original 1440x6900 artifact; dense regions did not exist there",
   "independentVisualReview": "GPT-6.1-SOL Bohr 01a19a8a-d34e-7d72-aa16-76d5cb50d879: all DS sections, then revised direct/alternate regions PASS"
 }

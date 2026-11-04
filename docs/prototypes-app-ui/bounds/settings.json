@@ -1,0 +1,614 @@
+{
+  "units": "logical dp at 1x",
+  "frames": [
+    {
+      "id": "settings-phone",
+      "window": [
+        360,
+        800
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        800
+      ],
+      "bottomInset": 24,
+      "theme": "light",
+      "targets": [
+        {
+          "label": "Back",
+          "x": 4,
+          "y": 32,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "label": "Change",
+          "x": 256,
+          "y": 104,
+          "w": 88,
+          "h": 48
+        },
+        {
+          "label": "Individual files in subfolder, on",
+          "x": 16,
+          "y": 252,
+          "w": 328,
+          "h": 56
+        },
+        {
+          "label": "Vertical stitched image, on",
+          "x": 16,
+          "y": 308,
+          "w": 328,
+          "h": 56
+        },
+        {
+          "label": "Stitch quality, Standard",
+          "x": 16,
+          "y": 364,
+          "w": 328,
+          "h": 52
+        },
+        {
+          "label": "Shutter sound, on",
+          "x": 16,
+          "y": 460,
+          "w": 328,
+          "h": 56
+        },
+        {
+          "label": "Camera mode, ZSL (zero shutter lag)",
+          "x": 16,
+          "y": 516,
+          "w": 328,
+          "h": 64
+        },
+        {
+          "label": "Confirm before deleting a bundle, on",
+          "x": 16,
+          "y": 624,
+          "w": 328,
+          "h": 56
+        },
+        {
+          "label": "Undo window for bundle deletion, 5s",
+          "x": 16,
+          "y": 680,
+          "w": 328,
+          "h": 64
+        }
+      ],
+      "sheetOrigin": [
+        40,
+        240
+      ]
+    },
+    {
+      "id": "settings-cover-folder",
+      "window": [
+        360,
+        576
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        576
+      ],
+      "bottomInset": 24,
+      "theme": "light",
+      "targets": [
+        {
+          "label": "Back",
+          "x": 4,
+          "y": 32,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "label": "Change",
+          "x": 256,
+          "y": 104,
+          "w": 88,
+          "h": 48
+        },
+        {
+          "label": "Individual files in subfolder, on",
+          "x": 16,
+          "y": 292,
+          "w": 328,
+          "h": 56
+        },
+        {
+          "label": "Vertical stitched image, on",
+          "x": 16,
+          "y": 348,
+          "w": 328,
+          "h": 56
+        },
+        {
+          "label": "Stitch quality, Standard",
+          "x": 16,
+          "y": 404,
+          "w": 328,
+          "h": 52
+        }
+      ],
+      "sheetOrigin": [
+        432,
+        240
+      ]
+    },
+    {
+      "id": "settings-cover-scrolled",
+      "window": [
+        360,
+        576
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        576
+      ],
+      "bottomInset": 24,
+      "theme": "light",
+      "targets": [
+        {
+          "label": "Back",
+          "x": 4,
+          "y": 32,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "label": "Shutter sound, on",
+          "x": 16,
+          "y": 96,
+          "w": 328,
+          "h": 56
+        },
+        {
+          "label": "Camera mode, ZSL (zero shutter lag)",
+          "x": 16,
+          "y": 152,
+          "w": 328,
+          "h": 64
+        },
+        {
+          "label": "Confirm before deleting a bundle, on",
+          "x": 16,
+          "y": 260,
+          "w": 328,
+          "h": 56
+        },
+        {
+          "label": "Undo window for bundle deletion, 5s",
+          "x": 16,
+          "y": 316,
+          "w": 328,
+          "h": 64
+        },
+        {
+          "label": "Show",
+          "x": 272,
+          "y": 428,
+          "w": 72,
+          "h": 48
+        }
+      ],
+      "sheetOrigin": [
+        824,
+        240
+      ]
+    },
+    {
+      "id": "settings-individual-only",
+      "window": [
+        360,
+        576
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        576
+      ],
+      "bottomInset": 24,
+      "theme": "dark",
+      "targets": [
+        {
+          "label": "Back",
+          "x": 4,
+          "y": 32,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "label": "Change",
+          "x": 256,
+          "y": 104,
+          "w": 88,
+          "h": 48
+        },
+        {
+          "label": "Vertical stitched image, off",
+          "x": 16,
+          "y": 308,
+          "w": 328,
+          "h": 56
+        },
+        {
+          "label": "Shutter sound, on",
+          "x": 16,
+          "y": 496,
+          "w": 328,
+          "h": 56
+        }
+      ],
+      "sheetOrigin": [
+        40,
+        1189
+      ]
+    },
+    {
+      "id": "settings-stitched-only",
+      "window": [
+        360,
+        576
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        576
+      ],
+      "bottomInset": 24,
+      "theme": "dark",
+      "targets": [
+        {
+          "label": "Back",
+          "x": 4,
+          "y": 32,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "label": "Change",
+          "x": 256,
+          "y": 104,
+          "w": 88,
+          "h": 48
+        },
+        {
+          "label": "Individual files in subfolder, off",
+          "x": 16,
+          "y": 252,
+          "w": 328,
+          "h": 56
+        },
+        {
+          "label": "Stitch quality, Standard",
+          "x": 16,
+          "y": 364,
+          "w": 328,
+          "h": 52
+        },
+        {
+          "label": "Shutter sound, on",
+          "x": 16,
+          "y": 496,
+          "w": 328,
+          "h": 56
+        }
+      ],
+      "sheetOrigin": [
+        432,
+        1189
+      ]
+    },
+    {
+      "id": "settings-quality-menu",
+      "window": [
+        360,
+        800
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        800
+      ],
+      "bottomInset": 24,
+      "theme": "light",
+      "targets": [
+        {
+          "label": "Low",
+          "x": 176,
+          "y": 424,
+          "w": 168,
+          "h": 48
+        },
+        {
+          "label": "Standard",
+          "x": 176,
+          "y": 472,
+          "w": 168,
+          "h": 48
+        },
+        {
+          "label": "High",
+          "x": 176,
+          "y": 520,
+          "w": 168,
+          "h": 48
+        }
+      ],
+      "sheetOrigin": [
+        40,
+        1914
+      ]
+    },
+    {
+      "id": "settings-mode-menu",
+      "window": [
+        360,
+        576
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        576
+      ],
+      "bottomInset": 24,
+      "theme": "dark",
+      "targets": [
+        {
+          "label": "ZSL (zero shutter lag)",
+          "x": 112,
+          "y": 268,
+          "w": 232,
+          "h": 48
+        },
+        {
+          "label": "EXT (HDR/night auto)",
+          "x": 112,
+          "y": 316,
+          "w": 232,
+          "h": 48
+        }
+      ],
+      "sheetOrigin": [
+        432,
+        1914
+      ]
+    },
+    {
+      "id": "settings-undo-menu",
+      "window": [
+        360,
+        800
+      ],
+      "pane": [
+        0,
+        0,
+        360,
+        800
+      ],
+      "bottomInset": 24,
+      "theme": "light",
+      "targets": [
+        {
+          "label": "Off",
+          "x": 216,
+          "y": 144,
+          "w": 128,
+          "h": 48
+        },
+        {
+          "label": "1s",
+          "x": 216,
+          "y": 192,
+          "w": 128,
+          "h": 48
+        },
+        {
+          "label": "2s",
+          "x": 216,
+          "y": 240,
+          "w": 128,
+          "h": 48
+        },
+        {
+          "label": "3s",
+          "x": 216,
+          "y": 288,
+          "w": 128,
+          "h": 48
+        },
+        {
+          "label": "4s",
+          "x": 216,
+          "y": 336,
+          "w": 128,
+          "h": 48
+        },
+        {
+          "label": "5s",
+          "x": 216,
+          "y": 384,
+          "w": 128,
+          "h": 48
+        },
+        {
+          "label": "6s",
+          "x": 216,
+          "y": 432,
+          "w": 128,
+          "h": 48
+        },
+        {
+          "label": "7s",
+          "x": 216,
+          "y": 480,
+          "w": 128,
+          "h": 48
+        },
+        {
+          "label": "8s",
+          "x": 216,
+          "y": 528,
+          "w": 128,
+          "h": 48
+        },
+        {
+          "label": "9s",
+          "x": 216,
+          "y": 576,
+          "w": 128,
+          "h": 48
+        },
+        {
+          "label": "10s",
+          "x": 216,
+          "y": 624,
+          "w": 128,
+          "h": 48
+        }
+      ],
+      "sheetOrigin": [
+        824,
+        1914
+      ]
+    },
+    {
+      "id": "settings-inner-wide",
+      "window": [
+        960,
+        720
+      ],
+      "pane": [
+        0,
+        0,
+        960,
+        720
+      ],
+      "bottomInset": 24,
+      "theme": "dark",
+      "targets": [
+        {
+          "label": "Back",
+          "x": 4,
+          "y": 32,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "label": "Change",
+          "x": 672,
+          "y": 104,
+          "w": 88,
+          "h": 48
+        },
+        {
+          "label": "Individual files in subfolder, on",
+          "x": 200,
+          "y": 252,
+          "w": 560,
+          "h": 56
+        },
+        {
+          "label": "Vertical stitched image, on",
+          "x": 200,
+          "y": 308,
+          "w": 560,
+          "h": 56
+        },
+        {
+          "label": "Stitch quality, Standard",
+          "x": 200,
+          "y": 364,
+          "w": 560,
+          "h": 52
+        },
+        {
+          "label": "Shutter sound, on",
+          "x": 200,
+          "y": 460,
+          "w": 560,
+          "h": 56
+        },
+        {
+          "label": "Camera mode, ZSL (zero shutter lag)",
+          "x": 200,
+          "y": 516,
+          "w": 560,
+          "h": 64
+        },
+        {
+          "label": "Confirm before deleting a bundle, on",
+          "x": 200,
+          "y": 624,
+          "w": 560,
+          "h": 56
+        }
+      ],
+      "sheetOrigin": [
+        40,
+        2863
+      ]
+    },
+    {
+      "id": "settings-small-2x",
+      "window": [
+        320,
+        576
+      ],
+      "pane": [
+        0,
+        0,
+        320,
+        576
+      ],
+      "bottomInset": 48,
+      "theme": "light",
+      "targets": [
+        {
+          "label": "Back",
+          "x": 4,
+          "y": 32,
+          "w": 48,
+          "h": 48
+        },
+        {
+          "label": "Individual files in subfolder, on",
+          "x": 16,
+          "y": 144,
+          "w": 288,
+          "h": 104
+        },
+        {
+          "label": "Vertical stitched image, on",
+          "x": 16,
+          "y": 248,
+          "w": 288,
+          "h": 104
+        },
+        {
+          "label": "Stitch quality, Standard",
+          "x": 32,
+          "y": 352,
+          "w": 272,
+          "h": 108
+        }
+      ],
+      "sheetOrigin": [
+        1032,
+        2863
+      ]
+    }
+  ]
+}
