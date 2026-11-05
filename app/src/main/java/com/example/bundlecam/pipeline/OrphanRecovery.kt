@@ -93,6 +93,12 @@ class OrphanRecovery(
             stale.forEach { runCatching { stagingStore.deleteSession(it) } }
         }
 
+        // Reconcile any mid-take `.tmp-*` files left behind by process death.
+        // Aborted takes are deleted; interrupted Recording/Finalizing takes with
+        // valid media (e.g. CameraX 1.6 Media3 Muxer flushed MP4) are promoted once
+        // to their final name so the `.order` log restores them in capture order.
+        reconcilePendingTakeRecords(mostRecent)
+
         // Collect candidate files: jpg + mp4 + m4a, skip zero-byte (recorder never
         // flushed), skip hidden dot-files like `.order` and `.discarded`.
         val candidates = mostRecent.dir.listFiles { f ->
@@ -177,6 +183,45 @@ class OrphanRecovery(
             }
         }
         null -> null
+    }
+
+    private suspend fun reconcilePendingTakeRecords(session: StagingSession) {
+        val records = stagingStore.readTakeRecords(session)
+        for (record in records.values) {
+            val tempFile = File(session.dir, record.tempName)
+            val finalFile = File(session.dir, record.finalName)
+            when (record.state) {
+                com.example.bundlecam.data.storage.TakeRecordState.Aborted,
+                com.example.bundlecam.data.storage.TakeRecordState.Prepared -> {
+                    if (tempFile.exists()) runCatching { tempFile.delete() }
+                }
+                com.example.bundlecam.data.storage.TakeRecordState.Recording,
+                com.example.bundlecam.data.storage.TakeRecordState.Finalizing,
+                com.example.bundlecam.data.storage.TakeRecordState.Finalized -> {
+                    if (tempFile.exists()) {
+                        if (finalFile.exists() && finalFile.length() > 0L) {
+                            runCatching { tempFile.delete() }
+                        } else if (tempFile.length() > 0L) {
+                            stagingStore.promoteTempToFinal(tempFile, finalFile)
+                        } else {
+                            runCatching { tempFile.delete() }
+                        }
+                    }
+                }
+            }
+        }
+        // Clean up any stray `.tmp-*` files not tracked in `.takes`.
+        session.dir.listFiles { f ->
+            f.isFile && f.name.startsWith(StagingStore.TEMP_PREFIX)
+        }?.forEach { tempFile ->
+            val finalName = tempFile.name.removePrefix(StagingStore.TEMP_PREFIX)
+            val finalFile = File(session.dir, finalName)
+            if (!finalFile.exists() && tempFile.length() > 0L) {
+                stagingStore.promoteTempToFinal(tempFile, finalFile)
+            } else {
+                runCatching { tempFile.delete() }
+            }
+        }
     }
 
     private fun readExifRotation(file: File): Int {

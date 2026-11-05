@@ -10,14 +10,17 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.bundlecam.ReconApp
-import com.example.bundlecam.data.audio.VoiceRecordingResult
+import com.example.bundlecam.data.camera.CameraCapability
+import com.example.bundlecam.data.camera.CameraSessionContract
+import com.example.bundlecam.data.camera.CameraSessionState
 import com.example.bundlecam.data.camera.CaptureController
 import com.example.bundlecam.data.camera.FlashMode
 import com.example.bundlecam.data.camera.LensFacing
-import com.example.bundlecam.data.camera.RecordingResult
 import com.example.bundlecam.data.camera.ZoomInfo
-import com.example.bundlecam.data.camera.decodeThumbnail
-import com.example.bundlecam.data.camera.decodeVideoPoster
+import com.example.bundlecam.data.capture.CaptureTakeCoordinator
+import com.example.bundlecam.data.capture.CoordinatorState
+import com.example.bundlecam.data.capture.FinalizeOutcome
+import com.example.bundlecam.data.capture.FinalizeReason
 import com.example.bundlecam.data.settings.SettingsState
 import com.example.bundlecam.data.storage.StagingSession
 import com.example.bundlecam.di.AppContainer
@@ -27,6 +30,7 @@ import com.example.bundlecam.pipeline.PendingPhoto
 import com.example.bundlecam.pipeline.PendingVideo
 import com.example.bundlecam.pipeline.PendingVoice
 import com.example.bundlecam.pipeline.RestoredItem
+import com.example.bundlecam.ui.capture.window.RawHostEvent
 import com.example.bundlecam.ui.common.TimedSlot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -36,12 +40,12 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
 
@@ -51,6 +55,19 @@ private const val UNDO_WINDOW_MS = 3000L
 enum class BusyState { Idle, Capturing, Recording, Rebinding }
 
 enum class Modality { PHOTO, VIDEO, VOICE }
+
+/**
+ * Pure policy deciding whether `MediaActionSound.SHUTTER_CLICK` may play on a shutter press.
+ * Invariant: ONLY `Modality.PHOTO` when `shutterSoundOn == true` and `busy == BusyState.Idle`
+ * plays the shutter click. `VIDEO` and `VOICE` never play the photo shutter click sound.
+ */
+object ShutterSoundPolicy {
+    fun shouldPlayPhotoShutterClick(
+        modality: Modality,
+        shutterSoundOn: Boolean,
+        busy: BusyState,
+    ): Boolean = modality == Modality.PHOTO && shutterSoundOn && busy == BusyState.Idle
+}
 
 sealed class StagedItem {
     abstract val id: String
@@ -106,7 +123,11 @@ class CaptureViewModel(
     private val container: AppContainer,
 ) : AndroidViewModel(app) {
 
-    val captureController: CaptureController = CaptureController(app)
+    val coordinator: CaptureTakeCoordinator = container.captureTakeCoordinator
+    val cameraSession: CameraSessionContract = container.captureController
+
+    // Retained property for source compatibility while CameraPreview migrates to session contract.
+    val captureController: CaptureController get() = container.captureController
 
     private val _uiState = MutableStateFlow(CaptureUiState())
     val uiState: StateFlow<CaptureUiState> = _uiState.asStateFlow()
@@ -114,53 +135,85 @@ class CaptureViewModel(
     val settings: StateFlow<SettingsState> = container.settingsRepository.settings
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SettingsState())
 
+    val cameraState: StateFlow<CameraSessionState> = coordinator.cameraState
+    val coordinatorState: StateFlow<CoordinatorState> = coordinator.coordinatorState
+
     private val _lensFacing = MutableStateFlow(LensFacing.Back)
     val lensFacing: StateFlow<LensFacing> = _lensFacing.asStateFlow()
 
     private val _flashMode = MutableStateFlow(FlashMode.Off)
     val flashMode: StateFlow<FlashMode> = _flashMode.asStateFlow()
 
-    // VIDEO-mode mic toggle. Default on so video records with sound; the user can flip
-    // it off via the mic button left of the video shutter (mirrors flash in photo mode).
-    // Session-scoped — not persisted, matching `_flashMode`.
     private val _videoAudioEnabled = MutableStateFlow(true)
     val videoAudioEnabled: StateFlow<Boolean> = _videoAudioEnabled.asStateFlow()
 
     private val _modality = MutableStateFlow(Modality.PHOTO)
     val modality: StateFlow<Modality> = _modality.asStateFlow()
 
-    // Wall-clock start time of the active video/voice take, null when idle. Consumed
-    // by the VIDEO pill and the VOICE overlay's elapsed-time readout; gated at the
-    // read site on modality because only one recording modality is active at a time.
     private val _recordingStartedAtMs = MutableStateFlow<Long?>(null)
     val recordingStartedAtMs: StateFlow<Long?> = _recordingStartedAtMs.asStateFlow()
 
-    // Live mic amplitude from VoiceController's getMaxAmplitude() poll. Passes through
-    // as-is — 0 whenever not recording; sampled at ~30Hz during a take. Consumed by
-    // VoiceOverlay to render the scrolling waveform.
     val voiceAmplitudeFlow: StateFlow<Int> = container.voiceController.amplitudeFlow
 
-    // CameraX-reported audio amplitude during a video recording. Range [0f, 1f]; 0f when
-    // not recording or when audio is disabled. Updated ~1Hz by VideoRecordEvent.Status.
-    // Consumed by `VideoRecordingPill` for the small white wave indicator.
-    val videoAudioAmplitudeFlow: StateFlow<Float> = captureController.videoAudioAmplitude
+    val videoAudioAmplitudeFlow: StateFlow<Float> = cameraSession.videoAudioAmplitude
 
-    // Set to true when the user taps the VOICE or VIDEO shutter without RECORD_AUDIO.
-    // CaptureScreen's permission launcher observes this and kicks off the request flow;
-    // both modalities share the same permission, so they share this gate.
     private val _micPermissionNeeded = MutableStateFlow(false)
     val micPermissionNeeded: StateFlow<Boolean> = _micPermissionNeeded.asStateFlow()
 
     private val _events = MutableSharedFlow<CaptureEvent>(extraBufferCapacity = 4)
     val events: SharedFlow<CaptureEvent> = _events.asSharedFlow()
 
-    val zoomInfo: StateFlow<ZoomInfo?> = captureController.zoomInfo
-    val deviceOrientation: StateFlow<Int> = captureController.deviceOrientation
+    val zoomInfo: StateFlow<ZoomInfo?> = cameraSession.zoomInfo
+    val deviceOrientation: StateFlow<Int> = cameraSession.deviceOrientation
 
     private var currentSession: StagingSession? = null
     private val discardSlot = TimedSlot<StagingSession>(viewModelScope)
 
     init {
+        coordinator.onTakeOutcome = ::handleTakeOutcome
+
+        coordinator.coordinatorState
+            .onEach { coordState ->
+                _recordingStartedAtMs.value = coordState.recordingStartedAtMs
+                _micPermissionNeeded.value = coordState.micPermissionNeeded
+                _uiState.update { state ->
+                    // Preserve Rebinding only if coordinator is Idle and camera is binding.
+                    val nextBusy = coordState.busyState
+                    if (state.busy == nextBusy) state else state.copy(busy = nextBusy)
+                }
+            }
+            .launchIn(viewModelScope)
+
+        coordinator.cameraState
+            .onEach { camState ->
+                val cap = camState.capability
+                if (cap is CameraCapability.PhotoOnly && _modality.value == Modality.VIDEO &&
+                    _uiState.value.busy == BusyState.Idle
+                ) {
+                    _modality.value = Modality.PHOTO
+                    setErrorWithUndoPause(cap.reason)
+                }
+            }
+            .launchIn(viewModelScope)
+
+        combine(settings, _lensFacing, _modality) { s, lens, mod ->
+            val currentAspect = cameraState.value.bindPlan.aspectRatio
+            val targetAspect = when (mod) {
+                Modality.PHOTO -> androidx.camera.core.AspectRatio.RATIO_4_3
+                Modality.VIDEO -> androidx.camera.core.AspectRatio.RATIO_16_9
+                Modality.VOICE -> currentAspect
+            }
+            Triple(s.cameraMode, lens, targetAspect)
+        }
+            .onEach { (mode, lens, aspect) ->
+                coordinator.updateCameraBindPlan(
+                    mode = mode,
+                    lens = lens,
+                    aspectRatio = aspect,
+                )
+            }
+            .launchIn(viewModelScope)
+
         viewModelScope.launch {
             runCatching {
                 val restored = container.orphanRecovery.recover()
@@ -201,15 +254,52 @@ class CaptureViewModel(
         container.workScheduler.observeFailures()
             .onEach { failure ->
                 Log.w(TAG, "Bundle ${failure.bundleId} failed: ${failure.message}")
-                _uiState.update {
-                    it.copy(lastError = "Bundle ${failure.bundleId} failed: ${failure.message}")
-                }
+                setErrorWithUndoPause("Bundle ${failure.bundleId} failed: ${failure.message}")
             }
             .launchIn(viewModelScope)
 
         _flashMode
-            .onEach { captureController.setFlashMode(it) }
+            .onEach { coordinator.setFlashMode(it) }
             .launchIn(viewModelScope)
+    }
+
+    private fun handleTakeOutcome(outcome: FinalizeOutcome) {
+        when (outcome) {
+            is FinalizeOutcome.Staged -> {
+                _uiState.update { state ->
+                    val alreadyQueued = state.queue.any { it.id == outcome.item.id }
+                    state.copy(
+                        queue = if (alreadyQueued) state.queue else state.queue + outcome.item,
+                        busy = BusyState.Idle,
+                        lastError = null,
+                    )
+                }
+                discardSlot.resume()
+            }
+            is FinalizeOutcome.Failed -> {
+                _uiState.update { state ->
+                    state.copy(
+                        busy = BusyState.Idle,
+                        lastError = outcome.errorMessage,
+                    )
+                }
+                discardSlot.pause()
+            }
+            is FinalizeOutcome.Ignored -> {
+                _uiState.update { state ->
+                    if (state.busy != BusyState.Idle && coordinator.coordinatorState.value.busyState == BusyState.Idle) {
+                        state.copy(busy = BusyState.Idle)
+                    } else {
+                        state
+                    }
+                }
+            }
+        }
+    }
+
+    private fun setErrorWithUndoPause(error: String) {
+        discardSlot.pause()
+        _uiState.update { it.copy(lastError = error) }
     }
 
     fun onShutter() {
@@ -222,285 +312,84 @@ class CaptureViewModel(
 
     private fun onShutterPhoto() {
         if (_uiState.value.busy != BusyState.Idle) return
-        _uiState.update { it.copy(busy = BusyState.Capturing) }
         confirmPendingDiscardIfAny()
-
+        val session = currentSession ?: container.stagingStore.createSession().also {
+            currentSession = it
+        }
         viewModelScope.launch {
-            launch { container.locationProvider.refresh() }
-
-            val session = currentSession ?: container.stagingStore.createSession().also {
-                currentSession = it
-            }
-            try {
-                val photo = captureController.takePicture()
-                val capturedAt = System.currentTimeMillis()
-                val file = container.stagingStore.writePhoto(session, photo.jpegBytes)
-                container.stagingStore.appendOrderEntry(session, file.name)
-
-                withContext(Dispatchers.IO) {
-                    container.exifWriter.stamp(
-                        file = file,
-                        capturedAt = capturedAt,
-                        rotationDegrees = photo.rotationDegrees,
-                        location = container.locationProvider.getCachedOrNull(),
-                    )
-                }
-
-                val thumbnail = withContext(Dispatchers.Default) {
-                    decodeThumbnail(photo.jpegBytes, photo.rotationDegrees)
-                }
-                val staged = StagedItem.Photo(
-                    id = UUID.randomUUID().toString(),
-                    localFile = file,
-                    thumbnail = thumbnail,
-                    rotationDegrees = photo.rotationDegrees,
-                    capturedAt = capturedAt,
-                )
-                _uiState.update {
-                    it.copy(
-                        queue = it.queue + staged,
-                        busy = BusyState.Idle,
-                        lastError = null,
-                    )
-                }
-            } catch (t: Throwable) {
-                Log.e(TAG, "Capture failed", t)
-                _uiState.update {
-                    it.copy(busy = BusyState.Idle, lastError = "Capture failed: ${t.message}")
-                }
-            }
+            coordinator.capturePhoto(session)
         }
     }
 
     private fun onShutterVideo() {
         when (_uiState.value.busy) {
             BusyState.Idle -> {
-                // Mic permission is only required when the user wants audio in the clip.
-                // If they've toggled audio off, we skip the prompt and record silently.
-                if (_videoAudioEnabled.value && !container.voiceController.hasPermission()) {
-                    _micPermissionNeeded.value = true
+                val cap = cameraState.value.capability
+                if (cap is CameraCapability.PhotoOnly) {
+                    setErrorWithUndoPause(cap.reason)
                     return
                 }
-                // Sync-flip to a transient busy state so a rapid double-tap can't launch
-                // two start coroutines. The shutter button's `enabled` gate reads
-                // `Idle || Recording`, so Capturing disables it until the async work
-                // settles on either Recording (success) or Idle (failure).
-                _uiState.update { it.copy(busy = BusyState.Capturing) }
-                startVideoRecordingFlow()
-            }
-            BusyState.Recording -> {
-                // Mirror guard: sync-flip blocks re-entrant stop taps from calling
-                // CameraX Recording.stop() twice (the second throws).
-                _uiState.update { it.copy(busy = BusyState.Capturing) }
-                stopVideoRecordingFlow()
-            }
-            else -> Unit // Capturing / Rebinding: ignore.
-        }
-    }
-
-    private fun startVideoRecordingFlow() {
-        confirmPendingDiscardIfAny()
-        val session = currentSession ?: container.stagingStore.createSession().also {
-            currentSession = it
-        }
-        val outputFile = container.stagingStore.allocateVideoOutput(session)
-        // Capture orientation at start-time and store synchronously on Main — the stop
-        // coroutine reads this field when building StagedItem.Video, and we need the
-        // write to happen before the busy state flips to Recording (which unblocks
-        // stop-taps).
-        videoStartRotation = deviceOrientation.value
-        viewModelScope.launch {
-            // Append to order log before start — if the process dies mid-record, the log
-            // still carries the correct order. OrphanRecovery skips entries whose files
-            // never materialized or are zero-byte.
-            container.stagingStore.appendOrderEntry(session, outputFile.name)
-            val started = captureController.startVideoRecording(
-                outputFile,
-                audioEnabled = _videoAudioEnabled.value,
-            )
-            if (started) {
-                _uiState.update {
-                    it.copy(busy = BusyState.Recording, lastError = null)
+                confirmPendingDiscardIfAny()
+                val session = currentSession ?: container.stagingStore.createSession().also {
+                    currentSession = it
                 }
-                _recordingStartedAtMs.value = System.currentTimeMillis()
-            } else {
-                // Recorder wasn't bound (fallback device). Reset busy from Capturing
-                // back to Idle and surface the banner.
-                _uiState.update {
-                    it.copy(
-                        busy = BusyState.Idle,
-                        lastError = "Video recording unavailable on this device",
+                viewModelScope.launch {
+                    coordinator.startRecordingTake(
+                        modality = Modality.VIDEO,
+                        session = session,
+                        videoAudioEnabled = _videoAudioEnabled.value,
                     )
                 }
             }
-        }
-    }
-
-    @Volatile
-    private var videoStartRotation: Int = 0
-
-    private fun onShutterVoice() {
-        when (_uiState.value.busy) {
-            BusyState.Idle -> {
-                // Permission pre-check stays synchronous: if mic isn't granted, we surface
-                // the launcher signal without flipping busy (so the start can retry).
-                if (!container.voiceController.hasPermission()) {
-                    _micPermissionNeeded.value = true
-                    return
-                }
-                _uiState.update { it.copy(busy = BusyState.Capturing) }
-                startVoiceRecordingFlow()
-            }
             BusyState.Recording -> {
-                _uiState.update { it.copy(busy = BusyState.Capturing) }
-                stopVoiceRecordingFlow()
+                viewModelScope.launch {
+                    coordinator.finalizeActiveTakeIfAny(FinalizeReason.UserStop)
+                }
             }
             else -> Unit
         }
     }
 
-    private fun startVoiceRecordingFlow() {
-        // Permission is guaranteed by onShutterVoice's pre-check or by onMicPermissionResult's
-        // auto-retry path. VoiceController.startRecording() rechecks defensively.
-        confirmPendingDiscardIfAny()
-        val session = currentSession ?: container.stagingStore.createSession().also {
-            currentSession = it
-        }
-        val outputFile = container.stagingStore.allocateVoiceOutput(session)
-        viewModelScope.launch {
-            container.stagingStore.appendOrderEntry(session, outputFile.name)
-            val result = container.voiceController.startRecording(outputFile)
-            when (result) {
-                is VoiceRecordingResult.Success -> {
-                    _uiState.update {
-                        it.copy(busy = BusyState.Recording, lastError = null)
-                    }
-                    _recordingStartedAtMs.value = System.currentTimeMillis()
+    private fun onShutterVoice() {
+        when (_uiState.value.busy) {
+            BusyState.Idle -> {
+                confirmPendingDiscardIfAny()
+                val session = currentSession ?: container.stagingStore.createSession().also {
+                    currentSession = it
                 }
-                is VoiceRecordingResult.PermissionDenied -> {
-                    _uiState.update { it.copy(busy = BusyState.Idle) }
-                    _micPermissionNeeded.value = true
-                }
-                is VoiceRecordingResult.Error -> {
-                    _uiState.update {
-                        it.copy(busy = BusyState.Idle, lastError = "Voice recording failed: ${result.message}")
-                    }
-                }
-                VoiceRecordingResult.NotRecording -> {
-                    _uiState.update { it.copy(busy = BusyState.Idle) }
-                }
-            }
-        }
-    }
-
-    private fun stopVoiceRecordingFlow() {
-        val startedAt = _recordingStartedAtMs.value ?: return
-        viewModelScope.launch {
-            val result = container.voiceController.stopRecording()
-            _recordingStartedAtMs.value = null
-            when (result) {
-                is VoiceRecordingResult.Success -> {
-                    val thumbnail = withContext(Dispatchers.Default) {
-                        com.example.bundlecam.data.camera.decodeVoiceThumbnail()
-                    }
-                    val staged = StagedItem.Voice(
-                        id = UUID.randomUUID().toString(),
-                        localFile = result.file,
-                        thumbnail = thumbnail,
-                        capturedAt = startedAt,
-                        durationMs = result.durationMs,
+                viewModelScope.launch {
+                    coordinator.startRecordingTake(
+                        modality = Modality.VOICE,
+                        session = session,
+                        videoAudioEnabled = true,
                     )
-                    _uiState.update {
-                        it.copy(
-                            queue = it.queue + staged,
-                            busy = BusyState.Idle,
-                            lastError = null,
-                        )
-                    }
-                }
-                is VoiceRecordingResult.Error -> {
-                    Log.e(TAG, "Voice recording stop failed: ${result.message}", result.cause)
-                    _uiState.update {
-                        it.copy(busy = BusyState.Idle, lastError = "Voice recording failed: ${result.message}")
-                    }
-                }
-                else -> {
-                    _uiState.update { it.copy(busy = BusyState.Idle) }
                 }
             }
+            BusyState.Recording -> {
+                viewModelScope.launch {
+                    coordinator.finalizeActiveTakeIfAny(FinalizeReason.UserStop)
+                }
+            }
+            else -> Unit
         }
     }
 
-    /**
-     * Called by CaptureScreen after the runtime RECORD_AUDIO permission flow resolves.
-     * Clears the `micPermissionNeeded` signal and, if granted + still idle, auto-retries
-     * the start in whichever modality requested it (VOICE or VIDEO) so the user's
-     * original tap isn't lost.
-     */
     fun onMicPermissionResult(granted: Boolean) {
+        coordinator.clearMicPermissionRequest()
         _micPermissionNeeded.value = false
         if (!granted) {
             val message = when (_modality.value) {
                 Modality.VIDEO -> "Video audio needs mic permission"
                 else -> "Voice recording needs mic permission"
             }
-            _uiState.update { it.copy(lastError = message) }
+            setErrorWithUndoPause(message)
             return
         }
         if (_uiState.value.busy != BusyState.Idle) return
         when (_modality.value) {
-            Modality.VOICE -> startVoiceRecordingFlow()
-            Modality.VIDEO -> {
-                _uiState.update { it.copy(busy = BusyState.Capturing) }
-                startVideoRecordingFlow()
-            }
+            Modality.VOICE -> onShutterVoice()
+            Modality.VIDEO -> onShutterVideo()
             else -> Unit
-        }
-    }
-
-    private fun stopVideoRecordingFlow() {
-        val startedAt = _recordingStartedAtMs.value ?: return
-        viewModelScope.launch {
-            val result = captureController.stopVideoRecording()
-            _recordingStartedAtMs.value = null
-            when (result) {
-                is RecordingResult.Success -> {
-                    val poster = withContext(Dispatchers.Default) {
-                        decodeVideoPoster(result.file)
-                    }
-                    if (poster == null) {
-                        // Muxer finalized but MediaMetadataRetriever couldn't read a frame —
-                        // very unlikely with 1.6.0 Media3 Muxer, but handle it by dropping
-                        // the torn file and surfacing the error.
-                        runCatching { result.file.delete() }
-                        _uiState.update {
-                            it.copy(busy = BusyState.Idle, lastError = "Video could not be finalized")
-                        }
-                        return@launch
-                    }
-                    val staged = StagedItem.Video(
-                        id = UUID.randomUUID().toString(),
-                        localFile = result.file,
-                        thumbnail = poster,
-                        capturedAt = startedAt,
-                        rotationDegrees = videoStartRotation,
-                        durationMs = result.durationMs,
-                    )
-                    _uiState.update {
-                        it.copy(
-                            queue = it.queue + staged,
-                            busy = BusyState.Idle,
-                            lastError = null,
-                        )
-                    }
-                }
-                is RecordingResult.Error -> {
-                    Log.e(TAG, "Video recording failed code=${result.code}", result.cause)
-                    _uiState.update {
-                        it.copy(busy = BusyState.Idle, lastError = "Video recording failed (${result.code})")
-                    }
-                }
-            }
         }
     }
 
@@ -514,18 +403,15 @@ class CaptureViewModel(
         val currentSettings = settings.value
         val rootUri = currentSettings.rootUri
         if (rootUri == null) {
-            _uiState.update { it.copy(lastError = "No output folder set") }
+            setErrorWithUndoPause("No output folder set")
             return
         }
 
-        // Pivot UI synchronously — shutter is ready for the next shot before any bookkeeping
-        // runs. Photos are already durable on staging (written at capture time). If the
-        // background save dies, OrphanRecovery will restore this session as an uncommitted
-        // queue on next launch, and the user can re-swipe.
         currentSession = null
         _uiState.update {
             it.copy(queue = emptyList(), dividers = emptySet(), lastError = null)
         }
+        discardSlot.resume()
 
         val stitchQualityName = currentSettings.stitchQuality.name
         val saveIndividualPhotos = currentSettings.saveIndividualPhotos
@@ -566,22 +452,16 @@ class CaptureViewModel(
                         )
                     )
                 }
-                // Save all manifests first so the commit is atomic from the worker's view:
-                // a mid-loop crash leaves no enqueued workers to misbehave on partial state.
                 for (m in manifests) container.manifestStore.save(m)
                 for (m in manifests) container.workScheduler.enqueue(m.bundleId)
 
                 val bundleIds = manifests.map { it.bundleId }
                 _events.tryEmit(CaptureEvent.BundlesCommitted(bundleIds))
-                Log.i(TAG, "Commit complete: ${bundleIds.size} bundle(s) from ${items.size} photos (session=${session.id})")
+                Log.i(TAG, "Commit complete: ${bundleIds.size} bundle(s) from ${items.size} items (session=${session.id})")
             } catch (t: Throwable) {
                 Log.e(TAG, "Commit failed", t)
-                // Delete any manifests we saved before the failure. Pure orphan = the session
-                // has no manifest references, so OrphanRecovery restores it as a queue on next
-                // launch rather than partially processing it (which would delete photos that
-                // belonged to a not-yet-saved later bundle in a multi-segment commit).
                 for (m in manifests) runCatching { container.manifestStore.delete(m.bundleId) }
-                _uiState.update { it.copy(lastError = "Commit failed: ${t.message}") }
+                setErrorWithUndoPause("Commit failed: ${t.message}")
             }
         }
     }
@@ -605,6 +485,7 @@ class CaptureViewModel(
         val dividers = _uiState.value.dividers
         if (items.isEmpty()) return
 
+        val errorCovering = _uiState.value.lastError != null
         _uiState.update {
             it.copy(
                 queue = emptyList(),
@@ -614,18 +495,20 @@ class CaptureViewModel(
         }
         currentSession = null
 
-        // Persist the discard intent BEFORE starting the undo timer. If the process
-        // dies during the 3s window, OrphanRecovery sees the marker and cleans up
-        // instead of restoring the queue on next launch.
         container.stagingStore.markDiscarded(session)
 
-        discardSlot.stash(session, UNDO_WINDOW_MS) { taken ->
+        discardSlot.stash(
+            value = session,
+            timeoutMs = UNDO_WINDOW_MS,
+            pausedInitially = errorCovering,
+        ) { taken ->
             _uiState.update { it.copy(pendingDiscard = null) }
             runCatching { container.stagingStore.deleteSession(taken) }
         }
     }
 
     fun onUndoDiscard() {
+        if (_uiState.value.busy != BusyState.Idle) return
         val pending = _uiState.value.pendingDiscard ?: return
         val session = discardSlot.take() ?: return
         container.stagingStore.unmarkDiscarded(session)
@@ -653,9 +536,6 @@ class CaptureViewModel(
             )
         }
 
-        // Decide the session's fate up front (not inside the launched coroutine). Keeps the
-        // mutation visible to any racing onShutter immediately — so it can't latch onto a
-        // session we're about to delete and then write into it.
         val sessionToDelete = if (remaining.isEmpty()) {
             currentSession.also { currentSession = null }
         } else null
@@ -667,7 +547,9 @@ class CaptureViewModel(
     }
 
     fun onReorder(fromIndex: Int, toIndex: Int) {
+        if (_uiState.value.busy != BusyState.Idle) return
         _uiState.update { state ->
+            if (state.busy != BusyState.Idle) return@update state
             if (fromIndex !in state.queue.indices) return@update state
             val clampedTo = toIndex.coerceIn(0, state.queue.lastIndex)
             if (fromIndex == clampedTo) return@update state
@@ -680,6 +562,7 @@ class CaptureViewModel(
 
     fun clearError() {
         _uiState.update { it.copy(lastError = null) }
+        discardSlot.resume()
     }
 
     fun hasLocationPermission(): Boolean = container.locationProvider.hasPermission()
@@ -687,8 +570,6 @@ class CaptureViewModel(
     fun onDismissGestureTutorial(shownStepIds: Set<String>) {
         viewModelScope.launch {
             runCatching {
-                // Merge with whatever's already persisted (legacy v1 seeding, or a
-                // previous partial dismissal).
                 val existing = settings.value.seenTutorialSteps
                 container.settingsRepository.setSeenTutorialSteps(existing + shownStepIds)
             }.onFailure { Log.w(TAG, "Failed to persist gesture tutorial steps", it) }
@@ -696,48 +577,35 @@ class CaptureViewModel(
     }
 
     fun setModality(m: Modality) {
-        // Any non-Idle busy state (Capturing mid-shutter, Recording, Rebinding)
-        // means a modality change would conflict with in-flight work. The swipe
-        // handler in CaptureScreen applies the same gate.
         if (_uiState.value.busy != BusyState.Idle) return
+        if (m == Modality.VIDEO) {
+            val cap = cameraState.value.capability
+            if (cap is CameraCapability.PhotoOnly) {
+                setErrorWithUndoPause(cap.reason)
+                return
+            }
+        }
         _modality.value = m
     }
 
     /**
-     * Lifecycle pause hook. If a video or voice recording is live when the Activity
-     * pauses, route through the normal async stop flow so the recorded file ends up
-     * on the queue and VM state transitions cleanly to Idle. viewModelScope outlives
-     * Activity pause, so the awaiting coroutine continues and wakes up when Finalize
-     * fires (video) or MediaRecorder.stop() returns (voice).
-     *
-     * An earlier variant called sync-stop methods directly, which produced a stuck
-     * `BusyState.Recording` after resume because nothing cleared the recording-start
-     * timestamp or re-entered the state machine.
+     * `ON_PAUSE` is routed through `HostEventClassifier` as a transient pause and must
+     * NOT finalize an active take (e.g. during multi-window focus changes or permission
+     * dialogs). Actual backgrounding is handled by `MainActivity.onStop` (`!isChangingConfigurations`).
      */
     fun onLifecyclePaused() {
-        if (_uiState.value.busy != BusyState.Recording) return
-        when (_modality.value) {
-            Modality.VIDEO -> {
-                _uiState.update { it.copy(busy = BusyState.Capturing) }
-                stopVideoRecordingFlow()
-            }
-            Modality.VOICE -> {
-                _uiState.update { it.copy(busy = BusyState.Capturing) }
-                stopVoiceRecordingFlow()
-            }
-            Modality.PHOTO -> Unit
+        viewModelScope.launch {
+            coordinator.onHostEvent(RawHostEvent.ActivityPaused)
         }
     }
 
     fun onToggleLens() {
-        // Mid-capture / mid-rebind lens flip would unbind ImageCapture while takePicture()
-        // is still awaiting, surfacing a spurious "Capture failed" error to the user.
-        // BusyState.Rebinding and .Capturing both block here; Idle is the only entry.
         if (_uiState.value.busy != BusyState.Idle) return
         _lensFacing.update { if (it == LensFacing.Back) LensFacing.Front else LensFacing.Back }
     }
 
     fun onCycleFlash() {
+        if (_uiState.value.busy != BusyState.Idle) return
         _flashMode.update {
             when (it) {
                 FlashMode.Off -> FlashMode.Auto
@@ -748,25 +616,22 @@ class CaptureViewModel(
     }
 
     fun onToggleVideoAudio() {
-        // Ignore mid-recording — VideoCapture's audio mode is frozen at start(), so a
-        // mid-record toggle would be a UX lie. The button is also disabled while busy.
         if (_uiState.value.busy != BusyState.Idle) return
         _videoAudioEnabled.update { !it }
     }
 
-    // Called from `CameraPreview`'s bind LaunchedEffect around `CaptureController.bind()`.
-    // Collapses what used to be a separate `isRebinding` StateFlow into BusyState — so UI
-    // guards can be the single predicate `busy == Idle`. Invariant: the caller only flips
-    // this while busy is Idle (no capture/record in flight). If we ever allow overlapping,
-    // this needs to become a stack-like counter.
     fun setRebinding(rebinding: Boolean) {
-        _uiState.update {
-            it.copy(busy = if (rebinding) BusyState.Rebinding else BusyState.Idle)
+        _uiState.update { state ->
+            if (state.busy == BusyState.Recording || state.busy == BusyState.Capturing) {
+                state
+            } else {
+                state.copy(busy = if (rebinding) BusyState.Rebinding else BusyState.Idle)
+            }
         }
     }
 
     fun onZoomChange(ratio: Float) {
-        captureController.setZoomRatio(ratio)
+        coordinator.setZoomRatio(ratio)
     }
 
     private fun confirmPendingDiscardIfAny() {
@@ -778,7 +643,9 @@ class CaptureViewModel(
     }
 
     override fun onCleared() {
-        captureController.shutdown()
+        if (coordinator.onTakeOutcome != null) {
+            coordinator.onTakeOutcome = null
+        }
         super.onCleared()
     }
 

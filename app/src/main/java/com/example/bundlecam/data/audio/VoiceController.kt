@@ -30,6 +30,13 @@ sealed class VoiceRecordingResult {
     object NotRecording : VoiceRecordingResult()
 }
 
+interface VoiceSessionContract {
+    val amplitudeFlow: StateFlow<Int>
+    fun hasPermission(): Boolean
+    suspend fun startRecording(outputFile: File): VoiceRecordingResult
+    suspend fun stopRecording(): VoiceRecordingResult
+}
+
 /**
  * Owns the `MediaRecorder` lifecycle for voice capture. Deliberately independent of
  * the CameraX stack — voice modality keeps the camera preview bound (so switching back
@@ -40,7 +47,7 @@ sealed class VoiceRecordingResult {
  * fidelity, swap to `AudioRecord` + `MediaCodec` — the wrapper here would become a
  * thinner wrapper around those primitives.
  */
-class VoiceController(context: Context) {
+class VoiceController(context: Context) : VoiceSessionContract {
     private val appContext: Context = context.applicationContext
 
     // start/stop run on Dispatchers.IO; the ViewModel coroutine scope serializes them
@@ -62,9 +69,9 @@ class VoiceController(context: Context) {
     private var amplitudeJob: Job? = null
 
     private val _amplitudeFlow = MutableStateFlow(0)
-    val amplitudeFlow: StateFlow<Int> = _amplitudeFlow.asStateFlow()
+    override val amplitudeFlow: StateFlow<Int> = _amplitudeFlow.asStateFlow()
 
-    fun hasPermission(): Boolean = ContextCompat.checkSelfPermission(
+    override fun hasPermission(): Boolean = ContextCompat.checkSelfPermission(
         appContext,
         Manifest.permission.RECORD_AUDIO,
     ) == PackageManager.PERMISSION_GRANTED
@@ -75,7 +82,7 @@ class VoiceController(context: Context) {
      * [stopRecording]). [VoiceRecordingResult.PermissionDenied] is a distinct case so
      * the VM can trigger the runtime permission flow instead of surfacing a banner.
      */
-    suspend fun startRecording(outputFile: File): VoiceRecordingResult = withContext(Dispatchers.IO) {
+    override suspend fun startRecording(outputFile: File): VoiceRecordingResult = withContext(Dispatchers.IO) {
         if (!hasPermission()) {
             Log.w(TAG, "startRecording: RECORD_AUDIO not granted")
             return@withContext VoiceRecordingResult.PermissionDenied
@@ -131,7 +138,7 @@ class VoiceController(context: Context) {
      * SystemClock.elapsedRealtime — more reliable than reading the m4a since the moov
      * atom only flushes during release().
      */
-    suspend fun stopRecording(): VoiceRecordingResult = withContext(Dispatchers.IO) {
+    override suspend fun stopRecording(): VoiceRecordingResult = withContext(Dispatchers.IO) {
         val mr = recorder ?: return@withContext VoiceRecordingResult.NotRecording
         val output = currentOutput ?: return@withContext VoiceRecordingResult.NotRecording
         val durationMs = SystemClock.elapsedRealtime() - startedAtElapsedRealtime

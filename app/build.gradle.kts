@@ -109,6 +109,7 @@ dependencies {
     implementation(libs.androidx.camera.video)
 
     implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.androidx.window)
     implementation(libs.play.services.location)
     implementation(libs.androidx.exifinterface)
     implementation(libs.androidx.documentfile)
@@ -121,8 +122,10 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.mockito.core)
+    testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)

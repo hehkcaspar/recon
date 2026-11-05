@@ -7,7 +7,9 @@ import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.util.Rational
 import android.view.OrientationEventListener
+import android.view.Surface
 import androidx.camera.core.AspectRatio
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
@@ -16,6 +18,8 @@ import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
+import androidx.camera.core.UseCaseGroup
+import androidx.camera.core.ViewPort
 import androidx.camera.core.ZoomState
 import androidx.camera.core.resolutionselector.AspectRatioStrategy
 import androidx.camera.core.resolutionselector.ResolutionSelector
@@ -31,15 +35,20 @@ import androidx.camera.video.VideoCapture
 import androidx.camera.video.VideoRecordEvent
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.LiveData
 import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LiveData
 import androidx.lifecycle.Observer
 import com.example.bundlecam.data.exif.OrientationCodec
+import com.example.bundlecam.ui.capture.window.IntRectPx
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -48,6 +57,7 @@ import java.io.File
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -75,50 +85,55 @@ sealed class RecordingResult {
     data class Error(val code: Int, val cause: Throwable?) : RecordingResult()
 }
 
-class CaptureController(context: Context) {
+/**
+ * Single owner of the CameraX lifecycle (`ProcessCameraProvider`, `ExtensionsManager`,
+ * `Preview`, `ImageCapture`, `VideoCapture<Recorder>`, `ViewPort`, zoom, flash, and
+ * rotation). Held by `AppContainer` and driven by `CaptureTakeCoordinator`.
+ */
+class CaptureController(context: Context) : CameraSessionContract {
     private val appContext: Context = context.applicationContext
     private val captureExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private val bindMutex = Mutex()
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val controllerScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val bindTokenCounter = AtomicLong(0L)
 
     private var cameraProvider: ProcessCameraProvider? = null
     private var extensionsManager: ExtensionsManager? = null
 
-    // Main-thread-confined: all reads/writes happen on Dispatchers.Main or mainHandler.post.
+    // Main-thread-confined CameraX references.
+    private var attachedLifecycleOwner: LifecycleOwner? = null
+    private var attachedPreviewView: PreviewView? = null
+    private var previewUseCase: Preview? = null
     private var imageCapture: ImageCapture? = null
     private var videoCapture: VideoCapture<Recorder>? = null
     private var recorder: Recorder? = null
     private var activeRecording: Recording? = null
+    private var activeTakeToken: String? = null
     private var recordingFinalized: CompletableDeferred<RecordingResult>? = null
     private var camera: Camera? = null
     private var zoomObserver: Observer<ZoomState>? = null
     private var observedZoomState: LiveData<ZoomState>? = null
+    private var pendingBindPlan: CameraBindPlan? = null
 
-    // Set after the first bind: true if Preview + ImageCapture + VideoCapture bound
-    // concurrently (the common case on API 26+ / LIMITED+ hardware). False means the
-    // device refused the triple-bind and we've degraded to Preview + ImageCapture —
-    // video recording is unavailable until we add per-modality rebind fallback.
     @Volatile
     var combinedBindSupported: Boolean = false
         private set
 
-    // Flash mode survives rebinds: setFlashMode updates this and any live capture use case;
-    // bind() re-applies it whenever a fresh ImageCapture is created.
     @Volatile
     private var currentFlashMode: FlashMode = FlashMode.Off
 
-    private val _zoomInfo = MutableStateFlow<ZoomInfo?>(null)
-    val zoomInfo: StateFlow<ZoomInfo?> = _zoomInfo.asStateFlow()
+    private val _sessionState = MutableStateFlow(CameraSessionState())
+    override val sessionState: StateFlow<CameraSessionState> = _sessionState.asStateFlow()
 
-    // Latest audio amplitude reported by CameraX during the active video recording.
-    // Range [0f, 1f]; 0f when no recording is active or audio is disabled. Sourced
-    // from `VideoRecordEvent.Status.recordingStats.audioStats.audioAmplitude`, which
-    // CameraX emits at ~1 Hz alongside other recording stats.
+    private val _zoomInfo = MutableStateFlow<ZoomInfo?>(null)
+    override val zoomInfo: StateFlow<ZoomInfo?> = _zoomInfo.asStateFlow()
+
     private val _videoAudioAmplitude = MutableStateFlow(0f)
-    val videoAudioAmplitude: StateFlow<Float> = _videoAudioAmplitude.asStateFlow()
+    override val videoAudioAmplitude: StateFlow<Float> = _videoAudioAmplitude.asStateFlow()
 
     private val _deviceOrientation = MutableStateFlow(0)
-    val deviceOrientation: StateFlow<Int> = _deviceOrientation.asStateFlow()
+    override val deviceOrientation: StateFlow<Int> = _deviceOrientation.asStateFlow()
 
     private val orientationListener = object : OrientationEventListener(appContext) {
         override fun onOrientationChanged(angle: Int) {
@@ -126,13 +141,13 @@ class CaptureController(context: Context) {
             val snapped = OrientationCodec.snapToCardinal(angle)
             if (_deviceOrientation.value != snapped) {
                 _deviceOrientation.value = snapped
-                val rotation = OrientationCodec.toSurfaceRotation(snapped)
-                imageCapture?.targetRotation = rotation
-                // VideoCapture.targetRotation is frozen at `start()`-time by CameraX, so
-                // writes here while a recording is active are harmless no-ops; the live
-                // clip keeps the rotation captured at prepareRecording().start(). The
-                // next recording picks up the current value.
-                videoCapture?.targetRotation = rotation
+                _sessionState.update { it.copy(physicalDeviceDegrees = snapped) }
+                val targetRotation = computeTargetCaptureRotation(
+                    physicalDegrees = snapped,
+                    activeSurfaceRotation = _sessionState.value.activeSurfaceRotation,
+                )
+                imageCapture?.targetRotation = targetRotation
+                videoCapture?.targetRotation = targetRotation
             }
         }
     }
@@ -147,35 +162,192 @@ class CaptureController(context: Context) {
         orientationListener.disable()
     }
 
+    override suspend fun attachHost(
+        lifecycleOwner: LifecycleOwner,
+        previewView: PreviewView?,
+        initialPlan: CameraBindPlan,
+    ) {
+        startOrientationListening()
+        val shouldRebind = bindMutex.withLock {
+            withContext(Dispatchers.Main) {
+                val ownerChanged = attachedLifecycleOwner !== lifecycleOwner
+                val viewChanged = attachedPreviewView !== previewView
+                val planChanged = _sessionState.value.bindPlan != initialPlan
+                val unbound = _sessionState.value.readiness == CameraReadiness.Unbound ||
+                    _sessionState.value.readiness == CameraReadiness.Error
+                attachedLifecycleOwner = lifecycleOwner
+                attachedPreviewView = previewView
+                if (previewView != null) {
+                    previewUseCase?.surfaceProvider = previewView.surfaceProvider
+                }
+                // Do not interrupt an active recording if the same LifecycleOwner
+                // merely reattached a PreviewView during recomposition.
+                if (activeRecording != null && !ownerChanged) {
+                    if (planChanged) pendingBindPlan = initialPlan
+                    false
+                } else {
+                    ownerChanged || viewChanged || planChanged || unbound
+                }
+            }
+        }
+        if (shouldRebind) {
+            bindInternal(lifecycleOwner, previewView, initialPlan)
+        }
+    }
+
+    override suspend fun detachHost(lifecycleOwner: LifecycleOwner?) {
+        bindMutex.withLock {
+            withContext(Dispatchers.Main) {
+                if (lifecycleOwner != null && attachedLifecycleOwner !== lifecycleOwner) {
+                    // Stale detach from an already-superseded host; ignore.
+                    return@withContext
+                }
+                stopOrientationListening()
+                detachZoomObserver()
+                activeRecording?.stop()
+                previewUseCase?.surfaceProvider = null
+                cameraProvider?.unbindAll()
+                attachedLifecycleOwner = null
+                attachedPreviewView = null
+                previewUseCase = null
+                imageCapture = null
+                videoCapture = null
+                recorder = null
+                camera = null
+                _sessionState.update {
+                    it.copy(
+                        readiness = CameraReadiness.Unbound,
+                        streamGeometry = null,
+                        zoomInfo = null,
+                        isRecordingVideo = false,
+                    )
+                }
+            }
+        }
+    }
+
+    override suspend fun updateBindPlan(plan: CameraBindPlan) {
+        val owner: LifecycleOwner?
+        val view: PreviewView?
+        val deferBind: Boolean
+        bindMutex.withLock {
+            withContext(Dispatchers.Main) {
+                if (_sessionState.value.bindPlan == plan &&
+                    _sessionState.value.readiness == CameraReadiness.Ready
+                ) {
+                    owner = null
+                    view = null
+                    deferBind = false
+                    return@withContext
+                }
+                if (activeRecording != null) {
+                    // Forbidden to rebind during an active recording; defer until Finalize.
+                    pendingBindPlan = plan
+                    owner = null
+                    view = null
+                    deferBind = true
+                    return@withContext
+                }
+                pendingBindPlan = null
+                owner = attachedLifecycleOwner
+                view = attachedPreviewView
+                deferBind = false
+            }
+        }
+        if (!deferBind && owner != null) {
+            bindInternal(owner, view, plan)
+        } else if (!deferBind) {
+            _sessionState.update { it.copy(bindPlan = plan) }
+        }
+    }
+
+    /**
+     * Compatibility entry point delegating to [attachHost].
+     */
     suspend fun bind(
         lifecycleOwner: LifecycleOwner,
         mode: CameraMode,
         lens: LensFacing,
         previewView: PreviewView,
     ) {
-        // Init provider + extensions outside the mutex — idempotent, cached.
-        val provider = getOrInitProvider()
-        val selector = buildSelector(provider, mode, lens)
+        attachHost(
+            lifecycleOwner = lifecycleOwner,
+            previewView = previewView,
+            initialPlan = CameraBindPlan(mode = mode, lens = lens),
+        )
+    }
+
+    private suspend fun bindInternal(
+        lifecycleOwner: LifecycleOwner,
+        previewView: PreviewView?,
+        plan: CameraBindPlan,
+    ) {
+        val token = bindTokenCounter.incrementAndGet()
+        _sessionState.update {
+            it.copy(
+                readiness = CameraReadiness.Binding,
+                bindPlan = plan,
+            )
+        }
+
+        val provider = try {
+            getOrInitProvider()
+        } catch (t: Throwable) {
+            Log.e(TAG, "CameraProvider initialization failed", t)
+            _sessionState.update {
+                it.copy(
+                    readiness = CameraReadiness.Error,
+                    capability = CameraCapability.Unavailable(
+                        reason = t.message ?: "Camera provider unavailable",
+                        bindToken = token,
+                    ),
+                )
+            }
+            return
+        }
+
+        val selector = try {
+            buildSelector(provider, plan.mode, plan.lens)
+        } catch (t: Throwable) {
+            Log.e(TAG, "CameraSelector build failed", t)
+            _sessionState.update {
+                it.copy(
+                    readiness = CameraReadiness.Error,
+                    capability = CameraCapability.Unavailable(
+                        reason = t.message ?: "Camera selector unavailable",
+                        bindToken = token,
+                    ),
+                )
+            }
+            return
+        }
 
         val aspectStrategy = AspectRatioStrategy(
-            AspectRatio.RATIO_4_3,
+            plan.aspectRatio,
             AspectRatioStrategy.FALLBACK_RULE_AUTO,
         )
         val resolutionSelector = ResolutionSelector.Builder()
             .setAspectRatioStrategy(aspectStrategy)
             .build()
 
+        val activeRotation = _sessionState.value.activeSurfaceRotation
         val preview = Preview.Builder()
             .setResolutionSelector(resolutionSelector)
+            .setTargetRotation(activeRotation)
             .build()
 
-        val captureMode = when (mode) {
+        val captureMode = when (plan.mode) {
             CameraMode.ZSL -> ImageCapture.CAPTURE_MODE_ZERO_SHUTTER_LAG
             CameraMode.Extensions -> ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY
         }
+        val captureRotation = computeTargetCaptureRotation(
+            physicalDegrees = _deviceOrientation.value,
+            activeSurfaceRotation = activeRotation,
+        )
         val capture = ImageCapture.Builder()
             .setCaptureMode(captureMode)
             .setResolutionSelector(resolutionSelector)
+            .setTargetRotation(captureRotation)
             .build()
 
         val newRecorder = Recorder.Builder()
@@ -184,64 +356,137 @@ class CaptureController(context: Context) {
                     listOf(Quality.HD, Quality.SD, Quality.LOWEST),
                 ),
             )
+            .setAspectRatio(plan.aspectRatio)
             .build()
-        val newVideoCapture = VideoCapture.withOutput(newRecorder)
+        val newVideoCapture = VideoCapture.withOutput(newRecorder).apply {
+            targetRotation = captureRotation
+        }
 
-        // Only the actual unbind+rebind needs serialization.
         bindMutex.withLock {
             withContext(Dispatchers.Main) {
                 detachZoomObserver()
                 provider.unbindAll()
 
-                // Try the combined bind first (CameraX 1.5.1+ guarantees it on LIMITED+
-                // hardware). If the device rejects it, degrade to Preview + ImageCapture
-                // so the photo path keeps working — the user will see "Video unavailable"
-                // if they try VIDEO modality on a degraded device.
-                val cam = try {
-                    provider.bindToLifecycle(lifecycleOwner, selector, preview, capture, newVideoCapture)
-                        .also {
-                            combinedBindSupported = true
-                            videoCapture = newVideoCapture
-                            recorder = newRecorder
-                        }
+                val viewPort = buildSharedViewPort(plan.aspectRatio, activeRotation)
+                val (boundCamera, capabilityResult) = try {
+                    val groupBuilder = UseCaseGroup.Builder()
+                        .addUseCase(preview)
+                        .addUseCase(capture)
+                        .addUseCase(newVideoCapture)
+                    viewPort?.let { groupBuilder.setViewPort(it) }
+                    val cam = provider.bindToLifecycle(
+                        lifecycleOwner,
+                        selector,
+                        groupBuilder.build(),
+                    )
+                    combinedBindSupported = true
+                    videoCapture = newVideoCapture
+                    recorder = newRecorder
+                    cam to CameraCapability.PhotoVideo(bindToken = token)
                 } catch (iae: IllegalArgumentException) {
-                    Log.w(TAG, "Concurrent Preview+ImageCapture+VideoCapture unsupported; binding photo-only", iae)
+                    Log.w(TAG, "Concurrent Preview+ImageCapture+VideoCapture unsupported; falling back to PhotoOnly", iae)
                     combinedBindSupported = false
                     videoCapture = null
                     recorder = null
-                    provider.bindToLifecycle(lifecycleOwner, selector, preview, capture)
+                    provider.unbindAll()
+                    try {
+                        val photoGroup = UseCaseGroup.Builder()
+                            .addUseCase(preview)
+                            .addUseCase(capture)
+                        viewPort?.let { photoGroup.setViewPort(it) }
+                        val cam = provider.bindToLifecycle(
+                            lifecycleOwner,
+                            selector,
+                            photoGroup.build(),
+                        )
+                        cam to CameraCapability.PhotoOnly(
+                            reason = "Video recording is not supported simultaneously with photo on this camera",
+                            bindToken = token,
+                        )
+                    } catch (fallbackError: Throwable) {
+                        Log.e(TAG, "PhotoOnly fallback bind failed", fallbackError)
+                        null to CameraCapability.Unavailable(
+                            reason = fallbackError.message ?: "Camera unavailable",
+                            bindToken = token,
+                        )
+                    }
+                } catch (t: Throwable) {
+                    Log.e(TAG, "Camera bind failed", t)
+                    combinedBindSupported = false
+                    videoCapture = null
+                    recorder = null
+                    null to CameraCapability.Unavailable(
+                        reason = t.message ?: "Camera unavailable",
+                        bindToken = token,
+                    )
                 }
 
-                preview.surfaceProvider = previewView.surfaceProvider
+                if (boundCamera == null) {
+                    previewUseCase = null
+                    imageCapture = null
+                    camera = null
+                    _sessionState.update {
+                        it.copy(
+                            readiness = CameraReadiness.Error,
+                            capability = capabilityResult,
+                            streamGeometry = null,
+                        )
+                    }
+                    return@withContext
+                }
+
+                if (previewView != null) {
+                    preview.surfaceProvider = previewView.surfaceProvider
+                }
+                previewUseCase = preview
                 imageCapture = capture
-                camera = cam
-                // Apply flash *after* installing so we see any setFlashMode() call that
-                // landed between Builder.build() above and here. Those calls post to
-                // mainHandler targeting whatever imageCapture was current at post time,
-                // which would be the now-discarded previous capture — so we re-read
-                // currentFlashMode and write the live one here.
+                camera = boundCamera
                 capture.flashMode = toCxFlashMode(currentFlashMode)
-                // Seed targetRotation on the fresh use cases from the latest orientation.
-                val rotation = OrientationCodec.toSurfaceRotation(_deviceOrientation.value)
-                capture.targetRotation = rotation
-                videoCapture?.targetRotation = rotation
-                attachZoomObserver(cam)
+                capture.targetRotation = captureRotation
+                videoCapture?.targetRotation = captureRotation
+                attachZoomObserver(boundCamera)
+                val deliveredStream = extractStreamGeometry(preview)
+                _sessionState.update {
+                    it.copy(
+                        readiness = CameraReadiness.Ready,
+                        capability = capabilityResult,
+                        bindPlan = plan,
+                        flashMode = currentFlashMode,
+                        streamGeometry = deliveredStream,
+                    )
+                }
             }
         }
-        Log.i(TAG, "Bound camera in mode=$mode lens=$lens video=$combinedBindSupported")
+        Log.i(TAG, "Bound camera plan=$plan capability=${_sessionState.value.capability}")
     }
 
-    /**
-     * Start a video recording into [outputFile]. When [audioEnabled] is true and
-     * `RECORD_AUDIO` is granted, the clip carries an audio track; otherwise it's silent.
-     * The VM owns the user's mic-toggle and pre-prompts for permission, so the silent
-     * fallback here is just defensive.
-     *
-     * Returns true if the recording started. False if VideoCapture isn't bound (the
-     * device degraded to photo-only) or another recording is already live.
-     */
+    override fun updateDisplayRotation(surfaceRotation: Int) {
+        mainHandler.post {
+            val prevRotation = _sessionState.value.activeSurfaceRotation
+            _sessionState.update { it.copy(activeSurfaceRotation = surfaceRotation) }
+            previewUseCase?.targetRotation = surfaceRotation
+            val targetRotation = computeTargetCaptureRotation(
+                physicalDegrees = _deviceOrientation.value,
+                activeSurfaceRotation = surfaceRotation,
+            )
+            imageCapture?.targetRotation = targetRotation
+            videoCapture?.targetRotation = targetRotation
+            val updatedStream = previewUseCase?.let(::extractStreamGeometry)
+            if (updatedStream != null || prevRotation != surfaceRotation) {
+                _sessionState.update { state ->
+                    state.copy(streamGeometry = updatedStream ?: state.streamGeometry)
+                }
+            }
+        }
+    }
+
     @SuppressLint("MissingPermission")
-    fun startVideoRecording(outputFile: File, audioEnabled: Boolean): Boolean {
+    override fun startVideoRecording(
+        takeToken: String,
+        outputFile: File,
+        audioEnabled: Boolean,
+        onUnsolicitedFinalize: ((String, RecordingResult) -> Unit)?,
+    ): Boolean {
         val rec = recorder ?: run {
             Log.w(TAG, "startVideoRecording: no Recorder bound; video unsupported on this device")
             return false
@@ -271,17 +516,16 @@ class CaptureController(context: Context) {
             }
         }
         _videoAudioAmplitude.value = 0f
+        _sessionState.update { it.copy(videoAudioAmplitude = 0f, isRecordingVideo = true) }
+        activeTakeToken = takeToken
+
         val recording = pendingRecording.start(ContextCompat.getMainExecutor(appContext)) { event ->
             when (event) {
                 is VideoRecordEvent.Status -> {
-                    // CameraX emits Status events ~1 Hz with current RecordingStats. The
-                    // audioStats.audioAmplitude is in [0,1] when the audio track is live;
-                    // AUDIO_STATE_DISABLED returns 0. Non-finite values shouldn't happen
-                    // but we coerce defensively so the UI never sees NaN.
                     val raw = event.recordingStats.audioStats.audioAmplitude
-                    _videoAudioAmplitude.value = if (raw.isFinite()) {
-                        raw.toFloat().coerceIn(0f, 1f)
-                    } else 0f
+                    val amp = if (raw.isFinite()) raw.toFloat().coerceIn(0f, 1f) else 0f
+                    _videoAudioAmplitude.value = amp
+                    _sessionState.update { it.copy(videoAudioAmplitude = amp) }
                 }
                 is VideoRecordEvent.Finalize -> {
                     _videoAudioAmplitude.value = 0f
@@ -292,43 +536,68 @@ class CaptureController(context: Context) {
                         val durationMs = event.recordingStats.recordedDurationNanos / 1_000_000L
                         RecordingResult.Success(outputFile, durationMs)
                     }
+                    if (activeTakeToken == takeToken) {
+                        activeRecording = null
+                        activeTakeToken = null
+                    }
+                    _sessionState.update {
+                        it.copy(videoAudioAmplitude = 0f, isRecordingVideo = false)
+                    }
                     deferred.complete(result)
+                    onUnsolicitedFinalize?.invoke(takeToken, result)
+
+                    val queuedPlan = pendingBindPlan
+                    val owner = attachedLifecycleOwner
+                    if (queuedPlan != null && owner != null) {
+                        pendingBindPlan = null
+                        controllerScope.launch {
+                            bindInternal(owner, attachedPreviewView, queuedPlan)
+                        }
+                    }
                 }
                 else -> Unit
             }
         }
         activeRecording = recording
         recordingFinalized = deferred
-        Log.i(TAG, "Video recording started → ${outputFile.absolutePath}")
+        Log.i(TAG, "Video recording started token=$takeToken → ${outputFile.absolutePath}")
         return true
     }
 
     /**
-     * Stop the current recording and suspend until `Finalize` fires. Returns the finalized
-     * result. Idempotent-ish: if nothing is recording, returns an Error with a sentinel
-     * state, so callers don't have to guard.
+     * Convenience overload preserving existing call signature.
      */
-    suspend fun stopVideoRecording(): RecordingResult {
+    fun startVideoRecording(outputFile: File, audioEnabled: Boolean): Boolean =
+        startVideoRecording(
+            takeToken = outputFile.name,
+            outputFile = outputFile,
+            audioEnabled = audioEnabled,
+            onUnsolicitedFinalize = null,
+        )
+
+    override suspend fun stopVideoRecording(): RecordingResult {
         val rec = activeRecording
         val deferred = recordingFinalized
-        if (rec == null || deferred == null) {
+        if (rec == null && deferred == null) {
             return RecordingResult.Error(-1, IllegalStateException("not recording"))
         }
-        rec.stop()
-        val result = deferred.await()
+        rec?.stop()
+        val result = deferred?.await()
+            ?: RecordingResult.Error(-1, IllegalStateException("missing finalize deferred"))
         activeRecording = null
+        activeTakeToken = null
         recordingFinalized = null
         return result
     }
 
-
-    fun setFlashMode(mode: FlashMode) {
+    override fun setFlashMode(mode: FlashMode) {
         if (currentFlashMode == mode) return
         currentFlashMode = mode
+        _sessionState.update { it.copy(flashMode = mode) }
         mainHandler.post { imageCapture?.flashMode = toCxFlashMode(mode) }
     }
 
-    fun focusAt(previewView: PreviewView, x: Float, y: Float) {
+    override fun focusAt(previewView: PreviewView, x: Float, y: Float) {
         val cam = camera ?: return
         val point = previewView.meteringPointFactory.createPoint(x, y)
         val action = FocusMeteringAction.Builder(
@@ -341,13 +610,13 @@ class CaptureController(context: Context) {
             .onFailure { Log.w(TAG, "Focus-and-metering failed at ($x, $y)", it) }
     }
 
-    fun setZoomRatio(ratio: Float) {
+    override fun setZoomRatio(ratio: Float) {
         val cam = camera ?: return
         runCatching { cam.cameraControl.setZoomRatio(ratio) }
             .onFailure { Log.w(TAG, "setZoomRatio($ratio) failed", it) }
     }
 
-    fun applyPinchZoom(zoomFactor: Float) {
+    override fun applyPinchZoom(zoomFactor: Float) {
         val cam = camera ?: return
         val zs = cam.cameraInfo.zoomState.value ?: return
         val newRatio = zs.zoomRatio * zoomFactor
@@ -355,10 +624,7 @@ class CaptureController(context: Context) {
             .onFailure { Log.w(TAG, "applyPinchZoom($zoomFactor) failed", it) }
     }
 
-    suspend fun takePicture(): CapturedPhoto {
-        // Rebinding is gated at the UI layer via isRebinding; here we rely on the
-        // imageCapture null check below + the CameraX onError callback to surface any
-        // in-flight failure (e.g. the capture use case being unbound mid-flight).
+    override suspend fun takePicture(): CapturedPhoto {
         return suspendCancellableCoroutine { cont ->
             val capture = imageCapture ?: run {
                 cont.resumeWithException(IllegalStateException("ImageCapture not bound"))
@@ -370,9 +636,17 @@ class CaptureController(context: Context) {
                     override fun onCaptureSuccess(image: ImageProxy) {
                         try {
                             val buffer = image.planes[0].buffer
-                            val bytes = ByteArray(buffer.remaining())
-                            buffer.get(bytes)
-                            cont.resume(CapturedPhoto(bytes, image.imageInfo.rotationDegrees))
+                            val rawBytes = ByteArray(buffer.remaining())
+                            buffer.get(rawBytes)
+                            val rect = image.cropRect
+                            val cropRectPx = IntRectPx(rect.left, rect.top, rect.right, rect.bottom)
+                            val finalBytes = applyJpegCropIfNeeded(
+                                jpegBytes = rawBytes,
+                                cropRect = cropRectPx,
+                                bufferWidth = image.width,
+                                bufferHeight = image.height,
+                            )
+                            cont.resume(CapturedPhoto(finalBytes, image.imageInfo.rotationDegrees))
                         } catch (t: Throwable) {
                             cont.resumeWithException(t)
                         } finally {
@@ -388,20 +662,51 @@ class CaptureController(context: Context) {
         }
     }
 
-    fun shutdown() {
+    override fun shutdown() {
         captureExecutor.shutdown()
         orientationListener.disable()
         mainHandler.post { detachZoomObserver() }
     }
 
+    private fun buildSharedViewPort(
+        aspectRatio: Int,
+        surfaceRotation: Int,
+    ): ViewPort? {
+        val isPortraitRotation = surfaceRotation == Surface.ROTATION_0 ||
+            surfaceRotation == Surface.ROTATION_180
+        val rational = when (aspectRatio) {
+            AspectRatio.RATIO_16_9 -> if (isPortraitRotation) Rational(9, 16) else Rational(16, 9)
+            else -> if (isPortraitRotation) Rational(3, 4) else Rational(4, 3)
+        }
+        return runCatching {
+            ViewPort.Builder(rational, surfaceRotation)
+                .setScaleType(ViewPort.FIT)
+                .build()
+        }.getOrNull()
+    }
+
+    private fun extractStreamGeometry(preview: Preview): StreamGeometry? {
+        val info = preview.resolutionInfo ?: return null
+        val res = info.resolution
+        val crop = info.cropRect
+        return StreamGeometry(
+            bufferWidth = res.width,
+            bufferHeight = res.height,
+            cropRect = IntRectPx(crop.left, crop.top, crop.right, crop.bottom),
+            rotationDegrees = info.rotationDegrees,
+        )
+    }
+
     private fun attachZoomObserver(cam: Camera) {
         val zoomStateLive = cam.cameraInfo.zoomState
         val obs = Observer<ZoomState> { zs ->
-            _zoomInfo.value = ZoomInfo(
+            val info = ZoomInfo(
                 currentRatio = zs.zoomRatio,
                 minRatio = zs.minZoomRatio,
                 maxRatio = zs.maxZoomRatio,
             )
+            _zoomInfo.value = info
+            _sessionState.update { it.copy(zoomInfo = info) }
         }
         zoomStateLive.observeForever(obs)
         zoomObserver = obs
@@ -474,5 +779,23 @@ class CaptureController(context: Context) {
             ContextCompat.getMainExecutor(appContext),
         )
         cont.invokeOnCancellation { future.cancel(false) }
+    }
+
+    companion object {
+        /**
+         * Combine physical device orientation degrees (0, 90, 180, 270) with active
+         * display rotation so still capture and next video capture use the active
+         * display's coordinate basis while honoring physical rotation (including 180°
+         * and rotation lock).
+         */
+        fun computeTargetCaptureRotation(
+            physicalDegrees: Int,
+            activeSurfaceRotation: Int,
+        ): Int {
+            // OrientationCodec maps physical device degrees directly to Surface.ROTATION_*.
+            // When the user holds the device in a physical cardinal pose, CameraX expects
+            // targetRotation as the Surface.ROTATION_* constant for that physical orientation.
+            return OrientationCodec.toSurfaceRotation(physicalDegrees)
+        }
     }
 }

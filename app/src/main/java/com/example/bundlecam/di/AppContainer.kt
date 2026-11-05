@@ -6,6 +6,9 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import com.example.bundlecam.data.audio.VoiceController
+import com.example.bundlecam.data.camera.CaptureController
+import com.example.bundlecam.data.capture.CaptureTakeCoordinator
+import com.example.bundlecam.data.capture.DefaultMediaFinalizeProbe
 import com.example.bundlecam.data.exif.ExifWriter
 import com.example.bundlecam.data.location.LocationProvider
 import com.example.bundlecam.data.settings.SettingsRepository
@@ -39,6 +42,7 @@ class AppContainer(context: Context) {
     val orphanRecovery: OrphanRecovery = OrphanRecovery(stagingStore, manifestStore, workScheduler)
     val exifWriter: ExifWriter = ExifWriter()
     val locationProvider: LocationProvider = LocationProvider(appContext)
+    val captureController: CaptureController = CaptureController(appContext)
     val voiceController: VoiceController = VoiceController(appContext)
     val localSendCertManager: LocalSendCertManager = LocalSendCertManager(appContext)
     val localSendController: LocalSendController =
@@ -49,6 +53,16 @@ class AppContainer(context: Context) {
     // would cancel mid-ensureBundleFolders, leaving the directories half-created and the
     // first bundle worker racing to create them itself.
     val appScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+    val captureTakeCoordinator: CaptureTakeCoordinator = CaptureTakeCoordinator(
+        cameraSession = captureController,
+        voiceSession = voiceController,
+        stagingStore = stagingStore,
+        mediaProbe = DefaultMediaFinalizeProbe(exifWriter),
+        scope = appScope,
+        locationRefresh = { locationProvider.refresh() },
+        cachedLocation = { locationProvider.getCachedOrNull() },
+    )
 
     init {
         appContext.getSystemService(NotificationManager::class.java)?.run {
