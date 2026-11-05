@@ -1,25 +1,37 @@
 package com.example.bundlecam.ui.capture
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /**
- * Top-bar modality selector: VIDEO · PHOTO · VOICE. Segments outside [enabledModalities]
- * render at 35% alpha and are non-clickable; callers use this to dim the pill while a
- * recording is live.
+ * Mode selector strip (`modeStripPhoto` / `modeStripVideo` / `modeStripVoice` /
+ * `modeStripVideoLocked` / `modeStripVoiceLocked` in `recon-capture-design-system.svg`
+ * lines 57–59 & 105–107, and `COMPONENT-CONTRACT.md` § Geometry):
+ * - No background pill or capsule fill (`modeStripNeutral` is transparent).
+ * - Three independent `stripWidth / 3 × 48dp` touch targets (`83⅓ × 48dp` at 250dp,
+ *   `69⅓ × 48dp` at 208dp narrow upright rail).
+ * - Idle colors: `#FFFFFF` 12sp Bold (700) for selected; `#BDBDBD` 12sp Medium (500)
+ *   for unselected enabled choices.
+ * - Recording-locked colors: `#DDDDDD` 12sp Bold (700) for selected; `#707070` 12sp
+ *   Medium (500) for unselected choices.
  */
 @Composable
 fun ModalityPill(
@@ -27,34 +39,37 @@ fun ModalityPill(
     enabledModalities: Set<Modality>,
     onChange: (Modality) -> Unit,
     modifier: Modifier = Modifier,
+    stripWidth: Dp = 250.dp,
+    unavailableReasons: Map<Modality, String> = emptyMap(),
 ) {
+    val allLocked = enabledModalities.isEmpty()
     Row(
         modifier = modifier
-            .clip(RoundedCornerShape(50))
-            .background(Color.White.copy(alpha = 0.15f))
-            .padding(2.dp),
+            .width(stripWidth)
+            .height(48.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Fixed left-to-right order matches the viewfinder swipe carousel:
-        // swipe right from PHOTO → VIDEO, swipe left from PHOTO → VOICE.
-        Segment(
-            label = "VIDEO",
-            selected = current == Modality.VIDEO,
-            enabled = Modality.VIDEO in enabledModalities,
-            onClick = { onChange(Modality.VIDEO) },
+        val modalities = listOf(
+            Modality.VIDEO to "VIDEO",
+            Modality.PHOTO to "PHOTO",
+            Modality.VOICE to "VOICE",
         )
-        Segment(
-            label = "PHOTO",
-            selected = current == Modality.PHOTO,
-            enabled = Modality.PHOTO in enabledModalities,
-            onClick = { onChange(Modality.PHOTO) },
-        )
-        Segment(
-            label = "VOICE",
-            selected = current == Modality.VOICE,
-            enabled = Modality.VOICE in enabledModalities,
-            onClick = { onChange(Modality.VOICE) },
-        )
+        modalities.forEach { (modality, label) ->
+            val isSelected = current == modality
+            val isEnabled = modality in enabledModalities
+            val reason = unavailableReasons[modality]
+            Segment(
+                label = label,
+                selected = isSelected,
+                enabled = isEnabled,
+                allLocked = allLocked,
+                unavailableReason = reason,
+                onClick = { onChange(modality) },
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+            )
+        }
     }
 }
 
@@ -63,37 +78,44 @@ private fun Segment(
     label: String,
     selected: Boolean,
     enabled: Boolean,
+    allLocked: Boolean,
+    unavailableReason: String?,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    // Background: the selected segment always shows its white pill (dimmed when
-    // disabled) so the user can read the current modality at a glance — even
-    // during a recording when every segment is disabled for tap.
-    val background = when {
-        selected && enabled -> Color.White.copy(alpha = 0.9f)
-        selected && !enabled -> Color.White.copy(alpha = 0.35f)
-        else -> Color.Transparent
-    }
     val textColor = when {
-        selected -> Color.Black
-        !enabled -> Color.White.copy(alpha = 0.35f)
-        else -> Color.White
+        selected && allLocked -> Color(0xFFDDDDDD)
+        selected -> Color(0xFFFFFFFF)
+        !enabled -> Color(0xFF707070)
+        else -> Color(0xFFBDBDBD)
     }
+    val a11yDescription = when {
+        unavailableReason != null -> "$label unavailable: $unavailableReason"
+        !enabled -> "$label locked"
+        selected -> "$label, selected"
+        else -> label
+    }
+
     Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
+        modifier = modifier
+            .semantics {
+                contentDescription = a11yDescription
+                this.selected = selected
+                if (!enabled) disabled()
+            }
             .clickable(
                 enabled = enabled,
                 onClickLabel = label,
                 role = Role.Tab,
                 onClick = onClick,
-            )
-            .background(background)
-            .padding(horizontal = 14.dp, vertical = 6.dp),
+            ),
+        contentAlignment = Alignment.Center,
     ) {
         Text(
             text = label,
             color = textColor,
-            style = MaterialTheme.typography.labelMedium,
+            fontSize = 12.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
         )
     }
 }

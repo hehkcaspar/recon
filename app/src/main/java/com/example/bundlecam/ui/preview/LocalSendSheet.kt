@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -105,9 +106,11 @@ fun LocalSendSheet(
     ModalBottomSheet(
         onDismissRequest = { closeAndDismiss() },
         sheetState = sheetState,
+        sheetMaxWidth = 528.dp,
     ) {
         Column(
             modifier = Modifier
+                .widthIn(max = 528.dp)
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {

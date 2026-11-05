@@ -11,10 +11,13 @@ fun UndoToast(
     modifier: Modifier = Modifier,
 ) {
     if (pendingDiscard == null) return
-    val count = pendingDiscard.items.size
+    val items = pendingDiscard.items
+    val count = items.size
+    val allPhotos = items.all { it is StagedItem.Photo }
+    val noun = if (allPhotos) "photo" else "item"
     val suffix = if (count == 1) "" else "s"
     ActionBanner(
-        message = "Discarded $count photo$suffix",
+        message = "Discarded $count $noun$suffix",
         actionLabel = "Undo",
         onAction = onUndo,
         modifier = modifier,

@@ -174,6 +174,40 @@ class BundleRowSwipeTest {
         assertEquals(true, fire(offsetX = 100f, selected = true))
     }
 
+    @Test
+    fun menuOptions_offer_select_and_delete_for_unselected_ready_and_deselect_only_for_selected() {
+        assertEquals(
+            listOf(BundleRowSwipe.MenuOption.Select, BundleRowSwipe.MenuOption.Delete),
+            BundleRowSwipe.menuOptionsFor(selected = false, processing = false, pendingDelete = false),
+        )
+        assertEquals(
+            listOf(BundleRowSwipe.MenuOption.Deselect),
+            BundleRowSwipe.menuOptionsFor(selected = true, processing = false, pendingDelete = false),
+        )
+        assertEquals(
+            emptyList<BundleRowSwipe.MenuOption>(),
+            BundleRowSwipe.menuOptionsFor(selected = false, processing = true, pendingDelete = false),
+        )
+        assertEquals(
+            emptyList<BundleRowSwipe.MenuOption>(),
+            BundleRowSwipe.menuOptionsFor(selected = false, processing = false, pendingDelete = true),
+        )
+    }
+
+    @Test
+    fun isValidSwipeStart_rejects_trailing_more_menu_zone() {
+        // Row 360px wide, trailing menu 48px -> valid start is [0, 312]
+        assertEquals(true, BundleRowSwipe.isValidSwipeStart(120f, rowWidthPx = 360f, trailingMenuZonePx = 48f))
+        assertEquals(false, BundleRowSwipe.isValidSwipeStart(330f, rowWidthPx = 360f, trailingMenuZonePx = 48f))
+    }
+
+    @Test
+    fun displayTitleFor_uses_middle_ellipsis_on_narrow_width_preserving_sequence_suffix() {
+        val longId = "2026-11-02-s-10027"
+        assertEquals("2026…10027", BundleRowSwipe.displayTitleFor(longId, availableWidthDp = 96f))
+        assertEquals(longId, BundleRowSwipe.displayTitleFor(longId, availableWidthDp = 240f))
+    }
+
     private fun fire(offsetX: Float, selected: Boolean): Boolean =
         BundleRowSwipe.wouldFireOnRelease(
             offsetX = offsetX,

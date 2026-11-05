@@ -13,18 +13,21 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -44,19 +47,26 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.isTraversalGroup
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import kotlin.math.abs
+import kotlin.math.min
+import kotlin.math.roundToInt
 
 private val DemoThumbSize: Dp = 48.dp
 private val DemoThumbGap: Dp = 8.dp
-private val DemoRowHeight: Dp = 72.dp
 private val FingerSize: Dp = 34.dp
 private const val DemoThumbCount = 4
 
-// Muted "photo-like" fills so the demo thumbnails read as pictures without being busy.
 private val DemoThumbColors = listOf(
     Color(0xFF3F6D8C),
     Color(0xFF8C5A3F),
@@ -64,33 +74,43 @@ private val DemoThumbColors = listOf(
     Color(0xFFB3946F),
 )
 
+/**
+ * First-run and replayable gesture tutorial overlay per `COMPONENT-CONTRACT.md` § Tutorial:
+ * - Covers the available window with an 82% black scrim (`Color.Black.copy(alpha = 0.82f)`),
+ *   consuming all underlying pointer input and trapping accessibility traversal (`isTraversalGroup = true`).
+ * - Driven directly by [geometry]:
+ *   - Preview step (`SwitchModality`) anchors its demo to [CaptureGeometry.previewBounds].
+ *   - Queue steps (`Commit`, `Discard`, `DeleteOne`, `Reorder`, `Divide`) anchor their demo to
+ *     [CaptureGeometry.queueBounds] / [CaptureGeometry.queueStripBounds] and follow
+ *     [CaptureGeometry.queueAxis] (`Horizontal` vs `Vertical`), naming the actual start handle.
+ */
 @Composable
 fun GestureTutorial(
     onDismiss: (shownStepIds: Set<String>) -> Unit,
     modifier: Modifier = Modifier,
     seenStepIds: Set<String> = emptySet(),
+    geometry: CaptureGeometry? = null,
 ) {
-    // Show only steps the user hasn't dismissed yet. V2 users upgrading from v1 see
-    // just the new SwitchModality step; fresh installs see the full flow.
     val steps = remember(seenStepIds) {
         TutorialStep.entries.filter { it.id !in seenStepIds }
     }
     if (steps.isEmpty()) {
-        // Nothing to show — render nothing. Caller is expected to always wire this
-        // composable into the tree; the empty-set case is the steady-state for users
-        // who've dismissed every step (the common case after first launch).
         return
     }
-    var stepIndex by remember { mutableIntStateOf(0) }
-    val step = steps[stepIndex]
-    val isLast = stepIndex == steps.size - 1
+    var stepIndex by remember(steps) { mutableIntStateOf(0) }
+    val step = steps[stepIndex.coerceIn(0, steps.lastIndex)]
+    val isLast = stepIndex >= steps.size - 1
+    val isPreviewZoneStep = step == TutorialStep.SwitchModality
+    val density = LocalDensity.current
+    val queueAxis = geometry?.queueAxis ?: QueueAxis.Horizontal
 
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.82f))
-            // Swallow any taps/drags that fall outside interactive children so the real
-            // capture UI underneath can't be operated while the tutorial is visible.
+            .semantics {
+                isTraversalGroup = true
+            }
             .pointerInput(Unit) {
                 awaitEachGesture {
                     while (true) {
@@ -100,190 +120,335 @@ fun GestureTutorial(
                 }
             },
     ) {
-        TextButton(
-            onClick = { onDismiss(steps.map { it.id }.toSet()) },
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .statusBarsPadding()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-        ) {
-            Text("Skip", color = Color.White.copy(alpha = 0.85f))
-        }
-
-        // Demo placement follows the *real* gesture zone for the current step:
-        //   - SwitchModality → 3:4 preview area at top (matches the real viewfinder
-        //     slab, which is where the swipe gesture originates).
-        //   - Queue-strip steps → 72dp strip pinned just above navigation bar (matches
-        //     the real queue strip, which is where commit/discard/delete/reorder/
-        //     divide originate).
-        // Text + pager + Next/Back fill the remaining space between. Same outer padding
-        // regimen for both layouts so the Skip button sits consistently.
-        val isPreviewZoneStep = step == TutorialStep.SwitchModality
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .padding(horizontal = 24.dp)
-                // Matches the real queue's 12dp bottom gap inside navigationBarsPadding.
-                .padding(bottom = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            // 56dp mirrors the real top bar height; puts the modality demo's top edge
-            // where the real preview's top edge sits.
-            Spacer(Modifier.height(56.dp))
-
+        if (geometry != null) {
             if (isPreviewZoneStep) {
-                ModalitySwipeDemo(
+                // Step 1 (SwitchModality): anchor both the compact preview-swipe demo
+                // and the instructional copy inside `geometry.previewBounds` so the user's
+                // eyes and thumb stay in the actual preview region without painting a
+                // full-screen opaque slab.
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(3f / 4f),
-                )
-            }
-
-            Spacer(Modifier.weight(1f))
-
-            Text(
-                text = "Gesture Guide",
-                color = Color.White.copy(alpha = 0.55f),
-                style = MaterialTheme.typography.labelMedium,
-            )
-            Spacer(Modifier.height(14.dp))
-            Text(
-                text = step.title,
-                color = Color.White,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(Modifier.height(10.dp))
-            Text(
-                text = step.description,
-                color = Color.White.copy(alpha = 0.78f),
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center,
-            )
-
-            Spacer(Modifier.weight(1f))
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                steps.forEachIndexed { i, _ ->
-                    Box(
-                        modifier = Modifier
-                            .size(if (i == stepIndex) 10.dp else 8.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (i == stepIndex) Color.White
-                                else Color.White.copy(alpha = 0.28f),
-                            ),
+                        .placeTutorialRect(geometry.previewBounds, density)
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    TutorialCopyAndNavigation(
+                        step = step,
+                        axis = queueAxis,
+                        stepsCount = steps.size,
+                        stepIndex = stepIndex,
+                        isLast = isLast,
+                        demoContent = {
+                            ModalitySwipeDemo(
+                                modifier = Modifier
+                                    .widthIn(max = 260.dp)
+                                    .fillMaxWidth()
+                                    .height(148.dp),
+                            )
+                        },
+                        onBack = { if (stepIndex > 0) stepIndex-- },
+                        onNextOrDone = {
+                            if (isLast) onDismiss(steps.map { it.id }.toSet()) else stepIndex++
+                        },
+                        onSkip = { onDismiss(steps.map { it.id }.toSet()) },
+                    )
+                }
+            } else {
+                // Queue steps (Commit, Discard, DeleteOne, Reorder, Divide):
+                // - Demo is anchored directly to the real queue bounds (`queueBounds` for
+                //   Vertical queue in Upright; `queueStripBounds` for Horizontal queue in
+                //   CW90 / Phone / Cover) and animates along `geometry.queueAxis`.
+                // - Instructional copy & navigation sit centered in `geometry.previewBounds`.
+                val queueDemoRect = if (queueAxis == QueueAxis.Vertical) {
+                    geometry.queueBounds
+                } else {
+                    geometry.queueStripBounds
+                }
+                Box(modifier = Modifier.placeTutorialRect(queueDemoRect, density)) {
+                    DemoArea(
+                        step = step,
+                        axis = queueAxis,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .placeTutorialRect(geometry.previewBounds, density)
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    TutorialCopyAndNavigation(
+                        step = step,
+                        axis = queueAxis,
+                        stepsCount = steps.size,
+                        stepIndex = stepIndex,
+                        isLast = isLast,
+                        demoContent = null,
+                        onBack = { if (stepIndex > 0) stepIndex-- },
+                        onNextOrDone = {
+                            if (isLast) onDismiss(steps.map { it.id }.toSet()) else stepIndex++
+                        },
+                        onSkip = { onDismiss(steps.map { it.id }.toSet()) },
                     )
                 }
             }
-            Spacer(Modifier.height(14.dp))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
+        } else {
+            // Fallback when composed standalone without CaptureGeometry
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .safeDrawingPadding()
+                    .padding(horizontal = 24.dp, vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceBetween,
             ) {
-                if (stepIndex > 0) {
-                    TextButton(onClick = { stepIndex-- }) {
-                        Text("Back", color = Color.White.copy(alpha = 0.85f))
-                    }
+                if (isPreviewZoneStep) {
+                    ModalitySwipeDemo(
+                        modifier = Modifier
+                            .widthIn(max = 280.dp)
+                            .height(210.dp),
+                    )
+                } else {
+                    Spacer(Modifier.height(24.dp))
                 }
-                Button(
-                    onClick = {
+
+                TutorialCopyAndNavigation(
+                    step = step,
+                    axis = queueAxis,
+                    stepsCount = steps.size,
+                    stepIndex = stepIndex,
+                    isLast = isLast,
+                    onBack = { if (stepIndex > 0) stepIndex-- },
+                    onNextOrDone = {
                         if (isLast) onDismiss(steps.map { it.id }.toSet()) else stepIndex++
                     },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.White,
-                        contentColor = Color.Black,
-                    ),
-                ) {
-                    Text(
-                        text = if (isLast) "Got it" else "Next",
-                        fontWeight = FontWeight.SemiBold,
+                    onSkip = { onDismiss(steps.map { it.id }.toSet()) },
+                )
+
+                if (!isPreviewZoneStep) {
+                    DemoArea(
+                        step = step,
+                        axis = QueueAxis.Horizontal,
+                        modifier = Modifier
+                            .widthIn(max = 360.dp)
+                            .fillMaxWidth()
+                            .height(72.dp),
                     )
+                } else {
+                    Spacer(Modifier.height(12.dp))
                 }
             }
+        }
+    }
+}
 
-            if (!isPreviewZoneStep) {
-                Spacer(Modifier.height(24.dp))
-                // Queue-strip demo sits right where the real queue lives, so the
-                // muscle-memory transfer is immediate when the tutorial dismisses.
-                DemoArea(
-                    step = step,
+@Composable
+private fun TutorialCopyAndNavigation(
+    step: TutorialStep,
+    axis: QueueAxis,
+    stepsCount: Int,
+    stepIndex: Int,
+    isLast: Boolean,
+    demoContent: (@Composable () -> Unit)? = null,
+    onBack: () -> Unit,
+    onNextOrDone: () -> Unit,
+    onSkip: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .widthIn(max = 360.dp)
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .semantics { liveRegion = LiveRegionMode.Polite },
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(
+                onClick = onSkip,
+                modifier = Modifier.heightIn(min = 48.dp),
+            ) {
+                Text(
+                    text = "Skip",
+                    color = Color.White.copy(alpha = 0.9f),
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+
+        Text(
+            text = "Gesture Guide",
+            color = Color.White.copy(alpha = 0.65f),
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            text = step.titleFor(axis),
+            color = Color.White,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = step.descriptionFor(axis),
+            color = Color.White.copy(alpha = 0.82f),
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center,
+        )
+
+        if (demoContent != null) {
+            Spacer(Modifier.height(20.dp))
+            demoContent()
+        }
+
+        Spacer(Modifier.height(20.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            repeat(stepsCount) { i ->
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(DemoRowHeight),
+                        .size(if (i == stepIndex) 10.dp else 8.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (i == stepIndex) Color.White
+                            else Color.White.copy(alpha = 0.35f),
+                        ),
+                )
+            }
+        }
+
+        Spacer(Modifier.height(14.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (stepIndex > 0) {
+                TextButton(
+                    onClick = onBack,
+                    modifier = Modifier.heightIn(min = 48.dp),
+                ) {
+                    Text("Back", color = Color.White.copy(alpha = 0.9f))
+                }
+            } else {
+                Spacer(Modifier.width(72.dp))
+            }
+            Button(
+                onClick = onNextOrDone,
+                modifier = Modifier.heightIn(min = 48.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.White,
+                    contentColor = Color.Black,
+                ),
+            ) {
+                Text(
+                    text = if (isLast) "Got it" else "Next",
+                    fontWeight = FontWeight.Bold,
                 )
             }
         }
     }
 }
 
-private enum class TutorialStep(val id: String, val title: String, val description: String) {
-    // SwitchModality comes first so Phase-C-era upgraders (who've already seen the
-    // five queue-strip steps) get a minimal single-step introduction to the new
-    // capability, rather than a redundant 6-step walkthrough.
-    SwitchModality(
-        id = "modality",
-        title = "Swipe the preview to switch modes",
-        description = "Swipe the preview — or tap the pill at the top — to switch between photo, video, and voice.",
-    ),
-    CommitBundle(
-        id = "commit",
-        title = "Swipe right to save",
-        description = "Sweep right across the queue strip to save all queued photos as a bundle.",
-    ),
-    DiscardQueue(
-        id = "discard",
-        title = "Swipe left to discard",
-        description = "Sweep left across the queue strip to drop every photo in the queue.",
-    ),
-    DeleteOne(
-        id = "deleteOne",
-        title = "Flick a photo down to delete",
-        description = "Swipe a single thumbnail downward to remove just that photo.",
-    ),
-    Reorder(
-        id = "reorder",
-        title = "Long-press and drag to reorder",
-        description = "Press and hold a thumbnail, then drag it to its new position.",
-    ),
-    Divide(
-        id = "divide",
-        title = "Swipe between to split",
-        description = "Swipe down between two photos to split them into separate bundles. Swipe up to undo a split.",
-    ),
+private fun Modifier.placeTutorialRect(
+    rect: RectPx,
+    density: Density,
+): Modifier = with(density) {
+    this@placeTutorialRect
+        .offset { IntOffset(rect.x.roundToInt(), rect.y.roundToInt()) }
+        .size(
+            width = rect.width.toDp(),
+            height = rect.height.toDp(),
+        )
+}
+
+private enum class TutorialStep(val id: String) {
+    SwitchModality("modality"),
+    CommitBundle("commit"),
+    DiscardQueue("discard"),
+    DeleteOne("deleteOne"),
+    Reorder("reorder"),
+    Divide("divide");
+
+    fun titleFor(axis: QueueAxis): String = when (this) {
+        SwitchModality -> "Swipe the preview to switch modes"
+        CommitBundle -> if (axis == QueueAxis.Vertical) {
+            "Swipe up from the bottom handle to save"
+        } else {
+            "Swipe right from the left handle to save"
+        }
+        DiscardQueue -> if (axis == QueueAxis.Vertical) {
+            "Swipe down from the top handle to discard"
+        } else {
+            "Swipe left from the right handle to discard"
+        }
+        DeleteOne -> if (axis == QueueAxis.Vertical) {
+            "Pull an item right to delete"
+        } else {
+            "Pull an item down to delete"
+        }
+        Reorder -> "Long-press and drag to reorder"
+        Divide -> "Swipe between items to split"
+    }
+
+    fun descriptionFor(axis: QueueAxis): String = when (this) {
+        SwitchModality -> "Swipe the preview — or tap the mode row — to switch between photo, video, and voice."
+        CommitBundle -> if (axis == QueueAxis.Vertical) {
+            "Start at the bottom queue handle and drag upward to save all queued items as a bundle."
+        } else {
+            "Start at the left queue handle and drag right to save all queued items as a bundle."
+        }
+        DiscardQueue -> if (axis == QueueAxis.Vertical) {
+            "Start at the top queue handle and drag downward to drop every item in the queue."
+        } else {
+            "Start at the right queue handle and drag left to drop every item in the queue."
+        }
+        DeleteOne -> if (axis == QueueAxis.Vertical) {
+            "Drag a single thumbnail outward to the right to remove just that item."
+        } else {
+            "Drag a single thumbnail downward to remove just that item."
+        }
+        Reorder -> "Press and hold a thumbnail, then drag it along the queue to its new position."
+        Divide -> if (axis == QueueAxis.Vertical) {
+            "Drag horizontally across a gap between two items to split them into separate bundles; drag back to join."
+        } else {
+            "Pull down in a gap between two items to split them into separate bundles; pull up to join."
+        }
+    }
 }
 
 @Composable
 private fun DemoArea(
     step: TutorialStep,
+    axis: QueueAxis,
     modifier: Modifier = Modifier,
 ) {
-    // Queue-zone steps only — SwitchModality is rendered by ModalitySwipeDemo in
-    // the preview position and never routed here.
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         when (step) {
             TutorialStep.SwitchModality -> Unit
             TutorialStep.CommitBundle -> SwipeStripDemo(
-                direction = 1,
+                axis = axis,
+                isCommit = true,
                 tideColor = CaptureColors.CommitGreen,
                 destinationGlyph = "✓",
                 destinationColor = CaptureColors.CommitGreen,
-                destinationOnRight = true,
             )
             TutorialStep.DiscardQueue -> SwipeStripDemo(
-                direction = -1,
+                axis = axis,
+                isCommit = false,
                 tideColor = CaptureColors.DiscardAmber,
                 destinationGlyph = "✕",
                 destinationColor = CaptureColors.DiscardAmber,
-                destinationOnRight = false,
             )
-            TutorialStep.DeleteOne -> DeleteOneDemo()
-            TutorialStep.Reorder -> ReorderDemo()
-            TutorialStep.Divide -> DivideDemo()
+            TutorialStep.DeleteOne -> DeleteOneDemo(axis = axis)
+            TutorialStep.Reorder -> ReorderDemo(axis = axis)
+            TutorialStep.Divide -> DivideDemo(axis = axis)
         }
     }
 }
@@ -333,12 +498,8 @@ private fun Finger(
     }
 }
 
-/**
- * Layout helper: total width in px of a row of [DemoThumbCount] thumbs with [DemoThumbGap]
- * between each. Shared by every demo so the fake queue is centered identically across steps.
- */
 @Composable
-private fun demoRowWidthPx(): Float {
+private fun demoSpanPx(): Float {
     val d = LocalDensity.current
     return with(d) {
         (DemoThumbSize * DemoThumbCount + DemoThumbGap * (DemoThumbCount - 1)).toPx()
@@ -347,14 +508,14 @@ private fun demoRowWidthPx(): Float {
 
 @Composable
 private fun SwipeStripDemo(
-    direction: Int,
+    axis: QueueAxis,
+    isCommit: Boolean,
     tideColor: Color,
     destinationGlyph: String,
     destinationColor: Color,
-    destinationOnRight: Boolean,
 ) {
-    val progress = remember { Animatable(0f) }
-    LaunchedEffect(direction) {
+    val progress = remember(axis, isCommit) { Animatable(0f) }
+    LaunchedEffect(axis, isCommit) {
         progress.snapTo(0f)
         while (true) {
             progress.animateTo(
@@ -368,29 +529,47 @@ private fun SwipeStripDemo(
     }
 
     val p = progress.value
-    val tilt = (if (direction > 0) 1 else -1) * (p * 3f)
+    // In Horizontal: Commit sweeps left -> right (+1), Discard sweeps right -> left (-1).
+    // In Vertical: Commit sweeps bottom -> top (-1), Discard sweeps top -> bottom (+1).
+    val primarySign = when (axis) {
+        QueueAxis.Horizontal -> if (isCommit) 1f else -1f
+        QueueAxis.Vertical -> if (isCommit) -1f else 1f
+    }
+    val tilt = primarySign * (p * 3f)
     val tideAlpha = 0.18f + p * 0.45f
 
     BoxWithConstraints(
         modifier = Modifier
-            .fillMaxWidth()
-            .height(DemoRowHeight)
+            .fillMaxSize()
             .clip(RoundedCornerShape(12.dp))
-            .background(Color.White.copy(alpha = 0.05f))
-            .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(12.dp)),
+            .background(Color.White.copy(alpha = 0.06f))
+            .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(12.dp)),
         contentAlignment = Alignment.Center,
     ) {
         val w = constraints.maxWidth.toFloat()
+        val h = constraints.maxHeight.toFloat()
 
         if (p > 0.01f) {
-            val tideBrush = if (direction > 0) {
-                Brush.horizontalGradient(
-                    colors = listOf(tideColor.copy(alpha = 0f), tideColor.copy(alpha = tideAlpha)),
-                )
+            val tideBrush = if (axis == QueueAxis.Horizontal) {
+                if (primarySign > 0f) {
+                    Brush.horizontalGradient(
+                        colors = listOf(tideColor.copy(alpha = tideAlpha), Color.Transparent),
+                    )
+                } else {
+                    Brush.horizontalGradient(
+                        colors = listOf(Color.Transparent, tideColor.copy(alpha = tideAlpha)),
+                    )
+                }
             } else {
-                Brush.horizontalGradient(
-                    colors = listOf(tideColor.copy(alpha = tideAlpha), tideColor.copy(alpha = 0f)),
-                )
+                if (primarySign > 0f) {
+                    Brush.verticalGradient(
+                        colors = listOf(tideColor.copy(alpha = tideAlpha), Color.Transparent),
+                    )
+                } else {
+                    Brush.verticalGradient(
+                        colors = listOf(Color.Transparent, tideColor.copy(alpha = tideAlpha)),
+                    )
+                }
             }
             Box(
                 modifier = Modifier
@@ -400,51 +579,66 @@ private fun SwipeStripDemo(
             )
         }
 
-        // Destination pill — where the queue is being "swept to".
-        val destAlpha = (p - 0.15f).coerceIn(0f, 1f)
+        // Initiating handle swiper (`queueCommit` / `queueDiscard` in SVG replaces the
+        // initiating handle with the colored check/close swiper while opposite stays neutral).
+        val initAlpha = (0.35f + p * 0.65f).coerceIn(0f, 1f)
+        val initiatorAlign = when (axis) {
+            QueueAxis.Horizontal -> if (primarySign > 0f) Alignment.CenterStart else Alignment.CenterEnd
+            QueueAxis.Vertical -> if (primarySign > 0f) Alignment.TopCenter else Alignment.BottomCenter
+        }
         Box(
             modifier = Modifier
-                .align(if (destinationOnRight) Alignment.CenterEnd else Alignment.CenterStart)
-                .padding(horizontal = 6.dp)
-                .width(36.dp)
-                .fillMaxHeight(0.65f)
+                .align(initiatorAlign)
+                .padding(6.dp)
+                .size(36.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(destinationColor.copy(alpha = 0.25f + destAlpha * 0.55f)),
+                .background(destinationColor.copy(alpha = 0.25f + initAlpha * 0.55f)),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 text = destinationGlyph,
-                color = Color.White.copy(alpha = 0.25f + destAlpha * 0.75f),
+                color = Color.White.copy(alpha = initAlpha),
                 fontWeight = FontWeight.Bold,
             )
         }
 
-        // Row of fake thumbnails; tilts in the gesture direction to echo the real UI.
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(DemoThumbGap),
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.graphicsLayer { rotationZ = tilt },
-        ) {
-            repeat(DemoThumbCount) { i -> DemoThumb(index = i) }
+        if (axis == QueueAxis.Horizontal) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(DemoThumbGap),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.graphicsLayer { rotationZ = tilt },
+            ) {
+                repeat(DemoThumbCount) { i -> DemoThumb(index = i) }
+            }
+        } else {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(DemoThumbGap),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.graphicsLayer { rotationZ = tilt },
+            ) {
+                repeat(DemoThumbCount) { i -> DemoThumb(index = i) }
+            }
         }
 
-        // Finger sweeps horizontally. Translations are relative to Box center (default
-        // layout position when contentAlignment = Center), so we offset by (target - w/2).
-        val startFraction = if (direction > 0) 0.12f else 0.88f
-        val endFraction = if (direction > 0) 0.88f else 0.12f
-        val targetCenterX = (startFraction + (endFraction - startFraction) * p) * w
+        val startFraction = if (primarySign > 0f) 0.12f else 0.88f
+        val endFraction = if (primarySign > 0f) 0.88f else 0.12f
+        val frac = startFraction + (endFraction - startFraction) * p
         Finger(
             modifier = Modifier.graphicsLayer {
-                translationX = targetCenterX - w / 2f
+                if (axis == QueueAxis.Horizontal) {
+                    translationX = frac * w - w / 2f
+                } else {
+                    translationY = frac * h - h / 2f
+                }
             },
         )
     }
 }
 
 @Composable
-private fun DeleteOneDemo() {
-    val progress = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
+private fun DeleteOneDemo(axis: QueueAxis) {
+    val progress = remember(axis) { Animatable(0f) }
+    LaunchedEffect(axis) {
         progress.snapTo(0f)
         while (true) {
             progress.animateTo(
@@ -461,75 +655,84 @@ private fun DeleteOneDemo() {
     val targetIndex = 1
     val thumbSizePx = with(LocalDensity.current) { DemoThumbSize.toPx() }
     val gapPx = with(LocalDensity.current) { DemoThumbGap.toPx() }
-    val rowWidthPx = demoRowWidthPx()
-    // Short enough that most of the finger and the falling thumb stay inside the 72dp
-    // strip bounds; the red glow + fading thumb sell the delete either way.
+    val spanPx = demoSpanPx()
     val dropDistancePx = with(LocalDensity.current) { 18.dp.toPx() }
 
     BoxWithConstraints(
         modifier = Modifier
-            .fillMaxWidth()
-            .height(DemoRowHeight)
+            .fillMaxSize()
             .clip(RoundedCornerShape(12.dp))
-            .background(Color.White.copy(alpha = 0.05f))
-            .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(12.dp)),
+            .background(Color.White.copy(alpha = 0.06f))
+            .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(12.dp)),
         contentAlignment = Alignment.Center,
     ) {
         val w = constraints.maxWidth.toFloat()
+        val h = constraints.maxHeight.toFloat()
 
-        // Red "delete zone" glow at the bottom.
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(14.dp)
-                .align(Alignment.BottomCenter)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            CaptureColors.DeleteRed.copy(alpha = 0.3f + p * 0.45f),
-                        ),
-                    ),
-                ),
-        )
-
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(DemoThumbGap),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            repeat(DemoThumbCount) { i ->
-                val isTarget = i == targetIndex
-                val yShift = if (isTarget) p * dropDistancePx else 0f
-                val alpha = if (isTarget) (1f - p * 0.7f) else 1f
-                Box(
-                    modifier = Modifier.graphicsLayer {
-                        translationY = yShift
-                        this.alpha = alpha
-                    },
-                ) {
-                    DemoThumb(index = i)
+        if (axis == QueueAxis.Horizontal) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(DemoThumbGap),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                repeat(DemoThumbCount) { i ->
+                    val isTarget = i == targetIndex
+                    val shift = if (isTarget) p * dropDistancePx else 0f
+                    val alpha = if (isTarget) (1f - p * 0.7f) else 1f
+                    Box(
+                        modifier = Modifier.graphicsLayer {
+                            translationY = shift
+                            this.alpha = alpha
+                        },
+                    ) {
+                        DemoThumb(index = i)
+                    }
                 }
             }
+            val startX = (w - spanPx) / 2f
+            val targetCenter = startX + targetIndex * (thumbSizePx + gapPx) + thumbSizePx / 2f
+            Finger(
+                modifier = Modifier.graphicsLayer {
+                    translationX = targetCenter - w / 2f
+                    translationY = p * dropDistancePx
+                    this.alpha = (1f - p * 0.5f)
+                },
+            )
+        } else {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(DemoThumbGap),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                repeat(DemoThumbCount) { i ->
+                    val isTarget = i == targetIndex
+                    val shift = if (isTarget) p * dropDistancePx else 0f
+                    val alpha = if (isTarget) (1f - p * 0.7f) else 1f
+                    Box(
+                        modifier = Modifier.graphicsLayer {
+                            translationX = shift
+                            this.alpha = alpha
+                        },
+                    ) {
+                        DemoThumb(index = i)
+                    }
+                }
+            }
+            val startY = (h - spanPx) / 2f
+            val targetCenter = startY + targetIndex * (thumbSizePx + gapPx) + thumbSizePx / 2f
+            Finger(
+                modifier = Modifier.graphicsLayer {
+                    translationX = p * dropDistancePx
+                    translationY = targetCenter - h / 2f
+                    this.alpha = (1f - p * 0.5f)
+                },
+            )
         }
-
-        // Finger sits on the target thumb and rides it downward. targetCenterX is
-        // computed from the laid-out row, which is centered horizontally in the box.
-        val rowStartX = (w - rowWidthPx) / 2f
-        val targetCenterX = rowStartX + targetIndex * (thumbSizePx + gapPx) + thumbSizePx / 2f
-        Finger(
-            modifier = Modifier.graphicsLayer {
-                translationX = targetCenterX - w / 2f
-                translationY = p * dropDistancePx
-                this.alpha = (1f - p * 0.5f)
-            },
-        )
     }
 }
 
 @Composable
-private fun ReorderDemo() {
-    val progress = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
+private fun ReorderDemo(axis: QueueAxis) {
+    val progress = remember(axis) { Animatable(0f) }
+    LaunchedEffect(axis) {
         progress.snapTo(0f)
         while (true) {
             progress.animateTo(
@@ -543,7 +746,6 @@ private fun ReorderDemo() {
     }
 
     val p = progress.value
-    // 0.00–0.20: long-press pulse. 0.20–0.80: drag right one slot. 0.80–1.00: settle.
     val pressPhase = (p / 0.2f).coerceIn(0f, 1f)
     val dragPhase = ((p - 0.2f) / 0.6f).coerceIn(0f, 1f)
     val pressed = p in 0.05f..0.85f
@@ -553,64 +755,93 @@ private fun ReorderDemo() {
     }
     val thumbSizePx = with(LocalDensity.current) { DemoThumbSize.toPx() }
     val gapPx = with(LocalDensity.current) { DemoThumbGap.toPx() }
-    val rowWidthPx = demoRowWidthPx()
+    val spanPx = demoSpanPx()
 
     BoxWithConstraints(
         modifier = Modifier
-            .fillMaxWidth()
-            .height(DemoRowHeight)
+            .fillMaxSize()
             .clip(RoundedCornerShape(12.dp))
-            .background(Color.White.copy(alpha = 0.05f))
-            .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(12.dp)),
+            .background(Color.White.copy(alpha = 0.06f))
+            .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(12.dp)),
         contentAlignment = Alignment.Center,
     ) {
         val w = constraints.maxWidth.toFloat()
+        val h = constraints.maxHeight.toFloat()
 
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(DemoThumbGap),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            repeat(DemoThumbCount) { i ->
-                val isMoving = i == movingIndex
-                val isDisplaced = i == movingIndex + 1
-                val xShift = when {
-                    isMoving -> dragPhase * slotShiftPx
-                    isDisplaced -> -dragPhase * slotShiftPx
-                    else -> 0f
-                }
-                val scale = if (isMoving) 1f + pressPhase * 0.1f else 1f
-                val lift = if (isMoving) -pressPhase * 4f else 0f
-                Box(
-                    modifier = Modifier.graphicsLayer {
-                        translationX = xShift
-                        translationY = lift
-                        scaleX = scale
-                        scaleY = scale
-                    },
-                ) {
-                    DemoThumb(index = i)
+        if (axis == QueueAxis.Horizontal) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(DemoThumbGap),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                repeat(DemoThumbCount) { i ->
+                    val isMoving = i == movingIndex
+                    val isDisplaced = i == movingIndex + 1
+                    val shift = when {
+                        isMoving -> dragPhase * slotShiftPx
+                        isDisplaced -> -dragPhase * slotShiftPx
+                        else -> 0f
+                    }
+                    val scale = if (isMoving) 1f + pressPhase * 0.1f else 1f
+                    Box(
+                        modifier = Modifier.graphicsLayer {
+                            translationX = shift
+                            scaleX = scale
+                            scaleY = scale
+                        },
+                    ) {
+                        DemoThumb(index = i)
+                    }
                 }
             }
+            val startX = (w - spanPx) / 2f
+            val baseCenter = startX + movingIndex * (thumbSizePx + gapPx) + thumbSizePx / 2f
+            Finger(
+                pressed = pressed,
+                modifier = Modifier.graphicsLayer {
+                    translationX = baseCenter + dragPhase * slotShiftPx - w / 2f
+                },
+            )
+        } else {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(DemoThumbGap),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                repeat(DemoThumbCount) { i ->
+                    val isMoving = i == movingIndex
+                    val isDisplaced = i == movingIndex + 1
+                    val shift = when {
+                        isMoving -> dragPhase * slotShiftPx
+                        isDisplaced -> -dragPhase * slotShiftPx
+                        else -> 0f
+                    }
+                    val scale = if (isMoving) 1f + pressPhase * 0.1f else 1f
+                    Box(
+                        modifier = Modifier.graphicsLayer {
+                            translationY = shift
+                            scaleX = scale
+                            scaleY = scale
+                        },
+                    ) {
+                        DemoThumb(index = i)
+                    }
+                }
+            }
+            val startY = (h - spanPx) / 2f
+            val baseCenter = startY + movingIndex * (thumbSizePx + gapPx) + thumbSizePx / 2f
+            Finger(
+                pressed = pressed,
+                modifier = Modifier.graphicsLayer {
+                    translationY = baseCenter + dragPhase * slotShiftPx - h / 2f
+                },
+            )
         }
-
-        val rowStartX = (w - rowWidthPx) / 2f
-        val baseCenterX = rowStartX + movingIndex * (thumbSizePx + gapPx) + thumbSizePx / 2f
-        val targetCenterX = baseCenterX + dragPhase * slotShiftPx
-        Finger(
-            pressed = pressed,
-            modifier = Modifier.graphicsLayer {
-                translationX = targetCenterX - w / 2f
-                translationY = -pressPhase * 4f
-            },
-        )
     }
 }
 
 @Composable
-private fun DivideDemo() {
-    // Phase 0..1: insert divider (finger swipes down). 1..2: hold. 2..3: remove (swipe up).
-    val progress = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
+private fun DivideDemo(axis: QueueAxis) {
+    val progress = remember(axis) { Animatable(0f) }
+    LaunchedEffect(axis) {
         progress.snapTo(0f)
         while (true) {
             progress.animateTo(
@@ -634,8 +865,7 @@ private fun DivideDemo() {
     }
 
     val p = progress.value
-    // Finger's vertical position factor: 0 = center resting, 1 = fully down (divider created).
-    val fingerYFactor = when {
+    val fingerCrossFactor = when {
         p <= 1f -> p
         p <= 2f -> 1f
         else -> 1f - (p - 2f)
@@ -647,94 +877,103 @@ private fun DivideDemo() {
         p <= 2.4f -> 1f - ((p - 2f) / 0.4f).coerceIn(0f, 1f)
         else -> 0f
     }
-    // Groups on either side of the split slide apart with the divider. The factor eases
-    // with dividerAlpha so the spread grows/shrinks in lockstep with the line's fade.
     val spreadFactor = dividerAlpha
     val gapIndex = 1
-
     val thumbSizePx = with(LocalDensity.current) { DemoThumbSize.toPx() }
     val gapPx = with(LocalDensity.current) { DemoThumbGap.toPx() }
-    val rowWidthPx = demoRowWidthPx()
-    // Extra gap opened up between the two groups at full divider. Half of this goes to
-    // each side (left group slides left, right group slides right), so the center of
-    // the expanding gap stays pinned at the original gapCenterX.
+    val spanPx = demoSpanPx()
     val spreadDeltaPx = with(LocalDensity.current) { 18.dp.toPx() }
 
     BoxWithConstraints(
         modifier = Modifier
-            .fillMaxWidth()
-            .height(DemoRowHeight)
+            .fillMaxSize()
             .clip(RoundedCornerShape(12.dp))
-            .background(Color.White.copy(alpha = 0.05f))
-            .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(12.dp)),
+            .background(Color.White.copy(alpha = 0.06f))
+            .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(12.dp)),
         contentAlignment = Alignment.Center,
     ) {
         val w = constraints.maxWidth.toFloat()
+        val h = constraints.maxHeight.toFloat()
 
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(DemoThumbGap),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            repeat(DemoThumbCount) { i ->
-                // Symmetric spread: left group shifts left by half, right group by half.
-                // Divider line at the original gap center remains dead-center between them.
-                val shiftX = if (i <= gapIndex) {
-                    -spreadFactor * spreadDeltaPx / 2f
-                } else {
-                    spreadFactor * spreadDeltaPx / 2f
+        if (axis == QueueAxis.Horizontal) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(DemoThumbGap),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                repeat(DemoThumbCount) { i ->
+                    val shift = if (i <= gapIndex) {
+                        -spreadFactor * spreadDeltaPx / 2f
+                    } else {
+                        spreadFactor * spreadDeltaPx / 2f
+                    }
+                    DemoThumb(
+                        index = i,
+                        modifier = Modifier.graphicsLayer { translationX = shift },
+                    )
                 }
-                DemoThumb(
-                    index = i,
-                    modifier = Modifier.graphicsLayer { translationX = shiftX },
+            }
+            val startX = (w - spanPx) / 2f
+            val gapCenter = startX + (gapIndex + 1) * thumbSizePx + gapIndex * gapPx + gapPx / 2f
+            if (dividerAlpha > 0.01f) {
+                Box(
+                    modifier = Modifier
+                        .graphicsLayer { translationX = gapCenter - w / 2f }
+                        .width(3.dp)
+                        .height(DemoThumbSize * 0.9f)
+                        .clip(RoundedCornerShape(1.5.dp))
+                        .background(Color.White.copy(alpha = dividerAlpha)),
                 )
             }
-        }
-
-        val rowStartX = (w - rowWidthPx) / 2f
-        // Center of gap N = rowStart + (N+1) thumbs + N full gaps + half of gap N.
-        val gapCenterX = rowStartX + (gapIndex + 1) * thumbSizePx + gapIndex * gapPx + gapPx / 2f
-
-        if (dividerAlpha > 0.01f) {
-            Box(
-                modifier = Modifier
-                    .graphicsLayer { translationX = gapCenterX - w / 2f }
-                    .width(3.dp)
-                    .height(DemoThumbSize * 0.9f)
-                    .clip(RoundedCornerShape(1.5.dp))
-                    .background(Color.White.copy(alpha = dividerAlpha)),
+            val travelPx = thumbSizePx * 0.55f
+            Finger(
+                modifier = Modifier.graphicsLayer {
+                    translationX = gapCenter - w / 2f
+                    translationY = (fingerCrossFactor - 0.4f) * travelPx
+                },
+            )
+        } else {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(DemoThumbGap),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                repeat(DemoThumbCount) { i ->
+                    val shift = if (i <= gapIndex) {
+                        -spreadFactor * spreadDeltaPx / 2f
+                    } else {
+                        spreadFactor * spreadDeltaPx / 2f
+                    }
+                    DemoThumb(
+                        index = i,
+                        modifier = Modifier.graphicsLayer { translationY = shift },
+                    )
+                }
+            }
+            val startY = (h - spanPx) / 2f
+            val gapCenter = startY + (gapIndex + 1) * thumbSizePx + gapIndex * gapPx + gapPx / 2f
+            if (dividerAlpha > 0.01f) {
+                Box(
+                    modifier = Modifier
+                        .graphicsLayer { translationY = gapCenter - h / 2f }
+                        .height(3.dp)
+                        .width(DemoThumbSize * 0.9f)
+                        .clip(RoundedCornerShape(1.5.dp))
+                        .background(Color.White.copy(alpha = dividerAlpha)),
+                )
+            }
+            val travelPx = thumbSizePx * 0.55f
+            Finger(
+                modifier = Modifier.graphicsLayer {
+                    translationX = (fingerCrossFactor - 0.4f) * travelPx
+                    translationY = gapCenter - h / 2f
+                },
             )
         }
-
-        // Finger rides vertically through the gap. 0 resting → positive Y = downward.
-        val travelPx = thumbSizePx * 0.55f
-        Finger(
-            modifier = Modifier.graphicsLayer {
-                translationX = gapCenterX - w / 2f
-                translationY = (fingerYFactor - 0.4f) * travelPx
-            },
-        )
     }
 }
 
-// Modality-tile tints. Kept local to the demo (not added to CaptureColors) since these
-// are decorative only — the real UI doesn't tint the preview by modality.
-private val DemoPhotoTint = Color(0xFF2F3A4A)  // neutral blue-grey
-private val DemoVideoTint = Color(0xFF6B1E1E)  // muted record-red
-private val DemoVoiceTint = Color(0xFF1F2A44)  // matches the real voice-overlay navy
+private val DemoPhotoTint = Color(0xFF2F3A4A)
+private val DemoVideoTint = Color(0xFF6B1E1E)
 
-/**
- * Demo for the SwitchModality step. Overlays the real viewfinder's position (3:4
- * aspect, upper area) and walks through:
- *   - finger appears right-of-center,
- *   - finger sweeps left while the "current" slab translates with it (matching the
- *     real `Modifier.draggable` + `graphicsLayer.translationX` behavior),
- *   - a "next modality" ghost fills in from the right,
- *   - the mini top-bar pill's selected-segment indicator slides left in sync,
- *   - loop.
- *
- * The loop only shows the left-swipe direction (PHOTO → VIDEO); the description text
- * and the pill's three segments communicate that right-swipe → VOICE is the mirror.
- */
 @Composable
 private fun ModalitySwipeDemo(modifier: Modifier = Modifier) {
     val progress = remember { Animatable(0f) }
@@ -757,60 +996,38 @@ private fun ModalitySwipeDemo(modifier: Modifier = Modifier) {
             .clip(RoundedCornerShape(12.dp))
             .background(Color.Black.copy(alpha = 0.35f))
             .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(12.dp)),
-        // Center-align so the Finger (no explicit size modifier) sits at (w/2, h/2)
-        // by default and translateX/Y become deltas from center, matching the
-        // positioning convention in SwipeStripDemo.
         contentAlignment = Alignment.Center,
     ) {
         val w = constraints.maxWidth.toFloat()
         val h = constraints.maxHeight.toFloat()
 
-        // Slab layer: spatial model is VIDEO ← PHOTO → VOICE. Swiping *right* (finger
-        // pulls the slab rightward) reveals VIDEO behind it on the left; swiping
-        // *left* would reveal VOICE on the right. The demo shows the right-swipe →
-        // VIDEO case (red tint is more visually distinctive than voice-navy and
-        // reads as "record mode").
-        //
-        // At p=0: current = 0 (PHOTO centered, ghost fully covered), ghost = -w
-        //   (VIDEO fully off-screen to the left).
-        // At p=1: current = +w (PHOTO fully off to the right), ghost = 0 (VIDEO
-        //   centered).
-        //
-        // Ghost declared first so current paints on top until current translates
-        // away — so the reveal is literally "PHOTO slides right to expose VIDEO".
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer { translationX = (p - 1f) * w }  // ghost slides in from left
+                .graphicsLayer { translationX = (p - 1f) * w }
                 .background(DemoVideoTint.copy(alpha = 0.75f)),
         )
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer { translationX = p * w }  // current slides off right
+                .graphicsLayer { translationX = p * w }
                 .background(DemoPhotoTint.copy(alpha = 0.95f)),
         )
 
-        // Mini top-bar pill overlay. Renders "VIDEO · PHOTO · VOICE" with an
-        // indicator that slides from centered (PHOTO) to left (VIDEO) in lockstep
-        // with the drag progress. Sits inside the demo's top padding so it doesn't
-        // fight with the mid-slab finger.
         ModalityPillMini(
             progress = p,
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(top = 8.dp)
+                .widthIn(max = 240.dp)
                 .fillMaxWidth(0.78f)
                 .height(28.dp),
         )
 
-        // Finger sweeps left-to-right (matches the right-swipe → VIDEO direction
-        // explained above), at the vertical midline (roughly where a thumb would
-        // land on the real preview). Translations are relative to Box center.
         val startFraction = 0.28f
         val endFraction = 0.72f
         val fingerCenterX = (startFraction + (endFraction - startFraction) * p) * w
-        val fingerCenterY = h * 0.58f  // slightly below center — reads as a thumb arc
+        val fingerCenterY = h * 0.58f
         Finger(
             modifier = Modifier.graphicsLayer {
                 translationX = fingerCenterX - w / 2f
@@ -820,78 +1037,38 @@ private fun ModalitySwipeDemo(modifier: Modifier = Modifier) {
     }
 }
 
-/**
- * 3-segment pill decoration for [ModalitySwipeDemo]. Indicator slides linearly
- * between the center (PHOTO) segment and the left (VIDEO) segment as [progress]
- * runs 0 → 1, matching how the real pill's indicator couples to drag offset.
- */
 @Composable
 private fun ModalityPillMini(
     progress: Float,
     modifier: Modifier = Modifier,
 ) {
     val segments = listOf("VIDEO", "PHOTO", "VOICE")
-    val selectedStart = 1  // PHOTO
-    val selectedEnd = 0    // VIDEO
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(50))
-            .background(Color.Black.copy(alpha = 0.55f))
-            .border(
-                width = 1.dp,
-                color = Color.White.copy(alpha = 0.25f),
-                shape = RoundedCornerShape(50),
-            ),
+    val selectedStart = 1
+    val selectedEnd = 0
+    val selectedFloat = selectedStart + (selectedEnd - selectedStart) * progress
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val pillW = constraints.maxWidth.toFloat()
-            val segmentW = pillW / segments.size
-            // Indicator X: interpolate between the centers of segmentStart/segmentEnd.
-            val centerStart = segmentW * (selectedStart + 0.5f)
-            val centerEnd = segmentW * (selectedEnd + 0.5f)
-            val indicatorCenterX = centerStart + (centerEnd - centerStart) * progress
+        segments.forEachIndexed { i, label ->
+            val distance = abs(i - selectedFloat).coerceIn(0f, 1f)
+            val textColor = androidx.compose.ui.graphics.lerp(
+                start = Color.White,
+                stop = Color(0xFFBDBDBD),
+                fraction = distance,
+            )
             Box(
                 modifier = Modifier
-                    .graphicsLayer {
-                        translationX = indicatorCenterX - segmentW / 2f
-                    }
-                    .width(with(LocalDensity.current) { segmentW.toDp() })
-                    .fillMaxHeight()
-                    .padding(horizontal = 2.dp, vertical = 2.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(Color.White.copy(alpha = 0.9f)),
-            )
-            Row(modifier = Modifier.fillMaxSize()) {
-                // "Currently-selected" as a continuous float tracks the indicator
-                // smoothly: at progress=0 the indicator is over segmentStart, at
-                // progress=1 it's over segmentEnd, and at 0.5 it's halfway between.
-                // Text color lerps from black (directly under the indicator) to
-                // white-with-alpha (not under) based on each segment's distance —
-                // so the PHOTO→VIDEO transition crossfades cleanly instead of
-                // flashing at the midpoint.
-                val selectedFloat = selectedStart +
-                    (selectedEnd - selectedStart) * progress
-                segments.forEachIndexed { i, label ->
-                    val distance = kotlin.math.abs(i - selectedFloat).coerceIn(0f, 1f)
-                    val textColor = androidx.compose.ui.graphics.lerp(
-                        start = Color.Black,
-                        stop = Color.White.copy(alpha = 0.85f),
-                        fraction = distance,
-                    )
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = label,
-                            color = textColor,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                    }
-                }
+                    .weight(1f)
+                    .fillMaxHeight(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = label,
+                    color = textColor,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = if (distance < 0.45f) FontWeight.Bold else FontWeight.Medium,
+                )
             }
         }
     }

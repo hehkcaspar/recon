@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -87,13 +88,19 @@ fun SettingsScreen(
             )
         },
     ) { padding ->
-        Column(
+        Box(
             modifier = Modifier
                 .padding(padding)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .fillMaxSize(),
+            contentAlignment = Alignment.TopCenter,
         ) {
+            Column(
+                modifier = Modifier
+                    .widthIn(max = 560.dp)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+            ) {
             SettingBlock(label = "Output folder") {
                 Row(verticalAlignment = Alignment.Top) {
                     Column(modifier = Modifier.weight(1f)) {
@@ -294,6 +301,7 @@ fun SettingsScreen(
                     text = BuildConfig.VERSION_NAME,
                     style = MaterialTheme.typography.bodyMedium,
                 )
+            }
             }
         }
     }

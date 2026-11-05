@@ -5,30 +5,33 @@ import android.content.pm.PackageManager
 import android.media.MediaActionSound
 import android.os.Build
 import android.view.HapticFeedbackConstants
+import android.view.Surface
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.safeGestures
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cameraswitch
 import androidx.compose.material.icons.filled.FlashAuto
@@ -49,29 +52,53 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.onGloballyPositioned
-import kotlinx.coroutines.launch
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.bundlecam.data.camera.CameraCapability
+import com.example.bundlecam.data.camera.CameraMode
+import com.example.bundlecam.data.camera.CameraSessionContract
+import com.example.bundlecam.data.camera.CameraSessionState
 import com.example.bundlecam.data.camera.FlashMode
+import com.example.bundlecam.data.camera.LensFacing
+import com.example.bundlecam.data.camera.ZoomInfo
+import com.example.bundlecam.data.settings.SettingsState
+import com.example.bundlecam.ui.capture.window.InsetsPx
+import com.example.bundlecam.ui.capture.window.SurfaceRole
+import com.example.bundlecam.ui.capture.window.WindowObservation
 import com.example.bundlecam.ui.common.ActionBanner
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
+import kotlin.math.sign
 
 @Composable
 fun CaptureScreen(
@@ -83,12 +110,20 @@ fun CaptureScreen(
     var hasCameraPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
-                    PackageManager.PERMISSION_GRANTED,
+                PackageManager.PERMISSION_GRANTED,
         )
     }
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
     ) { granted -> hasCameraPermission = granted }
+
+    // Recheck camera permission on resume (e.g. after returning from Android Settings).
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        hasCameraPermission = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.CAMERA,
+        ) == PackageManager.PERMISSION_GRANTED
+    }
 
     LaunchedEffect(Unit) {
         if (!hasCameraPermission) {
@@ -118,10 +153,11 @@ private fun CaptureScreenContent(
     onOpenBundles: () -> Unit,
     modifier: Modifier,
 ) {
-    val view = LocalView.current
     val vm: CaptureViewModel = viewModel(factory = CaptureViewModel.Factory)
     val state by vm.uiState.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val cameraState by vm.cameraState.collectAsStateWithLifecycle()
+    val coordinatorState by vm.coordinatorState.collectAsStateWithLifecycle()
     val lensFacing by vm.lensFacing.collectAsStateWithLifecycle()
     val flashMode by vm.flashMode.collectAsStateWithLifecycle()
     val videoAudioEnabled by vm.videoAudioEnabled.collectAsStateWithLifecycle()
@@ -129,7 +165,7 @@ private fun CaptureScreenContent(
     val recordingStartedAtMs by vm.recordingStartedAtMs.collectAsStateWithLifecycle()
     val zoomInfo by vm.zoomInfo.collectAsStateWithLifecycle()
     val deviceOrientation by vm.deviceOrientation.collectAsStateWithLifecycle()
-    val contentRotation = rememberContentRotation(deviceOrientation)
+    val micPermissionNeeded by vm.micPermissionNeeded.collectAsStateWithLifecycle()
 
     val mediaSound = remember { MediaActionSound().apply { load(MediaActionSound.SHUTTER_CLICK) } }
     DisposableEffect(mediaSound) { onDispose { mediaSound.release() } }
@@ -142,18 +178,12 @@ private fun CaptureScreenContent(
     val micPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
     ) { granted -> vm.onMicPermissionResult(granted) }
-    val micPermissionNeeded by vm.micPermissionNeeded.collectAsStateWithLifecycle()
     LaunchedEffect(micPermissionNeeded) {
         if (micPermissionNeeded) {
             micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
 
-    // Ask for GPS permission the first time the camera UI becomes available (after camera
-    // permission is granted and the user is past the folder picker). We don't wait for the
-    // first shutter press — getting consent up-front means the first capture can already
-    // carry a GPS fix. If the user already granted, already permanently declined, or has
-    // been asked this session, this is a no-op.
     LaunchedEffect(Unit) {
         if (!locationAsked && !vm.hasLocationPermission()) {
             locationAsked = true
@@ -166,15 +196,106 @@ private fun CaptureScreenContent(
         }
     }
 
-    // Stop any in-flight video/voice recording when the Activity pauses. The recorder's
-    // Finalize event fires asynchronously and the awaiting coroutine resumes cleanly.
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
         vm.onLifecyclePaused()
     }
 
-    // Hold the screen on while recording. Without this, the display timeout (30s on
-    // Samsung defaults) fires ON_PAUSE mid-record → onLifecyclePaused stops the take.
-    val isRecording = state.busy == BusyState.Recording
+    CaptureScreenShell(
+        uiState = state,
+        settings = settings,
+        cameraState = cameraState,
+        windowObservation = coordinatorState.lastObservation,
+        lensFacing = lensFacing,
+        flashMode = flashMode,
+        videoAudioEnabled = videoAudioEnabled,
+        modality = modality,
+        recordingStartedAtMs = recordingStartedAtMs,
+        zoomInfo = zoomInfo,
+        deviceOrientation = deviceOrientation,
+        voiceAmplitudeFlow = vm.voiceAmplitudeFlow,
+        videoAudioAmplitudeFlow = vm.videoAudioAmplitudeFlow,
+        events = vm.events,
+        cameraSession = vm.cameraSession,
+        onPlayPhotoShutterSound = { mediaSound.play(MediaActionSound.SHUTTER_CLICK) },
+        onShutter = vm::onShutter,
+        onSetModality = vm::setModality,
+        onToggleLens = vm::onToggleLens,
+        onCycleFlash = vm::onCycleFlash,
+        onToggleVideoAudio = vm::onToggleVideoAudio,
+        onZoomChange = vm::onZoomChange,
+        onRebindingChange = vm::setRebinding,
+        onCommitBundle = vm::onCommitBundle,
+        onDiscardQueue = vm::onDiscardQueue,
+        onUndoDiscard = vm::onUndoDiscard,
+        onDeleteOne = vm::onDeleteOne,
+        onReorder = vm::onReorder,
+        onInsertDivider = vm::onInsertDivider,
+        onRemoveDivider = vm::onRemoveDivider,
+        onClearError = vm::clearError,
+        onDismissTutorial = vm::onDismissGestureTutorial,
+        onOpenSettings = onOpenSettings,
+        onOpenBundles = onOpenBundles,
+        modifier = modifier,
+    )
+}
+
+/**
+ * Pure coordinate-driven Compose capture shell consuming [CaptureGeometry].
+ * Can be composed directly in instrumentation/Compose tests with an injected
+ * [windowObservation] and fake [cameraSession] (or `renderCameraPreview = false`).
+ */
+@Composable
+fun CaptureScreenShell(
+    uiState: CaptureUiState,
+    settings: SettingsState,
+    cameraState: CameraSessionState,
+    windowObservation: WindowObservation?,
+    lensFacing: LensFacing,
+    flashMode: FlashMode,
+    videoAudioEnabled: Boolean,
+    modality: Modality,
+    recordingStartedAtMs: Long?,
+    zoomInfo: ZoomInfo?,
+    deviceOrientation: Int,
+    voiceAmplitudeFlow: StateFlow<Int> = MutableStateFlow(0),
+    videoAudioAmplitudeFlow: StateFlow<Float> = MutableStateFlow(0f),
+    events: Flow<CaptureEvent> = emptyFlow(),
+    cameraSession: CameraSessionContract? = null,
+    renderCameraPreview: Boolean = cameraSession != null,
+    onPlayPhotoShutterSound: () -> Unit = {},
+    onShutter: () -> Unit,
+    onSetModality: (Modality) -> Unit,
+    onToggleLens: () -> Unit,
+    onCycleFlash: () -> Unit,
+    onToggleVideoAudio: () -> Unit,
+    onZoomChange: (Float) -> Unit,
+    onRebindingChange: (Boolean) -> Unit = {},
+    onCommitBundle: () -> Unit,
+    onDiscardQueue: () -> Unit,
+    onUndoDiscard: () -> Unit,
+    onDeleteOne: (String) -> Unit,
+    onReorder: (Int, Int) -> Unit,
+    onInsertDivider: (Int) -> Unit,
+    onRemoveDivider: (Int) -> Unit,
+    onClearError: () -> Unit,
+    onDismissTutorial: (Set<String>) -> Unit,
+    onOpenSettings: () -> Unit,
+    onOpenBundles: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val view = LocalView.current
+    val density = LocalDensity.current
+    val layoutDirection = LocalLayoutDirection.current
+    val safeDrawing = WindowInsets.safeDrawing
+    val safeGestures = WindowInsets.safeGestures
+
+    val isRecording = uiState.busy == BusyState.Recording
+    val isRecordingOrCapturing = uiState.busy != BusyState.Idle
+    val contentRotation = rememberContentRotation(
+        deviceOrientation = deviceOrientation,
+        activeSurfaceRotation = windowObservation?.displayRotation ?: cameraState.activeSurfaceRotation,
+    )
+
     DisposableEffect(isRecording) {
         view.keepScreenOn = isRecording
         onDispose { view.keepScreenOn = false }
@@ -182,30 +303,34 @@ private fun CaptureScreenContent(
 
     val handleShutter = {
         view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-        if (settings.shutterSoundOn) {
-            mediaSound.play(MediaActionSound.SHUTTER_CLICK)
+        if (ShutterSoundPolicy.shouldPlayPhotoShutterClick(
+                modality = modality,
+                shutterSoundOn = settings.shutterSoundOn,
+                busy = uiState.busy,
+            )
+        ) {
+            onPlayPhotoShutterSound()
         }
-        vm.onShutter()
+        onShutter()
     }
 
     val handleCommit = {
-        // CONFIRM was added in API 30; fall back to CONTEXT_CLICK on 26–29.
         val haptic = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             HapticFeedbackConstants.CONFIRM
         } else {
             HapticFeedbackConstants.CONTEXT_CLICK
         }
         view.performHapticFeedback(haptic)
-        vm.onCommitBundle()
+        onCommitBundle()
     }
 
     val handleDiscard = {
         view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-        vm.onDiscardQueue()
+        onDiscardQueue()
     }
 
     var deleteProgress by remember { mutableFloatStateOf(0f) }
-    var deleteHotspotXInRoot by remember { mutableFloatStateOf(0f) }
+    var deleteHotspotInRoot by remember { mutableFloatStateOf(0f) }
     val animatedDeleteProgress by animateFloatAsState(
         targetValue = deleteProgress,
         animationSpec = spring(
@@ -215,385 +340,590 @@ private fun CaptureScreenContent(
         label = "delete-glow",
     )
 
-    Box(
+    var settledDockSide by remember { mutableStateOf<DockSide?>(null) }
+
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black),
+            .background(Color(0xFF080808)),
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(horizontal = 4.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = onOpenSettings) {
-                    Icon(
-                        imageVector = Icons.Filled.Settings,
-                        contentDescription = "Settings",
-                        tint = Color.White,
-                        modifier = Modifier.rotate(contentRotation),
-                    )
-                }
-                Spacer(Modifier.weight(1f))
-                // Lock the pill visually during an active recording so the user sees
-                // their grey state at-a-glance — `setModality` in the VM already
-                // rejects the tap, but the disabled styling is the visual cue.
-                ModalityPill(
-                    current = modality,
-                    enabledModalities = if (state.busy == BusyState.Recording) {
-                        emptySet()
-                    } else {
-                        setOf(Modality.PHOTO, Modality.VIDEO, Modality.VOICE)
-                    },
-                    onChange = vm::setModality,
+        val measuredW = constraints.maxWidth.coerceAtLeast(1)
+        val measuredH = constraints.maxHeight.coerceAtLeast(1)
+        val drawingInsetsPx = InsetsPx(
+            left = safeDrawing.getLeft(density, layoutDirection),
+            top = safeDrawing.getTop(density),
+            right = safeDrawing.getRight(density, layoutDirection),
+            bottom = safeDrawing.getBottom(density),
+        )
+        val gestureInsetsPx = InsetsPx(
+            left = safeGestures.getLeft(density, layoutDirection),
+            top = safeGestures.getTop(density),
+            right = safeGestures.getRight(density, layoutDirection),
+            bottom = safeGestures.getBottom(density),
+        )
+
+        val effectiveObservation = remember(
+            windowObservation,
+            measuredW,
+            measuredH,
+            density.density,
+            density.fontScale,
+            drawingInsetsPx,
+            gestureInsetsPx,
+        ) {
+            if (windowObservation != null) {
+                windowObservation
+            } else {
+                WindowObservation(
+                    windowWidthPx = measuredW,
+                    windowHeightPx = measuredH,
+                    density = density.density,
+                    fontScale = density.fontScale,
+                    safeDrawingInsetsPx = drawingInsetsPx,
+                    safeGestureInsetsPx = gestureInsetsPx,
+                    displayRotation = Surface.ROTATION_0,
+                    surfaceRole = SurfaceRole.Unknown,
                 )
-                Spacer(Modifier.weight(1f))
-                IconButton(
-                    onClick = onOpenBundles,
-                    enabled = settings.rootUri != null,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.PhotoLibrary,
-                        contentDescription = "Bundles",
-                        tint = if (settings.rootUri != null) Color.White else Color.White.copy(alpha = 0.3f),
-                        modifier = Modifier.rotate(contentRotation),
-                    )
-                }
             }
+        }
 
-            val density = androidx.compose.ui.platform.LocalDensity.current
-            val swipeThresholdDp = 64f
-            val swipeVelocityThresholdDpPerSec = 300f
-            // Slab offset is an Animatable so we can (a) snapTo during drag for
-            // pixel-perfect finger-tracking, (b) animateTo with a spring on release to
-            // either return to rest (sub-threshold) or continue the slide-in (commit).
-            // Applied via graphicsLayer.translationX on BOTH the viewfinder Box below
-            // and the control row further down — they're siblings in the Column with
-            // other UI between them, and the spec says they move "as one slab". The
-            // queue strip + zoom control stay put (pixel-anchored queue).
-            val slabOffset = remember { androidx.compose.animation.core.Animatable(0f) }
-            val swipeScope = rememberCoroutineScope()
-            // Slab width measured at layout time. Needed by the commit-path
-            // off-screen animation target — we slide the current slab by one full
-            // viewfinder width in the drag direction, then snap to 0.
-            var slabWidthPx by remember { mutableFloatStateOf(0f) }
+        val geometry = remember(
+            effectiveObservation,
+            modality,
+            lensFacing,
+            cameraState.streamGeometry,
+            settledDockSide,
+        ) {
+            CaptureGeometryCalculator.compute(
+                CaptureGeometryInput(
+                    observation = effectiveObservation,
+                    modality = modality,
+                    lensFacing = lensFacing,
+                    streamGeometry = cameraState.streamGeometry,
+                    settledDockSide = settledDockSide,
+                ),
+            )
+        }
 
-            val dragState = rememberDraggableState { delta ->
-                swipeScope.launch { slabOffset.snapTo(slabOffset.value + delta) }
-            }
+        LaunchedEffect(geometry.dockSide) {
+            settledDockSide = geometry.dockSide
+        }
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(3f / 4f)
-                    .onGloballyPositioned { slabWidthPx = it.size.width.toFloat() }
-                    .draggable(
-                        state = dragState,
-                        orientation = Orientation.Horizontal,
-                        enabled = state.busy == BusyState.Idle,
-                        onDragStarted = {
-                            slabOffset.snapTo(0f)
-                        },
-                        onDragStopped = { velocityPx ->
-                            val dragDp = with(density) { slabOffset.value.toDp().value }
-                            val velocityDpPerSec = with(density) { velocityPx.toDp().value }
-                            val target = ModalitySwipeMath.resolveTarget(
-                                current = modality,
-                                dragDp = dragDp,
-                                velocityDpPerSecond = velocityDpPerSec,
-                                thresholdDp = swipeThresholdDp,
-                                velocityThresholdDpPerSecond = swipeVelocityThresholdDpPerSec,
-                            )
-                            val committed = target != modality
-                            if (committed) vm.setModality(target)
-                            // Two-stage animation so the release reads as a single
-                            // directional swipe, not a rubber band:
-                            //
-                            // (1) Commit path: continue the slab in the drag direction
-                            //     off-screen with a short linear-ish tween (~200ms),
-                            //     then snap to 0 so the just-committed modality's
-                            //     content appears at center. The user sees "content
-                            //     slides out in the direction I flicked".
-                            // (2) Cancel path: snap back to 0 with a critically-damped
-                            //     spring — no overshoot, no back-and-forth oscillation.
-                            //
-                            // Previous implementation used DampingRatioMediumBouncy
-                            // with the release velocity as initial velocity, which
-                            // overshot 0 and oscillated visibly — reported as
-                            // "feels like swipe then bounce back and forth".
-                            swipeScope.launch {
-                                if (committed) {
-                                    val targetOffset = slabWidthPx *
-                                        kotlin.math.sign(slabOffset.value)
-                                    slabOffset.animateTo(
-                                        targetValue = targetOffset,
-                                        animationSpec = androidx.compose.animation.core.tween(
-                                            durationMillis = 180,
-                                            easing = androidx.compose.animation.core.FastOutLinearInEasing,
-                                        ),
-                                        initialVelocity = velocityPx,
-                                    )
-                                    slabOffset.snapTo(0f)
-                                } else {
-                                    slabOffset.animateTo(
-                                        targetValue = 0f,
-                                        animationSpec = androidx.compose.animation.core.spring(
-                                            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
-                                            stiffness = androidx.compose.animation.core.Spring.StiffnessMedium,
-                                        ),
-                                        initialVelocity = velocityPx,
-                                    )
-                                }
+        val swipeThresholdDp = 64f
+        val swipeVelocityThresholdDpPerSec = 300f
+        val slabOffset = remember { Animatable(0f) }
+        val swipeScope = rememberCoroutineScope()
+        val slabWidthPx = geometry.previewBounds.width.coerceAtLeast(1f)
+
+        val dragState = rememberDraggableState { delta ->
+            swipeScope.launch { slabOffset.snapTo(slabOffset.value + delta) }
+        }
+
+        // 1. Preview & Voice Overlay Region
+        Box(
+            modifier = Modifier
+                .placeInWindow(geometry.previewBounds, density)
+                .clipToBounds()
+                .draggable(
+                    state = dragState,
+                    orientation = Orientation.Horizontal,
+                    enabled = uiState.busy == BusyState.Idle,
+                    onDragStarted = {
+                        swipeScope.launch { slabOffset.snapTo(0f) }
+                    },
+                    onDragStopped = { velocityPx ->
+                        val dragDp = with(density) { slabOffset.value.toDp().value }
+                        val velocityDpPerSec = with(density) { velocityPx.toDp().value }
+                        val target = ModalitySwipeMath.resolveTarget(
+                            current = modality,
+                            dragDp = dragDp,
+                            velocityDpPerSecond = velocityDpPerSec,
+                            thresholdDp = swipeThresholdDp,
+                            velocityThresholdDpPerSecond = swipeVelocityThresholdDpPerSec,
+                        )
+                        val committed = target != modality
+                        if (committed) onSetModality(target)
+                        swipeScope.launch {
+                            if (committed) {
+                                val targetOffset = slabWidthPx * sign(slabOffset.value)
+                                slabOffset.animateTo(
+                                    targetValue = targetOffset,
+                                    animationSpec = tween(
+                                        durationMillis = 180,
+                                        easing = FastOutLinearInEasing,
+                                    ),
+                                    initialVelocity = velocityPx,
+                                )
+                                slabOffset.snapTo(0f)
+                            } else {
+                                slabOffset.animateTo(
+                                    targetValue = 0f,
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioNoBouncy,
+                                    ),
+                                    initialVelocity = velocityPx,
+                                )
                             }
-                        },
-                    )
-                    .graphicsLayer { translationX = slabOffset.value },
-            ) {
-                // Always composed so CameraX stays bound — but alpha 0 in VOICE mode
-                // so the preview isn't a visual distraction underneath the overlay.
-                // The spec: "keep camera session bound across photo ↔ voice so
-                // switching back is instant" — composition is what keeps it bound,
-                // alpha is what hides it.
+                        }
+                    },
+                )
+                .graphicsLayer { translationX = slabOffset.value },
+        ) {
+            if (renderCameraPreview && cameraSession != null) {
                 CameraPreview(
-                    controller = vm.captureController,
+                    session = cameraSession,
                     mode = settings.cameraMode,
                     lens = lensFacing,
-                    onRebindingChange = vm::setRebinding,
+                    onRebindingChange = onRebindingChange,
+                    gesturesEnabled = modality != Modality.VOICE && !isRecordingOrCapturing,
                     modifier = Modifier
                         .fillMaxSize()
                         .graphicsLayer {
                             alpha = if (modality == Modality.VOICE) 0f else 1f
                         },
                 )
-                if (modality == Modality.VOICE) {
-                    VoiceOverlay(
-                        recording = state.busy == BusyState.Recording,
-                        amplitudeFlow = vm.voiceAmplitudeFlow,
-                        recordingStartedAtMs = recordingStartedAtMs,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-                // Video recording pill overlays the preview's lower edge — sits
-                // visually just above the zoom chips, but inside the preview Box so
-                // it doesn't reflow the control column below it. Modality swipe is
-                // disabled while recording, so moving with translationX is fine.
-                if (modality == Modality.VIDEO && recordingStartedAtMs != null) {
-                    VideoRecordingPill(
-                        startedAtMs = recordingStartedAtMs!!,
-                        contentRotation = contentRotation,
-                        audioEnabled = videoAudioEnabled,
-                        audioAmplitudeFlow = vm.videoAudioAmplitudeFlow,
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 12.dp),
-                    )
-                }
             }
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .padding(bottom = 12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                // Camera-only auxiliary controls: zoom + flash/mic + lens-flip. Hidden
-                // when the active modality doesn't use the camera (voice) or when they
-                // can't meaningfully operate (no torch wiring in video yet, so flash
-                // is hidden in VIDEO — having an icon that does nothing is worse than
-                // not having it). During a recording these are all disabled. The
-                // left-of-shutter slot becomes the mic-toggle in VIDEO so audio capture
-                // can be turned off without leaving the modality.
-                val cameraControlsVisible = modality != Modality.VOICE
-                val flashVisible = modality == Modality.PHOTO
-                val micToggleVisible = modality == Modality.VIDEO
-                val lensFlipVisible = modality != Modality.VOICE
-                val sideControlsEnabled = state.busy == BusyState.Idle
-
-                // Zoom is meaningless for voice — but we keep the composable in the
-                // tree and just alpha it out, so the shutter row stays at the same
-                // vertical position across modality switches. Otherwise the shutter
-                // visibly jumps down in VOICE (no zoom) and back up in PHOTO/VIDEO.
-                ZoomControl(
-                    zoomInfo = zoomInfo,
-                    onZoomChange = vm::onZoomChange,
-                    contentRotation = contentRotation,
-                    modifier = Modifier
-                        .padding(bottom = 12.dp)
-                        .graphicsLayer { alpha = if (cameraControlsVisible) 1f else 0f },
+            if (modality == Modality.VOICE) {
+                VoiceOverlay(
+                    recording = isRecording,
+                    amplitudeFlow = voiceAmplitudeFlow,
+                    recordingStartedAtMs = recordingStartedAtMs,
+                    modifier = Modifier.fillMaxSize(),
                 )
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .graphicsLayer { translationX = slabOffset.value },
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (flashVisible) {
-                        IconButton(
-                            onClick = vm::onCycleFlash,
-                            enabled = sideControlsEnabled,
-                            modifier = Modifier.size(48.dp),
-                        ) {
-                            Icon(
-                                imageVector = flashIconFor(flashMode),
-                                contentDescription = flashContentDescription(flashMode),
-                                tint = when {
-                                    !sideControlsEnabled -> Color.White.copy(alpha = 0.25f)
-                                    flashMode == FlashMode.Off -> Color.White.copy(alpha = 0.65f)
-                                    else -> Color.White
-                                },
-                                modifier = Modifier
-                                    .size(26.dp)
-                                    .rotate(contentRotation),
-                            )
-                        }
-                    } else if (micToggleVisible) {
-                        IconButton(
-                            onClick = vm::onToggleVideoAudio,
-                            enabled = sideControlsEnabled,
-                            modifier = Modifier.size(48.dp),
-                        ) {
-                            Icon(
-                                imageVector = if (videoAudioEnabled) Icons.Filled.Mic else Icons.Filled.MicOff,
-                                contentDescription = if (videoAudioEnabled) "Mic on, tap to mute" else "Mic off, tap to unmute",
-                                tint = when {
-                                    !sideControlsEnabled -> Color.White.copy(alpha = 0.25f)
-                                    !videoAudioEnabled -> Color.White.copy(alpha = 0.65f)
-                                    else -> Color.White
-                                },
-                                modifier = Modifier
-                                    .size(26.dp)
-                                    .rotate(contentRotation),
-                            )
-                        }
-                    } else {
-                        // Keep the shutter horizontally centered regardless of side-icon
-                        // visibility — an empty slot of the same width as the IconButton
-                        // (48dp) preserves the 3-slot geometry called for in the spec.
-                        Spacer(Modifier.size(48.dp))
-                    }
-                    Spacer(Modifier.width(56.dp))
-                    when (modality) {
-                        Modality.PHOTO -> ShutterButton(
-                            onClick = handleShutter,
-                            enabled = state.busy == BusyState.Idle,
-                        )
-                        Modality.VIDEO -> VideoShutterButton(
-                            onClick = handleShutter,
-                            recording = state.busy == BusyState.Recording,
-                            progressFraction = null,
-                            enabled = state.busy == BusyState.Idle || state.busy == BusyState.Recording,
-                        )
-                        Modality.VOICE -> VoiceShutterButton(
-                            onClick = handleShutter,
-                            recording = state.busy == BusyState.Recording,
-                            enabled = state.busy == BusyState.Idle || state.busy == BusyState.Recording,
-                        )
-                    }
-                    Spacer(Modifier.width(56.dp))
-                    // Right-slot content: lens-flip for camera modalities (disabled
-                    // during recording so it reads as greyed-out), empty spacer for
-                    // VOICE. Timers live elsewhere — VIDEO above the zoom chips
-                    // (red pill), VOICE under the waveform inside VoiceOverlay.
-                    if (lensFlipVisible) {
-                        IconButton(
-                            onClick = vm::onToggleLens,
-                            enabled = sideControlsEnabled,
-                            modifier = Modifier.size(48.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Cameraswitch,
-                                contentDescription = "Flip camera",
-                                tint = if (sideControlsEnabled) Color.White.copy(alpha = 0.65f) else Color.White.copy(alpha = 0.25f),
-                                modifier = Modifier
-                                    .size(26.dp)
-                                    .rotate(contentRotation),
-                            )
-                        }
-                    } else {
-                        Spacer(Modifier.size(48.dp))
-                    }
-                }
-
-                Spacer(Modifier.height(12.dp))
-
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    QueueStrip(
-                        queue = state.queue,
-                        dividers = state.dividers,
-                        onCommit = handleCommit,
-                        onDiscard = handleDiscard,
-                        onDelete = vm::onDeleteOne,
-                        onReorder = vm::onReorder,
-                        onInsertDivider = vm::onInsertDivider,
-                        onRemoveDivider = vm::onRemoveDivider,
-                        onDeleteProgress = { progress, xInRoot ->
-                            deleteProgress = progress
-                            if (progress > 0f) deleteHotspotXInRoot = xInRoot
-                        },
-                    )
-                    UndoToast(
-                        pendingDiscard = state.pendingDiscard,
-                        onUndo = vm::onUndoDiscard,
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                    )
-                    BundleSavedShimmer(
-                        events = vm.events,
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                    )
-                    // Errors overlay the queue (taking the same slot as UndoToast/Shimmer)
-                    // so they don't push the shutter + queue down when they appear.
-                    // Declared last so they draw on top of any concurrent overlay.
-                    state.lastError?.let { message ->
-                        ActionBanner(
-                            message = message,
-                            actionLabel = "Dismiss",
-                            onAction = vm::clearError,
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                            modifier = Modifier.padding(horizontal = 16.dp),
-                        )
-                    }
-                }
             }
         }
 
-        if (animatedDeleteProgress > 0.01f) {
-            DeleteGlow(
-                progress = animatedDeleteProgress,
-                hotspotXInRoot = deleteHotspotXInRoot,
+        // 2. Contrast Scrims when primary controls intrude over the preview edge
+        if (geometry.controlsOverlayPreview && modality != Modality.VOICE) {
+            if (geometry.dockSide == DockSide.Right) {
+                val scrimLeftPx = (minOf(geometry.controlGroup.bounds.x, geometry.modeBarBounds.x) -
+                    with(density) { 32.dp.toPx() }).coerceAtLeast(geometry.previewBounds.x)
+                val scrimRect = RectPx(
+                    x = scrimLeftPx,
+                    y = geometry.usablePaneBounds.y,
+                    width = (geometry.usablePaneBounds.right - scrimLeftPx).coerceAtLeast(0f),
+                    height = geometry.usablePaneBounds.height,
+                )
+                Box(
+                    modifier = Modifier
+                        .placeInWindow(scrimRect, density)
+                        .background(
+                            Brush.horizontalGradient(
+                                0f to Color.Transparent,
+                                0.35f to Color.Black.copy(alpha = 0.68f),
+                                1f to Color.Black.copy(alpha = 0.85f),
+                            ),
+                        ),
+                )
+            } else {
+                val scrimTopPx = (geometry.controlGroup.zoomBounds.y - with(density) { 48.dp.toPx() })
+                    .coerceAtLeast(0f)
+                val scrimRect = RectPx(
+                    x = geometry.usablePaneBounds.x,
+                    y = scrimTopPx,
+                    width = geometry.usablePaneBounds.width,
+                    height = (geometry.usablePaneBounds.bottom - scrimTopPx).coerceAtLeast(0f),
+                )
+                Box(
+                    modifier = Modifier
+                        .placeInWindow(scrimRect, density)
+                        .background(
+                            Brush.verticalGradient(
+                                0f to Color.Transparent,
+                                0.32f to Color.Black.copy(alpha = 0.72f),
+                                1f to Color.Black.copy(alpha = 0.85f),
+                            ),
+                        ),
+                )
+            }
+        }
+        if (geometry.showTopHeaderScrim && modality != Modality.VOICE) {
+            val headerScrimHeightPx = maxOf(
+                with(density) { 80.dp.toPx() },
+                (geometry.settingsButtonBounds.bottom - geometry.usablePaneBounds.y) +
+                    with(density) { 12.dp.toPx() },
+            )
+            val headerScrimRect = RectPx(
+                x = geometry.usablePaneBounds.x,
+                y = geometry.usablePaneBounds.y,
+                width = geometry.usablePaneBounds.width,
+                height = headerScrimHeightPx,
+            )
+            Box(
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .fillMaxWidth()
-                    .height(18.dp),
+                    .placeInWindow(headerScrimRect, density)
+                    .background(
+                        Brush.verticalGradient(
+                            0f to Color.Black.copy(alpha = 0.72f),
+                            0.75f to Color.Black.copy(alpha = 0.45f),
+                            1f to Color.Transparent,
+                        ),
+                    ),
+            )
+        }
+        if (geometry.showLeftUtilityScrim && modality != Modality.VOICE) {
+            val leftScrimRect = RectPx(
+                x = geometry.usablePaneBounds.x,
+                y = geometry.usablePaneBounds.y,
+                width = with(density) { 80.dp.toPx() },
+                height = geometry.usablePaneBounds.height,
+            )
+            Box(
+                modifier = Modifier
+                    .placeInWindow(leftScrimRect, density)
+                    .background(
+                        Brush.horizontalGradient(
+                            0f to Color.Black.copy(alpha = 0.72f),
+                            0.75f to Color.Black.copy(alpha = 0.45f),
+                            1f to Color.Transparent,
+                        ),
+                    ),
             )
         }
 
-        // First-run gesture tutorial overlay. Shown only until the user dismisses it;
-        // declared last so it draws on top of the entire capture UI (including status +
-        // navigation bar regions) and consumes all touches.
+        // 3. Utility Buttons: Settings & Bundles (48 × 48dp targets, 24dp glyphs, locked while recording)
+        val navEnabled = !isRecordingOrCapturing
+        val bundlesEnabled = navEnabled && settings.rootUri != null
+        IconButton(
+            onClick = onOpenSettings,
+            enabled = navEnabled,
+            modifier = Modifier
+                .placeInWindow(geometry.settingsButtonBounds, density)
+                .semantics {
+                    contentDescription = "Settings"
+                    if (!navEnabled) disabled()
+                },
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Settings,
+                contentDescription = null,
+                tint = if (navEnabled) Color.White else Color.White.copy(alpha = 0.38f),
+                modifier = Modifier
+                    .size(24.dp)
+                    .rotate(contentRotation),
+            )
+        }
+
+        IconButton(
+            onClick = onOpenBundles,
+            enabled = bundlesEnabled,
+            modifier = Modifier
+                .placeInWindow(geometry.bundlesButtonBounds, density)
+                .semantics {
+                    contentDescription = "Bundles"
+                    if (!bundlesEnabled) disabled()
+                },
+        ) {
+            Icon(
+                imageVector = Icons.Filled.PhotoLibrary,
+                contentDescription = null,
+                tint = if (bundlesEnabled) Color.White else Color.White.copy(alpha = 0.38f),
+                modifier = Modifier
+                    .size(24.dp)
+                    .rotate(contentRotation),
+            )
+        }
+
+        // 4. Mode Strip (`VIDEO · PHOTO · VOICE`)
+        val capability = cameraState.capability
+        val enabledModalities = remember(isRecordingOrCapturing, capability) {
+            if (isRecordingOrCapturing) {
+                emptySet()
+            } else {
+                buildSet {
+                    add(Modality.PHOTO)
+                    if (capability !is CameraCapability.PhotoOnly) {
+                        add(Modality.VIDEO)
+                    }
+                    add(Modality.VOICE)
+                }
+            }
+        }
+        val unavailableReasons = remember(capability) {
+            if (capability is CameraCapability.PhotoOnly) {
+                mapOf(Modality.VIDEO to capability.reason)
+            } else {
+                emptyMap()
+            }
+        }
+        val modeStripWidthDp = (geometry.modeBarBounds.width / geometry.density).dp
+        Box(
+            modifier = Modifier.placeInWindow(
+                geometry.modeBarBounds.copy(height = 48f * geometry.density),
+                density,
+            ),
+            contentAlignment = Alignment.Center,
+        ) {
+            ModalityPill(
+                current = modality,
+                enabledModalities = enabledModalities,
+                unavailableReasons = unavailableReasons,
+                stripWidth = modeStripWidthDp,
+                onChange = onSetModality,
+            )
+        }
+
+        // 5. Zoom Control (omitted completely in VOICE so no hit or semantic targets remain)
+        if (modality != Modality.VOICE) {
+            Box(
+                modifier = Modifier.placeInWindow(
+                    geometry.controlGroup.zoomBounds.copy(
+                        x = geometry.controlGroup.zoomBounds.x - 4f * geometry.density,
+                        y = geometry.controlGroup.zoomBounds.y - 4f * geometry.density,
+                        width = geometry.controlGroup.zoomBounds.width + 8f * geometry.density,
+                        height = 48f * geometry.density,
+                    ),
+                    density,
+                ),
+                contentAlignment = Alignment.Center,
+            ) {
+                ZoomControl(
+                    zoomInfo = zoomInfo,
+                    onZoomChange = onZoomChange,
+                    contentRotation = contentRotation,
+                    singlePresetMode = geometry.controlGroup.isSingleZoom,
+                )
+            }
+        }
+
+        // 6. Auxiliary Control (Flash in PHOTO, Mic in VIDEO, absent in VOICE)
+        val sideControlsEnabled = uiState.busy == BusyState.Idle
+        if (modality == Modality.PHOTO) {
+            val frontFlashDisabled = lensFacing == LensFacing.Front
+            val flashEnabled = sideControlsEnabled && !frontFlashDisabled
+            IconButton(
+                onClick = onCycleFlash,
+                enabled = flashEnabled,
+                modifier = Modifier
+                    .placeInWindow(geometry.controlGroup.auxBounds, density)
+                    .graphicsLayer { translationX = slabOffset.value }
+                    .semantics {
+                        contentDescription = flashContentDescription(flashMode)
+                        if (!flashEnabled) disabled()
+                    },
+            ) {
+                Icon(
+                    imageVector = flashIconFor(if (frontFlashDisabled) FlashMode.Off else flashMode),
+                    contentDescription = null,
+                    tint = when {
+                        !flashEnabled -> Color.White.copy(alpha = 0.38f)
+                        flashMode == FlashMode.Off -> Color.White.copy(alpha = 0.65f)
+                        else -> Color.White
+                    },
+                    modifier = Modifier
+                        .size(24.dp)
+                        .rotate(contentRotation),
+                )
+            }
+        } else if (modality == Modality.VIDEO) {
+            val micDesc = if (videoAudioEnabled) "Mic on, tap to mute" else "Mic off, tap to unmute"
+            IconButton(
+                onClick = onToggleVideoAudio,
+                enabled = sideControlsEnabled,
+                modifier = Modifier
+                    .placeInWindow(geometry.controlGroup.auxBounds, density)
+                    .graphicsLayer { translationX = slabOffset.value }
+                    .semantics {
+                        contentDescription = micDesc
+                        if (!sideControlsEnabled) disabled()
+                    },
+            ) {
+                Icon(
+                    imageVector = if (videoAudioEnabled) Icons.Filled.Mic else Icons.Filled.MicOff,
+                    contentDescription = null,
+                    tint = when {
+                        !sideControlsEnabled -> Color.White.copy(alpha = 0.38f)
+                        !videoAudioEnabled -> Color.White.copy(alpha = 0.65f)
+                        else -> Color.White
+                    },
+                    modifier = Modifier
+                        .size(24.dp)
+                        .rotate(contentRotation),
+                )
+            }
+        }
+
+        // 7. Shutter / Stop Button (Standard56 80dp / Compact48 64dp)
+        Box(
+            modifier = Modifier
+                .placeInWindow(geometry.controlGroup.shutterBounds, density)
+                .graphicsLayer { translationX = slabOffset.value },
+            contentAlignment = Alignment.Center,
+        ) {
+            when (modality) {
+                Modality.PHOTO -> ShutterButton(
+                    onClick = handleShutter,
+                    enabled = uiState.busy == BusyState.Idle,
+                    profile = geometry.profile,
+                )
+                Modality.VIDEO -> VideoShutterButton(
+                    onClick = handleShutter,
+                    recording = isRecording,
+                    progressFraction = null,
+                    enabled = uiState.busy == BusyState.Idle || isRecording,
+                    profile = geometry.profile,
+                )
+                Modality.VOICE -> VoiceShutterButton(
+                    onClick = handleShutter,
+                    recording = isRecording,
+                    enabled = uiState.busy == BusyState.Idle || isRecording,
+                    profile = geometry.profile,
+                )
+            }
+        }
+
+        // 8. Lens Switch Button (PHOTO & VIDEO only)
+        if (modality != Modality.VOICE) {
+            IconButton(
+                onClick = onToggleLens,
+                enabled = sideControlsEnabled,
+                modifier = Modifier
+                    .placeInWindow(geometry.controlGroup.lensBounds, density)
+                    .graphicsLayer { translationX = slabOffset.value }
+                    .semantics {
+                        contentDescription = "Flip camera"
+                        if (!sideControlsEnabled) disabled()
+                    },
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Cameraswitch,
+                    contentDescription = null,
+                    tint = if (sideControlsEnabled) Color.White.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.38f),
+                    modifier = Modifier
+                        .size(24.dp)
+                        .rotate(contentRotation),
+                )
+            }
+        }
+
+        // 9. Video Recording Timer Pill (centered on fitted camera frame)
+        if (modality == Modality.VIDEO && recordingStartedAtMs != null) {
+            Box(
+                modifier = Modifier.placeInWindow(geometry.videoTimerBounds, density),
+                contentAlignment = Alignment.Center,
+            ) {
+                VideoRecordingPill(
+                    startedAtMs = recordingStartedAtMs,
+                    contentRotation = contentRotation,
+                    audioEnabled = videoAudioEnabled,
+                    audioAmplitudeFlow = videoAudioAmplitudeFlow,
+                )
+            }
+        }
+
+        // 10. Media Queue Strip (Vertical in C Upright, Horizontal in C CW90 & Phone/Cover)
+        val queueHostRect = if (geometry.queueAxis == QueueAxis.Vertical) {
+            geometry.queueBounds
+        } else {
+            geometry.queueStripBounds
+        }
+        Box(
+            modifier = Modifier.placeInWindow(queueHostRect, density),
+            contentAlignment = Alignment.Center,
+        ) {
+            QueueStrip(
+                queue = uiState.queue,
+                dividers = uiState.dividers,
+                axis = geometry.queueAxis,
+                profile = geometry.profile,
+                locked = isRecordingOrCapturing,
+                onCommit = handleCommit,
+                onDiscard = handleDiscard,
+                onDelete = onDeleteOne,
+                onReorder = onReorder,
+                onInsertDivider = onInsertDivider,
+                onRemoveDivider = onRemoveDivider,
+                onDeleteProgress = { progress, hotspot ->
+                    deleteProgress = progress
+                    if (progress > 0f) deleteHotspotInRoot = hotspot
+                },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+
+        // 11. Single Feedback Host (`Error > Undo > Saved` priority)
+        Box(
+            modifier = Modifier.placeInWindow(
+                geometry.feedbackBounds.copy(height = 160f * geometry.density),
+                density,
+            ),
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            when {
+                uiState.lastError != null -> {
+                    ActionBanner(
+                        message = uiState.lastError,
+                        actionLabel = "Dismiss",
+                        onAction = onClearError,
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                uiState.pendingDiscard != null -> {
+                    UndoToast(
+                        pendingDiscard = uiState.pendingDiscard,
+                        onUndo = onUndoDiscard,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                else -> {
+                    BundleSavedShimmer(
+                        events = events,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        }
+
+        // 12. Delete Glow inside the safe corridor
+        if (animatedDeleteProgress > 0.01f) {
+            DeleteGlow(
+                progress = animatedDeleteProgress,
+                hotspotXInRoot = deleteHotspotInRoot,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(12.dp),
+            )
+        }
+
+        // 13. Top-level Gesture Tutorial Overlay (anchored to CaptureGeometry)
         GestureTutorial(
             seenStepIds = settings.seenTutorialSteps,
-            onDismiss = vm::onDismissGestureTutorial,
+            onDismiss = onDismissTutorial,
+            geometry = geometry,
         )
     }
 }
 
+private fun Modifier.placeInWindow(
+    rect: RectPx,
+    density: Density,
+): Modifier = with(density) {
+    this@placeInWindow
+        .offset { IntOffset(rect.x.roundToInt(), rect.y.roundToInt()) }
+        .size(
+            width = rect.width.toDp(),
+            height = rect.height.toDp(),
+        )
+}
+
 @Composable
-private fun rememberContentRotation(deviceOrientation: Int): Float {
+private fun rememberContentRotation(
+    deviceOrientation: Int,
+    activeSurfaceRotation: Int,
+): Float {
+    val displayDegrees = when (activeSurfaceRotation) {
+        Surface.ROTATION_90 -> 270
+        Surface.ROTATION_180 -> 180
+        Surface.ROTATION_270 -> 90
+        else -> 0
+    }
+    val relativeDegrees = ((deviceOrientation - displayDegrees) % 360 + 360) % 360
     var cumulativeTarget by remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(deviceOrientation) {
-        val newTarget = -deviceOrientation.toFloat()
+    LaunchedEffect(relativeDegrees) {
+        val newTarget = -relativeDegrees.toFloat()
         var delta = newTarget - cumulativeTarget
         delta = ((delta % 360f) + 540f) % 360f - 180f
         cumulativeTarget += delta
@@ -635,7 +965,7 @@ private fun PermissionRequiredScreen(
                 .align(Alignment.TopEnd)
                 .padding(16.dp),
         ) {
-            Text("Settings", color = Color.White)
+            Text("Recon settings", color = Color.White)
         }
 
         Column(
@@ -653,7 +983,7 @@ private fun PermissionRequiredScreen(
             )
             Spacer(Modifier.height(12.dp))
             Text(
-                text = "Recon needs the camera to capture photos. Grant permission to continue.",
+                text = "Recon needs the camera to capture photos and video. Grant permission to continue, or enable Camera in Android Settings if previously blocked.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color.White.copy(alpha = 0.8f),
                 textAlign = TextAlign.Center,

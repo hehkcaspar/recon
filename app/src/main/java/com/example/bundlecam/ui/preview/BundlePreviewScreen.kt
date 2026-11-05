@@ -5,7 +5,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -29,6 +31,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,7 +47,6 @@ import com.example.bundlecam.ui.common.openFolderInSystemBrowser
 
 private const val PROCESSING_ROW_KEY_PREFIX = "processing:"
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BundlePreviewScreen(
     onBack: () -> Unit,
@@ -55,18 +57,73 @@ fun BundlePreviewScreen(
     val state by vm.uiState.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
 
-    // Refresh every time the screen is composed — cheap given we only list two SAF
-    // directories, and this covers the "user saved a bundle then navigated back" case
-    // without plumbing a cross-VM bundle-saved event.
     LaunchedEffect(settings.rootUri) { vm.refresh() }
 
-    var confirmDeleteId by remember { mutableStateOf<String?>(null) }
     var sendBundles by remember { mutableStateOf<List<CompletedBundle>>(emptyList()) }
 
-    // Back press in selection mode is "exit selection mode", not "leave the screen" —
-    // standard M3 multi-select behavior. Outside selection mode, the existing screen-
-    // level BackHandler in MainActivity takes over.
-    BackHandler(enabled = state.selectionMode && sendBundles.isEmpty()) { vm.clearSelection() }
+    BundlePreviewContent(
+        state = state,
+        settings = settings,
+        canSendSelected = vm.selectedBundlesSnapshot().isNotEmpty(),
+        onBack = onBack,
+        onOpenFolder = {
+            settings.rootUri?.let { openFolderInSystemBrowser(context, it) }
+        },
+        onClearSelection = vm::clearSelection,
+        onSendSelected = { sendBundles = vm.selectedBundlesSnapshot() },
+        onRequestThumbnail = vm::loadThumbnail,
+        onConfirmDelete = vm::onConfirmDelete,
+        onUndo = vm::onUndo,
+        onToggleSelection = vm::toggleSelection,
+        onClearError = vm::clearError,
+        isTransferSheetOpen = sendBundles.isNotEmpty(),
+        modifier = modifier,
+    )
+
+    if (sendBundles.isNotEmpty()) {
+        val app = context.applicationContext as ReconApp
+        LocalSendSheet(
+            container = app.container,
+            bundles = sendBundles,
+            onDismiss = {
+                sendBundles = emptyList()
+                vm.clearSelection()
+            },
+        )
+    }
+}
+
+/**
+ * Stateless, testable Bundle Library UI surface implementing `docs/prototypes-app-ui/INTERACTIONS.md`:
+ * - `560dp` max column width centered in the usable pane.
+ * - `ProcessingBundleRow`, ready `BundleRow`, and `PendingDeleteRow` with Undo.
+ * - Right-swipe selection reveal, left-swipe delete, trailing `More` menu, and custom
+ *   accessibility actions.
+ * - Back handler clears active confirm dialog first, then clears selection before leaving.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BundlePreviewContent(
+    state: BundlePreviewUiState,
+    settings: SettingsState,
+    canSendSelected: Boolean,
+    onBack: () -> Unit,
+    onOpenFolder: () -> Unit,
+    onClearSelection: () -> Unit,
+    onSendSelected: () -> Unit,
+    onRequestThumbnail: (android.net.Uri) -> Unit,
+    onConfirmDelete: (String) -> Unit,
+    onUndo: (String) -> Unit,
+    onToggleSelection: (String) -> Unit,
+    onClearError: () -> Unit,
+    isTransferSheetOpen: Boolean = false,
+    modifier: Modifier = Modifier,
+) {
+    var confirmDeleteId by rememberSaveable { mutableStateOf<String?>(null) }
+
+    BackHandler(enabled = state.selectionMode && !isTransferSheetOpen && confirmDeleteId == null) {
+        onClearSelection()
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -74,9 +131,9 @@ fun BundlePreviewScreen(
             if (state.selectionMode) {
                 SelectionTopBar(
                     selectedCount = state.selectedBundleIds.size,
-                    canSend = vm.selectedBundlesSnapshot().isNotEmpty(),
-                    onClose = { vm.clearSelection() },
-                    onSend = { sendBundles = vm.selectedBundlesSnapshot() },
+                    canSend = canSendSelected,
+                    onClose = onClearSelection,
+                    onSend = onSendSelected,
                 )
             } else {
                 TopAppBar(
@@ -91,9 +148,7 @@ fun BundlePreviewScreen(
                     },
                     actions = {
                         IconButton(
-                            onClick = {
-                                settings.rootUri?.let { openFolderInSystemBrowser(context, it) }
-                            },
+                            onClick = onOpenFolder,
                             enabled = settings.rootUri != null,
                         ) {
                             Icon(
@@ -110,13 +165,8 @@ fun BundlePreviewScreen(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize(),
+            contentAlignment = Alignment.TopCenter,
         ) {
-            // A bundle is "processing" if its worker is in-flight. Most of the time the
-            // bundle is ONLY in processingBundleIds (no SAF files yet) and renders as a
-            // ProcessingBundleRow. There's a brief overlap window where a just-finished
-            // worker's bundle appears in BOTH processingBundleIds AND state.bundles —
-            // BundleList consumes the full processing set so it can render the right
-            // row type AND gate gestures on the overlap-window BundleRow.
             val completedIds = state.bundles.mapTo(mutableSetOf()) { it.id }
             val hasContent = state.bundles.isNotEmpty() ||
                 state.processingBundleIds.any { it !in completedIds }
@@ -144,16 +194,17 @@ fun BundlePreviewScreen(
                         pendingDeletes = state.pendingDeletes,
                         selectedIds = state.selectedBundleIds,
                         thumbnails = state.thumbnails,
-                        onRequestThumbnail = vm::loadThumbnail,
+                        onRequestThumbnail = onRequestThumbnail,
                         onRequestDelete = { id ->
                             if (settings.deleteConfirmEnabled) {
                                 confirmDeleteId = id
                             } else {
-                                vm.onConfirmDelete(id)
+                                onConfirmDelete(id)
                             }
                         },
-                        onUndo = vm::onUndo,
-                        onToggleSelection = vm::toggleSelection,
+                        onUndo = onUndo,
+                        onToggleSelection = onToggleSelection,
+                        modifier = Modifier.widthIn(max = 560.dp),
                     )
                 }
             }
@@ -162,11 +213,12 @@ fun BundlePreviewScreen(
                 ActionBanner(
                     message = msg,
                     actionLabel = "Dismiss",
-                    onAction = vm::clearError,
+                    onAction = onClearError,
                     containerColor = MaterialTheme.colorScheme.errorContainer,
                     contentColor = MaterialTheme.colorScheme.onErrorContainer,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
+                        .widthIn(max = 560.dp)
                         .padding(16.dp),
                 )
             }
@@ -183,22 +235,10 @@ fun BundlePreviewScreen(
             bundle = bundle,
             settings = settings,
             onConfirm = {
-                vm.onConfirmDelete(id)
+                onConfirmDelete(id)
                 confirmDeleteId = null
             },
             onDismiss = { confirmDeleteId = null },
-        )
-    }
-
-    if (sendBundles.isNotEmpty()) {
-        val app = context.applicationContext as ReconApp
-        LocalSendSheet(
-            container = app.container,
-            bundles = sendBundles,
-            onDismiss = {
-                sendBundles = emptyList()
-                vm.clearSelection()
-            },
         )
     }
 }
@@ -217,7 +257,7 @@ private fun SelectionTopBar(
             IconButton(onClick = onClose) {
                 Icon(
                     imageVector = Icons.Filled.Close,
-                    contentDescription = "Exit selection",
+                    contentDescription = "Clear selection",
                 )
             }
         },
@@ -243,21 +283,18 @@ private fun BundleList(
     onRequestDelete: (String) -> Unit,
     onUndo: (String) -> Unit,
     onToggleSelection: (String) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    // Bundles with a SAF file already on disk render as a regular BundleRow even if
-    // their worker is still finishing other artifacts; bundles with no SAF presence
-    // yet render as a non-interactive ProcessingBundleRow. The two paths are exclusive
-    // in the rendered list — but both can stem from a row whose worker is still active.
     val completedIds = bundles.mapTo(mutableSetOf()) { it.id }
     val processingOnly = processingIds.filterNot { it in completedIds }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxWidth()
+            .fillMaxSize(),
     ) {
         items(
             items = processingOnly,
-            // Prefix the key so a processing ID can't collide with a completed bundle
-            // that shares the same id during the brief SAF-write → refresh transition.
             key = { id -> "$PROCESSING_ROW_KEY_PREFIX$id" },
         ) { id ->
             ProcessingBundleRow(bundleId = id)
@@ -325,9 +362,6 @@ private fun DeleteConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    // Build a human-readable target description from the per-modality counts. "Subfolder"
-    // in BundleModality now covers photo/video/voice uniformly; the old "the photos
-    // subfolder" phrasing was misleading for video- or voice-only bundles.
     val parts = buildList {
         if (bundle.photoCount > 0) add("the photos")
         if (bundle.videoCount > 0) add("the videos")

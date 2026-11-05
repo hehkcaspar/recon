@@ -65,8 +65,7 @@ fun VideoRecordingPill(
         modifier = modifier
             .clip(CircleShape)
             .background(CaptureColors.DeleteRed)
-            .padding(horizontal = 12.dp, vertical = 5.dp)
-            .rotate(contentRotation),
+            .padding(horizontal = 12.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {

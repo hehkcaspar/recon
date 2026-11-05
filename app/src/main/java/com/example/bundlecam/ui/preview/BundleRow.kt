@@ -1,5 +1,6 @@
 package com.example.bundlecam.ui.preview
 
+import android.net.Uri
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.Image
@@ -9,6 +10,7 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,35 +20,39 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material.icons.outlined.ViewStream
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LocalMinimumInteractiveComponentSize
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import android.net.Uri
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -56,11 +62,18 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.bundlecam.data.storage.CompletedBundle
 import kotlinx.coroutines.delay
@@ -69,37 +82,25 @@ import kotlinx.coroutines.launch
 // Width of the selection reveal zone — the row settles here when selected, exposing
 // the green check affordance on the leading edge.
 private val SwipeRevealWidth = 80.dp
-// At 50% of the reveal width, a half-pull is enough to commit a select/deselect.
-// 0.4 of the row width matches the pre-existing delete gesture's hard reach so swipe-
-// left muscle memory carries over.
 private const val SWIPE_SELECT_FRACTION = 0.5f
 private const val SWIPE_DELETE_FRACTION = 0.4f
-// Velocity above which a flick commits even before the position threshold is crossed.
 private const val SWIPE_VELOCITY_PX_PER_S = 800f
 private const val COUNTDOWN_TICK_MS = 200L
 
-// M3 dynamic-color palettes can land anywhere — but "green = selected/confirm" is a
-// universally-readable signal, so the reveal background is hardcoded rather than
-// pulled from `colorScheme.primary`. Material green-800 reads cleanly on both light
-// and dark themes.
 private val SelectionGreen = Color(0xFF2E7D32)
 
-private val ThumbSize = 40.dp
-private val ThumbGap = 4.dp
-// Shared min-height so the pending-delete row and the normal row measure identically.
-// Normal rows are content-driven by the two-line text column (titleMedium 24sp + 2dp +
-// bodySmall 16sp = ~42dp) plus 24dp vertical padding, landing around 66dp; pending rows
-// don't have the subtitle and would otherwise measure 2dp shorter, causing neighbours
-// to shift when entering/leaving the pending state.
-private val BundleRowMinHeight = 68.dp
+private val TileWidth = 56.dp
+private val TileHeight = 48.dp
+private val TileGap = 4.dp
+private val WideThumbRailWidth = 176.dp // 3 × 56dp + 2 × 4dp = 176dp per INTERACTIONS.md
+private val CompactThumbRailWidth = 56.dp
+private val BundleRowMinHeight = 80.dp
 
 private fun Modifier.bundleRowLayout(): Modifier =
-    this.fillMaxWidth()
+    this
+        .fillMaxWidth()
         .heightIn(min = BundleRowMinHeight)
-        .padding(horizontal = 16.dp, vertical = 12.dp)
-// Reserve the leading area for 3 slots so rows stay vertically aligned regardless of
-// how many photos a given bundle has (stitched-only bundles only contribute 1 thumb).
-private val ThumbStripWidth = ThumbSize * 3 + ThumbGap * 2
+        .padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 12.dp)
 
 @Composable
 fun BundleRow(
@@ -156,18 +157,13 @@ private fun SwipeableBundleRow(
     val coroutineScope = rememberCoroutineScope()
     val density = LocalDensity.current
     val revealWidthPx = with(density) { SwipeRevealWidth.toPx() }
+    val trailingMenuZonePx = with(density) { 48.dp.toPx() }
 
-    // pointerInput is keyed only on bundle.id, so its drag-handler closures see stale
-    // values for `selected` / callbacks if those props change without a key bump (which
-    // would cancel an in-flight gesture). rememberUpdatedState gives us a State<T> the
-    // closures re-read on each invocation.
     val currentSelected by rememberUpdatedState(selected)
+    val currentProcessing by rememberUpdatedState(processing)
     val currentOnToggleSelection by rememberUpdatedState(onToggleSelection)
     val currentOnRequestDelete by rememberUpdatedState(onRequestDelete)
 
-    // offsetX is the live drag position — plain state so we don't launch a coroutine
-    // per touch delta. animatable drives release / external-change animations and is
-    // kept in sync via snapTo at the start of every animated transition.
     var offsetX by remember(bundle.id) {
         mutableFloatStateOf(if (selected) revealWidthPx else 0f)
     }
@@ -175,19 +171,16 @@ private fun SwipeableBundleRow(
         Animatable(if (selected) revealWidthPx else 0f)
     }
     val velocityTracker = remember(bundle.id) { VelocityTracker() }
-    var rowWidthPx by remember { mutableFloatStateOf(0f) }
+    var rowWidthPx by remember(bundle.id) { mutableIntStateOf(0) }
+    var isDragging by remember(bundle.id) { mutableStateOf(false) }
     var triggeredAbove by remember(bundle.id) { mutableStateOf(false) }
-    // True while the row is mid-animation from an external selection change (e.g. the
-    // contextual app bar's X click). Drag handlers consult this on drag-start to ignore
-    // any finger motion that's actually a follow-through from the user's tap on X — a
-    // common pattern that would otherwise trigger swipe-right and re-select the row.
     var animatingExternally by remember(bundle.id) { mutableStateOf(false) }
+    var menuExpanded by remember(bundle.id) { mutableStateOf(false) }
 
-    // External selection changes (e.g. contextual app bar's clear-all) animate the row
-    // back to its rest target, so the snap-out/in stays visually consistent with the
-    // user's own swipe.
-    LaunchedEffect(selected, revealWidthPx) {
-        val target = if (selected) revealWidthPx else 0f
+    // External selection changes or processing transition animate/reset the row to its rest target.
+    LaunchedEffect(selected, processing, revealWidthPx) {
+        if (processing) menuExpanded = false
+        val target = if (selected && !processing) revealWidthPx else 0f
         if (offsetX != target) {
             animatingExternally = true
             try {
@@ -199,21 +192,76 @@ private fun SwipeableBundleRow(
         }
     }
 
+    // Window / row width change (e.g. rotation, fold, split-screen resize) cancels any
+    // in-flight drag displacement back to the row's current rest position.
+    LaunchedEffect(rowWidthPx) {
+        if (rowWidthPx > 0) {
+            val rest = BundleRowSwipe.restOffsetFor(currentSelected && !currentProcessing, revealWidthPx)
+            if (!animatingExternally && offsetX != rest) {
+                isDragging = false
+                animatable.snapTo(rest)
+                offsetX = rest
+            }
+        }
+    }
+
     val containerColor = when {
         offsetX < 0f -> MaterialTheme.colorScheme.errorContainer
         offsetX > 0f -> SelectionGreen
         else -> Color.Transparent
     }
 
-    Box(
+    val fullDescription = "${bundle.id}, ${subtitleFor(bundle)}" +
+        when {
+            processing -> ", Processing"
+            selected -> ", Selected"
+            else -> ""
+        }
+
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
-            .background(containerColor),
+            .onSizeChanged { size ->
+                if (rowWidthPx != size.width) {
+                    rowWidthPx = size.width
+                }
+            }
+            .background(containerColor)
+            .semantics {
+                contentDescription = fullDescription
+                this.selected = selected
+                if (processing) {
+                    disabled()
+                    customActions = emptyList()
+                } else {
+                    customActions = if (selected) {
+                        listOf(
+                            CustomAccessibilityAction("Deselect ${bundle.id}") {
+                                onToggleSelection()
+                                true
+                            },
+                        )
+                    } else {
+                        listOf(
+                            CustomAccessibilityAction("Select ${bundle.id}") {
+                                onToggleSelection()
+                                true
+                            },
+                            CustomAccessibilityAction("Delete ${bundle.id}") {
+                                onRequestDelete()
+                                true
+                            },
+                        )
+                    }
+                }
+            },
     ) {
-        if (offsetX < 0f && rowWidthPx > 0f) {
+        val isWideRow = maxWidth >= 520.dp
+
+        if (offsetX < 0f && rowWidthPx > 0) {
             DeleteHint(
                 color = MaterialTheme.colorScheme.onErrorContainer,
-                progress = (-offsetX / rowWidthPx).coerceIn(0f, 1f),
+                progress = (-offsetX / rowWidthPx.toFloat()).coerceIn(0f, 1f),
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .padding(end = 16.dp),
@@ -221,101 +269,104 @@ private fun SwipeableBundleRow(
         }
         if (offsetX > 0f) {
             SelectionRevealZone(
-                tappable = selected,
+                bundleId = bundle.id,
+                tappable = selected && !processing,
                 onTap = onToggleSelection,
             )
         }
 
-        // Skip the swipe gesture entirely while the bundle's worker is still in flight —
-        // the VM would reject toggleSelection / onConfirmDelete on a processing bundle
-        // (isSelectable returns false; deleting a half-written bundle races the worker),
-        // but without this gate, a drag-end that already animated the row into a snap
-        // position leaves the row stuck visually because `selected` never flips.
-        val gestureModifier = if (processing) Modifier else Modifier.pointerInput(bundle.id) {
-            rowWidthPx = size.width.toFloat()
-            val deleteTriggerPx = -size.width * SWIPE_DELETE_FRACTION
-            val selectMidpointPx = revealWidthPx * SWIPE_SELECT_FRACTION
-            // Per-gesture suppression flag — set on drag-start when the row is mid-
-            // animation from an external selection change. Stays set for the remainder
-            // of the gesture so a follow-through finger motion right after the user
-            // tapped X doesn't drive offsetX or commit a toggle.
-            var dragSuppressed = false
+        val gestureModifier = if (processing) {
+            Modifier
+        } else {
+            Modifier.pointerInput(bundle.id) {
+                var dragSuppressed = false
 
-            detectHorizontalDragGestures(
-                onDragStart = {
-                    dragSuppressed = animatingExternally
-                    if (!dragSuppressed) {
-                        triggeredAbove = false
-                        velocityTracker.resetTracking()
-                    }
-                },
-                onDragEnd = {
-                    if (dragSuppressed) return@detectHorizontalDragGestures
-                    val release = BundleRowSwipe.computeRelease(
-                        offsetX = offsetX,
-                        velocity = velocityTracker.calculateVelocity().x,
-                        selected = currentSelected,
-                        revealWidthPx = revealWidthPx,
-                        deleteTriggerPx = deleteTriggerPx,
-                        selectMidpointPx = selectMidpointPx,
-                    )
-                    coroutineScope.launch {
-                        animatable.snapTo(offsetX)
-                        animatable.animateTo(release.targetOffset) { offsetX = value }
-                        when (release.action) {
-                            BundleRowSwipe.SwipeAction.None -> Unit
-                            BundleRowSwipe.SwipeAction.ToggleSelection ->
-                                currentOnToggleSelection()
-                            BundleRowSwipe.SwipeAction.RequestDelete -> {
-                                currentOnRequestDelete()
-                                // pendingDeleteRow takes over on the next recomposition;
-                                // snap back to 0 in case the bundle reappears (e.g. user
-                                // undoes the delete) so the row shows at rest.
-                                animatable.snapTo(0f)
-                                offsetX = 0f
+                detectHorizontalDragGestures(
+                    onDragStart = { startOffset ->
+                        val widthF = size.width.toFloat()
+                        val validStart = BundleRowSwipe.isValidSwipeStart(
+                            startXInSurface = startOffset.x,
+                            rowWidthPx = widthF,
+                            trailingMenuZonePx = trailingMenuZonePx,
+                        )
+                        dragSuppressed = animatingExternally || currentProcessing || !validStart
+                        if (!dragSuppressed) {
+                            isDragging = true
+                            triggeredAbove = false
+                            velocityTracker.resetTracking()
+                        }
+                    },
+                    onDragEnd = {
+                        if (dragSuppressed || !isDragging) {
+                            isDragging = false
+                            return@detectHorizontalDragGestures
+                        }
+                        isDragging = false
+                        val widthF = size.width.toFloat().coerceAtLeast(1f)
+                        val deleteTriggerPx = -widthF * SWIPE_DELETE_FRACTION
+                        val selectMidpointPx = revealWidthPx * SWIPE_SELECT_FRACTION
+                        val release = BundleRowSwipe.computeRelease(
+                            offsetX = offsetX,
+                            velocity = velocityTracker.calculateVelocity().x,
+                            selected = currentSelected,
+                            revealWidthPx = revealWidthPx,
+                            deleteTriggerPx = deleteTriggerPx,
+                            selectMidpointPx = selectMidpointPx,
+                        )
+                        coroutineScope.launch {
+                            animatable.snapTo(offsetX)
+                            animatable.animateTo(release.targetOffset) { offsetX = value }
+                            when (release.action) {
+                                BundleRowSwipe.SwipeAction.None -> Unit
+                                BundleRowSwipe.SwipeAction.ToggleSelection ->
+                                    currentOnToggleSelection()
+                                BundleRowSwipe.SwipeAction.RequestDelete -> {
+                                    currentOnRequestDelete()
+                                    animatable.snapTo(0f)
+                                    offsetX = 0f
+                                }
                             }
                         }
-                    }
-                },
-                onDragCancel = {
-                    if (dragSuppressed) return@detectHorizontalDragGestures
-                    coroutineScope.launch {
-                        val rest = if (currentSelected) revealWidthPx else 0f
-                        animatable.snapTo(offsetX)
-                        animatable.animateTo(rest) { offsetX = value }
-                    }
-                },
-                onHorizontalDrag = { change, delta ->
-                    if (dragSuppressed) {
-                        // Claim the gesture so it doesn't propagate, but ignore the
-                        // delta — the LaunchedEffect's animation owns offsetX while the
-                        // row is animating to rest.
-                        change.consume()
-                        return@detectHorizontalDragGestures
-                    }
-                    velocityTracker.addPosition(change.uptimeMillis, change.position)
-                    val prev = offsetX
-                    val next = BundleRowSwipe.clampOffset(
-                        rawOffset = prev + delta,
-                        selected = currentSelected,
-                        revealWidthPx = revealWidthPx,
-                    )
-                    offsetX = next
-                    // Haptic on each crossing of "would-fire-on-release" so the user
-                    // gets confirmation that their pull is committable.
-                    val wouldFire = BundleRowSwipe.wouldFireOnRelease(
-                        offsetX = next,
-                        selected = currentSelected,
-                        deleteTriggerPx = deleteTriggerPx,
-                        selectMidpointPx = selectMidpointPx,
-                    )
-                    if (wouldFire != triggeredAbove) {
-                        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                        triggeredAbove = wouldFire
-                    }
-                    if (next != prev) change.consume()
-                },
-            )
+                    },
+                    onDragCancel = {
+                        if (dragSuppressed) return@detectHorizontalDragGestures
+                        isDragging = false
+                        coroutineScope.launch {
+                            val rest = BundleRowSwipe.restOffsetFor(currentSelected, revealWidthPx)
+                            animatable.snapTo(offsetX)
+                            animatable.animateTo(rest) { offsetX = value }
+                        }
+                    },
+                    onHorizontalDrag = { change, delta ->
+                        if (dragSuppressed || currentProcessing) {
+                            change.consume()
+                            return@detectHorizontalDragGestures
+                        }
+                        val widthF = size.width.toFloat().coerceAtLeast(1f)
+                        val deleteTriggerPx = -widthF * SWIPE_DELETE_FRACTION
+                        val selectMidpointPx = revealWidthPx * SWIPE_SELECT_FRACTION
+                        velocityTracker.addPosition(change.uptimeMillis, change.position)
+                        val prev = offsetX
+                        val next = BundleRowSwipe.clampOffset(
+                            rawOffset = prev + delta,
+                            selected = currentSelected,
+                            revealWidthPx = revealWidthPx,
+                        )
+                        offsetX = next
+                        val wouldFire = BundleRowSwipe.wouldFireOnRelease(
+                            offsetX = next,
+                            selected = currentSelected,
+                            deleteTriggerPx = deleteTriggerPx,
+                            selectMidpointPx = selectMidpointPx,
+                        )
+                        if (wouldFire != triggeredAbove) {
+                            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                            triggeredAbove = wouldFire
+                        }
+                        if (next != prev) change.consume()
+                    },
+                )
+            }
         }
 
         Surface(
@@ -325,7 +376,24 @@ private fun SwipeableBundleRow(
                 .graphicsLayer { translationX = offsetX }
                 .then(gestureModifier),
         ) {
-            BundleRowContent(bundle = bundle, thumbnails = thumbnails)
+            BundleRowContent(
+                bundle = bundle,
+                thumbnails = thumbnails,
+                expandedThumbRail = isWideRow,
+                selected = selected,
+                processing = processing,
+                menuExpanded = menuExpanded,
+                onOpenMenu = { if (!processing) menuExpanded = true },
+                onDismissMenu = { menuExpanded = false },
+                onToggleSelectionFromMenu = {
+                    menuExpanded = false
+                    if (!processing) onToggleSelection()
+                },
+                onRequestDeleteFromMenu = {
+                    menuExpanded = false
+                    if (!processing && !selected) onRequestDelete()
+                },
+            )
         }
     }
 }
@@ -337,6 +405,7 @@ private fun SwipeableBundleRow(
  */
 @Composable
 private fun BoxScope.SelectionRevealZone(
+    bundleId: String,
     tappable: Boolean,
     onTap: () -> Unit,
 ) {
@@ -345,7 +414,16 @@ private fun BoxScope.SelectionRevealZone(
             .align(Alignment.CenterStart)
             .width(SwipeRevealWidth)
             .heightIn(min = BundleRowMinHeight)
-            .clickable(enabled = tappable) { onTap() },
+            .semantics {
+                if (tappable) {
+                    contentDescription = "Deselect $bundleId"
+                }
+            }
+            .clickable(
+                enabled = tappable,
+                role = Role.Button,
+                onClickLabel = "Deselect $bundleId",
+            ) { onTap() },
         contentAlignment = Alignment.Center,
     ) {
         Icon(
@@ -358,25 +436,67 @@ private fun BoxScope.SelectionRevealZone(
 }
 
 /**
- * Pure swipe-decision logic — no Compose dependency, fully unit-testable. Called from
- * the drag-end handler to translate (current offset, release velocity, current selected
- * state) into a [SwipeRelease] (where to animate, what to fire). Extracted so the
- * gesture's branching can be exercised without touching a real Composable.
+ * Pure swipe and menu decision logic — no Compose dependency, fully unit-testable.
  */
 internal object BundleRowSwipe {
 
     enum class SwipeAction { None, ToggleSelection, RequestDelete }
+
+    enum class MenuOption { Select, Deselect, Delete }
 
     data class SwipeRelease(
         val targetOffset: Float,
         val action: SwipeAction,
     )
 
+    fun restOffsetFor(selected: Boolean, revealWidthPx: Float): Float =
+        if (selected) revealWidthPx else 0f
+
     /**
-     * Decide where the row should animate to and what (if anything) should fire when
-     * the user releases the drag. See the comment block on each branch for the user
-     * mental model the case maps to.
+     * Checks that a swipe starts on the row body clear of the trailing 48dp More menu.
      */
+    fun isValidSwipeStart(
+        startXInSurface: Float,
+        rowWidthPx: Float,
+        trailingMenuZonePx: Float,
+    ): Boolean {
+        if (rowWidthPx <= trailingMenuZonePx) return true
+        return startXInSurface in 0f..(rowWidthPx - trailingMenuZonePx)
+    }
+
+    /**
+     * Direct `More` menu options per `INTERACTIONS.md`:
+     * - Processing or pending-delete rows have no menu options.
+     * - Ready unselected rows offer `Select` and `Delete`.
+     * - Ready selected rows offer `Deselect` only (a selected row cannot be deleted without deselecting).
+     */
+    fun menuOptionsFor(
+        selected: Boolean,
+        processing: Boolean,
+        pendingDelete: Boolean = false,
+    ): List<MenuOption> {
+        if (processing || pendingDelete) return emptyList()
+        return if (selected) {
+            listOf(MenuOption.Deselect)
+        } else {
+            listOf(MenuOption.Select, MenuOption.Delete)
+        }
+    }
+
+    /**
+     * Middle-ellipsis formatting when a long bundle ID would crowd a narrow row
+     * (e.g. `2026-11-02-s-10027` -> `2026…10027`), preserving the sequence number
+     * visually while screen readers still announce the full `bundle.id`.
+     */
+    fun displayTitleFor(bundleId: String, availableWidthDp: Float): String {
+        if (bundleId.length * 7.7f <= availableWidthDp || !bundleId.contains('-')) {
+            return bundleId
+        }
+        val prefix = bundleId.take(4)
+        val suffix = bundleId.substringAfterLast('-')
+        return "$prefix…$suffix"
+    }
+
     fun computeRelease(
         offsetX: Float,
         velocity: Float,
@@ -388,43 +508,25 @@ internal object BundleRowSwipe {
         val isFastRight = velocity >= SWIPE_VELOCITY_PX_PER_S
         val isFastLeft = velocity <= -SWIPE_VELOCITY_PX_PER_S
         return when {
-            // Selected → deselect: dragged left toward 0, or fast left flick from any
-            // sub-reveal position.
             selected &&
                 (offsetX <= selectMidpointPx ||
                     (isFastLeft && offsetX < revealWidthPx)) ->
                 SwipeRelease(0f, SwipeAction.ToggleSelection)
-            // Unselected → select: dragged right past midpoint, or fast right flick.
             !selected && offsetX > 0f &&
                 (offsetX >= selectMidpointPx || isFastRight) ->
                 SwipeRelease(revealWidthPx, SwipeAction.ToggleSelection)
-            // Unselected → delete: dragged left past delete threshold, or fast left flick
-            // from anywhere in the negative half (no delete from a positive offset).
             !selected && offsetX < 0f &&
                 (offsetX <= deleteTriggerPx || isFastLeft) ->
                 SwipeRelease(deleteTriggerPx, SwipeAction.RequestDelete)
-            // Otherwise: spring back to the row's current rest.
             else ->
                 SwipeRelease(if (selected) revealWidthPx else 0f, SwipeAction.None)
         }
     }
 
-    /**
-     * Clamp logic for live drag deltas. Selected rows are bounded to [0, revealWidth]
-     * so a selected row can only travel back to 0 (no over-drag past reveal, no delete
-     * from selected). Unselected rows are capped at revealWidth on the right (the
-     * selection snap-point is the natural ceiling) but unbounded on the left so the
-     * delete reveal still pulls in.
-     */
     fun clampOffset(rawOffset: Float, selected: Boolean, revealWidthPx: Float): Float =
         if (selected) rawOffset.coerceIn(0f, revealWidthPx)
         else rawOffset.coerceAtMost(revealWidthPx)
 
-    /**
-     * Whether releasing at [offsetX] right now would fire a commit (select / deselect /
-     * delete). Position-only — velocity-based fast-flick commits aren't represented here
-     * since haptic is cued from the user's physical position, not their wrist speed.
-     */
     fun wouldFireOnRelease(
         offsetX: Float,
         selected: Boolean,
@@ -464,34 +566,121 @@ private fun DeleteHint(
 private fun BundleRowContent(
     bundle: CompletedBundle,
     thumbnails: Map<Uri, ImageBitmap>,
+    expandedThumbRail: Boolean,
+    selected: Boolean,
+    processing: Boolean,
+    menuExpanded: Boolean,
+    onOpenMenu: () -> Unit,
+    onDismissMenu: () -> Unit,
+    onToggleSelectionFromMenu: () -> Unit,
+    onRequestDeleteFromMenu: () -> Unit,
 ) {
     Row(
         modifier = Modifier.bundleRowLayout(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ThumbnailStrip(uris = bundle.thumbnailUris, thumbnails = thumbnails)
+        ThumbnailStrip(
+            uris = bundle.thumbnailUris,
+            thumbnails = thumbnails,
+            expanded = expandedThumbRail,
+        )
 
         Spacer(Modifier.width(12.dp))
 
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = bundle.id,
-                style = MaterialTheme.typography.titleMedium,
-                fontFamily = FontFamily.Monospace,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.padding(top = 2.dp))
-            Text(
-                text = subtitleFor(bundle),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        BoxWithConstraints(modifier = Modifier.weight(1f)) {
+            val shownTitle = BundleRowSwipe.displayTitleFor(bundle.id, maxWidth.value)
+            Column {
+                Text(
+                    text = shownTitle,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontFamily = FontFamily.Monospace,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.padding(top = 2.dp))
+                Text(
+                    text = subtitleFor(bundle),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
 
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(6.dp))
 
         ModalityIcons(bundle = bundle)
+
+        if (!processing) {
+            val options = BundleRowSwipe.menuOptionsFor(selected = selected, processing = false)
+            Box {
+                IconButton(
+                    onClick = onOpenMenu,
+                    modifier = Modifier.size(48.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.MoreVert,
+                        contentDescription = "Actions for ${bundle.id}",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = onDismissMenu,
+                ) {
+                    options.forEach { option ->
+                        when (option) {
+                            BundleRowSwipe.MenuOption.Select -> {
+                                DropdownMenuItem(
+                                    text = { Text("Select") },
+                                    leadingIcon = {
+                                        Icon(Icons.Filled.Check, contentDescription = null)
+                                    },
+                                    onClick = onToggleSelectionFromMenu,
+                                    modifier = Modifier.semantics {
+                                        contentDescription = "Select ${bundle.id}"
+                                    },
+                                )
+                            }
+                            BundleRowSwipe.MenuOption.Deselect -> {
+                                DropdownMenuItem(
+                                    text = { Text("Deselect") },
+                                    leadingIcon = {
+                                        Icon(Icons.Filled.Check, contentDescription = null)
+                                    },
+                                    onClick = onToggleSelectionFromMenu,
+                                    modifier = Modifier.semantics {
+                                        contentDescription = "Deselect ${bundle.id}"
+                                    },
+                                )
+                            }
+                            BundleRowSwipe.MenuOption.Delete -> {
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = "Delete",
+                                            color = MaterialTheme.colorScheme.error,
+                                        )
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Filled.Delete,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.error,
+                                        )
+                                    },
+                                    onClick = onRequestDeleteFromMenu,
+                                    modifier = Modifier.semantics {
+                                        contentDescription = "Delete ${bundle.id}"
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            Spacer(Modifier.size(48.dp))
+        }
     }
 }
 
@@ -499,17 +688,20 @@ private fun BundleRowContent(
 private fun ThumbnailStrip(
     uris: List<Uri>,
     thumbnails: Map<Uri, ImageBitmap>,
+    expanded: Boolean,
 ) {
+    val railWidth = if (expanded) WideThumbRailWidth else CompactThumbRailWidth
+    val maxTiles = if (expanded) 3 else 1
     Row(
-        modifier = Modifier.width(ThumbStripWidth),
-        horizontalArrangement = Arrangement.spacedBy(ThumbGap),
+        modifier = Modifier.width(railWidth),
+        horizontalArrangement = Arrangement.spacedBy(TileGap),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        uris.take(3).forEach { uri ->
+        uris.take(maxTiles).forEach { uri ->
             Box(
                 modifier = Modifier
-                    .size(ThumbSize)
-                    .clip(RoundedCornerShape(6.dp))
+                    .size(width = TileWidth, height = TileHeight)
+                    .clip(RoundedCornerShape(7.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center,
             ) {
@@ -534,13 +726,6 @@ private fun ThumbnailStrip(
     }
 }
 
-/**
- * Compose the per-modality subtitle for a bundle row. Preserves the pre-multimodal
- * "N photos" / "stitch only" wording when the bundle is photo-only; adds comma-
- * separated entries for videos and voice notes when present. Zero-photo bundles that
- * only contain video/voice read "M videos" or "K voice notes" rather than "stitch only",
- * because "stitch only" now specifically means "no raw content at all".
- */
 private fun subtitleFor(bundle: CompletedBundle): String {
     val parts = buildList {
         if (bundle.photoCount > 0) add(pluralize(bundle.photoCount, "photo", "photos"))
@@ -559,11 +744,6 @@ private fun pluralize(count: Int, singular: String, plural: String): String =
 
 @Composable
 private fun ModalityIcons(bundle: CompletedBundle) {
-    // Render one icon per modality the bundle actually contains. We intentionally don't
-    // rely on BundleModality.Subfolder alone (that enum stayed at {Subfolder, Stitch}
-    // so downstream code doesn't have to change), but split it into photo / video /
-    // voice icons based on the per-modality count fields so the row gives the user an
-    // at-a-glance read of what's inside.
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -619,34 +799,70 @@ private fun PendingDeleteRow(
             delay(COUNTDOWN_TICK_MS)
         }
     }
-    // 200ms ticks update `nowMs` but the displayed second only changes ~5× slower;
-    // derivedStateOf gates recomposition so the row only redraws on whole-second boundaries.
     val secondsLeft by remember(expiresAtMillis) {
         derivedStateOf { ((expiresAtMillis - nowMs) / 1000L).coerceAtLeast(0L).toInt() + 1 }
     }
 
-    Row(
-        modifier = modifier.bundleRowLayout(),
-        verticalAlignment = Alignment.CenterVertically,
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics {
+                contentDescription = "${bundle.id}, Deleting in ${secondsLeft}s"
+                customActions = listOf(
+                    CustomAccessibilityAction("Undo deletion of ${bundle.id}") {
+                        onUndo()
+                        true
+                    },
+                )
+            },
     ) {
-        ThumbnailStrip(uris = bundle.thumbnailUris, thumbnails = thumbnails)
+        val isWideRow = maxWidth >= 520.dp
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = BundleRowMinHeight)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ThumbnailStrip(
+                uris = bundle.thumbnailUris,
+                thumbnails = thumbnails,
+                expanded = isWideRow,
+            )
 
-        Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(12.dp))
 
-        Text(
-            text = "Deleting in ${secondsLeft}s",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.error,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = bundle.id,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontFamily = FontFamily.Monospace,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.padding(top = 2.dp))
+                Text(
+                    text = "Deleting in ${secondsLeft}s",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
 
-        // Opt out of the 48dp minimum touch target for this button so the pending row's
-        // measured height matches a normal row (thumbnail-driven 40dp). Without this,
-        // the TextButton inflates the Row to ~72dp and pushes neighbouring rows down.
-        CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
-            TextButton(onClick = onUndo) { Text("Undo") }
+            Spacer(Modifier.width(8.dp))
+
+            FilledTonalButton(
+                onClick = onUndo,
+                modifier = Modifier
+                    .widthIn(min = 72.dp)
+                    .heightIn(min = 48.dp)
+                    .semantics {
+                        contentDescription = "Undo deletion of ${bundle.id}"
+                    },
+            ) {
+                Text("Undo")
+            }
         }
     }
 }
@@ -656,47 +872,56 @@ fun ProcessingBundleRow(
     bundleId: String,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier.bundleRowLayout(),
-        verticalAlignment = Alignment.CenterVertically,
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics {
+                contentDescription = "$bundleId, Processing"
+                disabled()
+            },
     ) {
-        // Reserve the same leading strip as completed rows so bundle IDs stay aligned
-        // when a row transitions from processing to completed.
-        Box(
-            modifier = Modifier.width(ThumbStripWidth),
-            contentAlignment = Alignment.CenterStart,
+        val isWideRow = maxWidth >= 520.dp
+        val railWidth = if (isWideRow) WideThumbRailWidth else CompactThumbRailWidth
+        Row(
+            modifier = Modifier.bundleRowLayout(),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
-                modifier = Modifier
-                    .size(ThumbSize)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center,
+                modifier = Modifier.width(railWidth),
+                contentAlignment = Alignment.CenterStart,
             ) {
-                CircularProgressIndicator(
-                    strokeWidth = 2.dp,
-                    modifier = Modifier.size(20.dp),
+                Box(
+                    modifier = Modifier
+                        .size(width = TileWidth, height = TileHeight)
+                        .clip(RoundedCornerShape(7.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(20.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+
+            Spacer(Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = bundleId,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontFamily = FontFamily.Monospace,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.padding(top = 2.dp))
+                Text(
+                    text = "Processing…",
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary,
                 )
             }
-        }
-
-        Spacer(Modifier.width(12.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = bundleId,
-                style = MaterialTheme.typography.titleMedium,
-                fontFamily = FontFamily.Monospace,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.padding(top = 2.dp))
-            Text(
-                text = "Processing…",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary,
-            )
         }
     }
 }
