@@ -2,7 +2,7 @@
 
 _Pure multimodal capture tool. Photos, videos, and voice recordings go into one interleaved queue, the user commits a bundle, files land in folders. That's it._
 
-This document records the **existing product and architecture baseline** for Recon, based on the Android reference implementation. It remains useful for storage, resilience and ports. For the current static Android adaptive capture design, the [Design C SVG/component contract](docs/prototypes/README.md) supersedes capture-layout and interaction details here (including pill styling, geometry and gesture semantics). Design C has not yet replaced the native implementation; this baseline remains the implementation reference until the [adaptive capture plan](docs/adaptive-foldable-capture-plan.md) and runtime/device acceptance are complete.
+This document records the **product and architecture specification** for Recon. For the Android adaptive capture design and foldable Design C runtime architecture, see the [engineering rebuild plan](docs/engineering/foldable-capture-rebuild-plan.md), [adaptive capture plan](docs/adaptive-foldable-capture-plan.md), and [Design C SVG/component contract](docs/prototypes/README.md).
 
 For the Android-specific technical reference (file layout, module responsibilities, dependency versions), see [`README.md`](./README.md). For release/signing runbook, see [`RELEASE.md`](./RELEASE.md). For post-MVP ideas (OCR / LAN peer-to-peer transfer, tutorial polish), see [`BACKLOG.md`](./BACKLOG.md).
 
@@ -67,9 +67,22 @@ The seven gestures compose: a user can shoot photos, swipe to VIDEO, record a cl
 
 ---
 
-## Capture screen anatomy
+## Capture screen anatomy & universal layout law
 
-The capture screen is locked to portrait orientation (see [Design decisions § Portrait lock](#design-decisions)). Every icon counter-rotates to match the device's physical orientation, so labels and glyphs always read right-side-up.
+Across traditional portrait phones, foldable cover screens, and unfolded foldable inner screens, the capture layout is governed by a **single universal geometric law** (`CaptureGeometryCalculator`):
+
+1. **Maximize the uncropped viewfinder across the limiting screen dimension**:
+   - **Traditional Portrait Phone / Foldable Cover / Unfolded Inner CW90**: the viewfinder spans 100% of the screen width (`x = 0 .. wDp`), and the orthogonal layout axis is **Vertical** (`Top Utility ↔ Preview ↔ Bottom Primary Controls`).
+   - **Unfolded Inner Upright (Design C)**: the portrait viewfinder spans 100% of the screen height (`y = 0 .. hDp`), and the orthogonal layout axis is **Horizontal** (`Left 80dp Utility ↔ Preview ↔ Right Primary Control & Vertical Queue Rail`).
+2. **Intrude into the secondary utility zone FIRST before intruding into the primary control zone**:
+   Along the active layout axis, the preview start coordinate is computed by:
+   `previewStart = (primaryZoneStartDp - previewSpanDp).coerceIn(0f, utilityEndDp)`
+   - When space is ample (e.g. Fold8 `960×720`, Fold8 Ultra `960×864`), neither zone is intruded.
+   - When space is moderate (e.g. Pixel 9 Pro Fold inner `852×883`, traditional phone `411×914` or `360×800` in 3:4 photo mode), the preview shifts into the sparse secondary utility strip FIRST (enabling a subtle utility-edge scrim `showTopHeaderScrim` / `showLeftUtilityScrim`) so the high-frequency primary control and queue zone stays 100% in un-intruded black space.
+   - Only when space is so tight that `previewStart` has already reached `0dp` (e.g. `360×576` short cover, or `9:16` video on phone/cover) does the remaining excess intrude into the primary control zone with `controlsOverlayPreview = true`.
+3. **Adaptive rotation policy**:
+   - **Traditional phones and folded cover screens (`smallestScreenWidthDp < 600`)**: locked to portrait (`SCREEN_ORIENTATION_PORTRAIT`). Holding the phone sideways keeps the entire layout in place; horizontal strips (`ModalityPill`, `VideoRecordingPill`) stay horizontal in place without rotating; only square/circular icons (`Settings`, `Bundles`, `Flash`/`Mic`, `Flip camera`, `Zoom` labels) counter-rotate in place to match physical orientation.
+   - **Unfolded inner screens (`smallestScreenWidthDp >= 600`)**: unlocked (`SCREEN_ORIENTATION_UNSPECIFIED`), reflowing between Design C `InnerUpright` (vertical queue in the right rail, `QueueAxis.Vertical`) and `InnerCW90` (horizontal queue in the bottom band, `QueueAxis.Horizontal`).
 
 ```
 ┌─────────────────────────────────────┐

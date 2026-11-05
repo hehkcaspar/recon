@@ -1,10 +1,26 @@
 # Foldable Capture UI/UX rebuild plan
 
-状态：APPROVED（独立计划审查：Raman，2026-11-04）
+状态：IMPLEMENTED & SIMULATOR-VERIFIED（独立计划审查：Raman，2026-11-04；运行时实施与双模拟器验证：2026-11-05）
 
 基线：`origin/main` / `bd41553`，另有当前 Design C 资产快照 `a2d5f6b`。
 
 目标：在不带入上一轮相机和折叠屏实现 patch 的前提下，使用 CameraX 重建 capture 前端；Design C 作为内屏静态设计标准，运行时由 WindowMetrics、Insets、铰链/分隔区域、姿态和 CameraX 实际输出共同决定布局。
+
+## 统一几何与旋转第一性原理（2026-11-05 确立）
+
+1. **受限维不裁剪顶满（Full-Span Uncropped Preview）**：
+   - 在任何屏幕形态下，取景器均保持 CameraX 实际交付构图（`PHOTO` `3:4`/`4:3`，`VIDEO` `9:16`/`16:9`），不做二次 UI 像素裁切。
+   - **内屏正位（`InnerUpright`）**：竖向取景器上下 `100%` 顶满屏幕全高（`y = 0 .. hDp`），正交布局轴为横向（左侧副工具栏 ↔ Preview ↔ 右侧主操作区）。
+   - **内屏顺时针 90°（`InnerCW90`）**、**传统竖屏手机**与**折叠屏外屏（`Cover`）**：取景器左右 `100%` 顶满屏幕全宽（`x = 0 .. wDp`），正交布局轴为纵向（顶部副工具栏 ↔ Preview ↔ 底部主操作区）。
+2. **统一侵入优先级方程（先侵入副工具栏，吃满后才侵入主操作区）**：
+   - 在所有屏幕形态的正交布局轴上，取景器起点由同一个纯函数 `CaptureGeometryCalculator.computePreviewStartAlongLayoutAxis` 决定：
+     $$\text{previewStart} = (\text{primaryZoneStartDp} - \text{previewSpanDp}).\text{coerceIn}(0\text{dp}, \text{utilityEndDp})$$
+   - **空间充裕**（$\ge \text{utilityEndDp}$，如 `Fold8` `960×720`、`Fold8 Ultra` `960×864`）：副工具栏与主操作区均不被侵入，与 `foldable-c-geometry-source.json` 零误差对齐。
+   - **空间中等**（$0 \le \text{primaryZoneStartDp} - \text{previewSpanDp} < \text{utilityEndDp}$，如 `Pixel 9 Pro Fold` 近正方形内屏 `852×883`、`recon-api36` 传统手机 `411×914`、`360×800` 手机）：取景器优先向副工具栏方向推进并开启轻量边缘渐层（`showTopHeaderScrim` / `showLeftUtilityScrim`），使高频交互的主操作区（变焦、快门、闪光灯、队列）`100%` 留在纯净黑底内，零侵入。
+   - **空间紧凑**（$< 0$，如 `360×576` 短外屏或手机 `9:16` 视频）：取景器先顶到 `0dp` 吃满副工具栏，剩余超出部分才侵入主操作区并开启主控对比度渐层（`controlsOverlayPreview`）。
+3. **自适应旋转与重排边界**：
+   - **传统手机与闭合外屏（`smallestScreenWidthDp < 600`）**：锁定竖屏窗口布局（`SCREEN_ORIENTATION_PORTRAIT`），横握手机时布局不重排；长条形组件（`ModalityPill`、`VideoRecordingPill`）保持水平原地不动，方形/圆形图标（`Settings`、`Bundles`、`Flash`/`Mic`、`Flip`、`Zoom` 数字）随 `OrientationEventListener` 原地旋转。
+   - **展开大内屏（`smallestScreenWidthDp >= 600`）**：解锁方向（`SCREEN_ORIENTATION_UNSPECIFIED`），随姿态在 `InnerUpright`（右侧竖向队列 `QueueAxis.Vertical`）与 `InnerCW90`（底部横向队列 `QueueAxis.Horizontal`）之间重排。
 
 ## 已确认的问题
 
@@ -110,7 +126,12 @@
 - 设计文档中的“当前实现/测试通过”陈述与新基线不一致时，保留设计资产，但在实现状态文档中明确标为历史记录并重新记录证据。
 - 编译通过不等于 CameraX 或折叠屏完成；设备证据单独记录。
 
-## 计划审查记录
+## 计划审查与实施验证记录
 
 - `01a1a639-441c-70c0-bb14-2a582b44b774`：REVISE。指出宿主旋转、finalize-once、CameraX capability、QueueAxis、WindowManager、androidTest 与 crash consistency 缺口。
 - `01a1a63f-a0ec-7ab0-8013-e1f5e22c55b0`：APPROVED。确认上述 blocking gaps 已进入计划；批准进入 Milestone 0。该批准只针对计划，不代表实现或设备验收完成。
+- `2026-11-05` 实施与模拟器验证记录：
+  - **静态原型与几何契约校验**：`layout-screens.mjs --check`、`build-standalone.mjs --check`、`foldable-c-geometry.mjs --check`、`foldable-c-study.py --check`、`ultra-c-study.py --check`、`ultra-c-cw90-study.py --check`、`prototypes-app-ui/build.py --check` 全部通过。
+  - **纯 JVM 单元测试（`./gradlew :app:testDebugUnitTest`）**：156/156 通过（含 `CaptureTakeCoordinatorTest`、`HostEventClassifierTest`、`CaptureGeometryTest`、`QueueGestureArbitrationTest`、`ShutterSoundPolicyTest`、`BundleRowSwipeTest`、`BundleSelectionLogicTest`）。
+  - **Android 模拟器 Compose 与连接测试（`./gradlew :app:connectedDebugAndroidTest`）**：在 `recon-api36`（常规手机 API 36）与 `recon-fold-api36`（折叠屏 API 36）上各执行 8/8 全部通过（`CaptureScreenComposeTest`、`BundlePreviewComposeTest`、`CaptureActivityRotationAndBindingTest`）。
+  - **未验证边界（需实机硬件）**：真实物理折叠屏（如 Galaxy Z Fold8 / Fold8 Ultra 实机）铰链传感器过渡时序、真机单手/双手握持拇指触达与真实光学镜头模组四角标靶比对仍属未验证项。

@@ -99,7 +99,9 @@ Queue gesture arbitration must distinguish horizontal scrolling, long-press reor
 
 Static geometry, portability and independent visual inspection are acceptance evidence for these SVGs. They do not replace the backlog's runtime tests.
 
-## Native evidence recorded 2026-11-02
+## Historical evidence recorded 2026-11-02 (pre-rebuild branch)
+
+> Note: The section below preserves historical observations recorded on 2026-11-02 prior to the 2026-11-04/05 first-principles Design C rebuild (`docs/engineering/foldable-capture-rebuild-plan.md`). See **Current Design C Runtime Evidence (2026-11-05)** below for the active implementation and verification record.
 
 Verified in this workstream:
 
@@ -146,3 +148,18 @@ Use a clipped, alpha-masked scrolling media layer with stationary edge handles a
 `recon-capture-recording-states.svg` closes the static state-composition gap with phone, cover and inner VIDEO/VOICE windows. The native capture now disables Settings/Library and queue mutations during recording, routes recorder failure through the shared finalizer, and keeps timer/shutter/queue state together. A recoverable queue/storage message can coexist below the recording timer; native large-text and TalkBack acceptance remain open, while fold posture/resize smoke has been verified on the Pixel Fold AVD.
 
 Use the current singleton rule in the component contract. Choose side versus bottom layout by fitted frame area and reach, not just frame orientation: the free-window near-square case uses a bottom dock. Center short square frames in the area above controls instead of always pinning them to the header.
+
+## Current Design C Runtime Evidence (2026-11-05)
+
+1. **Universal Preview Maximization & Utility-First Intrusion (`CaptureGeometryCalculator.computePreviewStartAlongLayoutAxis`)**:
+   - Across `InnerUpright`, `InnerCW90`, `PortraitPhone`, and `FoldableCover`, the uncropped camera frame spans 100% of the limiting screen dimension (`y = 0 .. hDp` in `InnerUpright`; `x = 0 .. wDp` in `InnerCW90`, portrait phone, and cover).
+   - Along the orthogonal layout axis, `previewStart = (primaryZoneStartDp - previewSpanDp).coerceIn(0f, utilityEndDp)` intrudes into the sparse secondary utility strip (`80dp` on inner screens, `safeTop + 48dp` on phones/covers) FIRST (activating `showTopHeaderScrim` or `showLeftUtilityScrim`) so the high-frequency primary control and queue zone stays in un-intruded black space whenever possible (`0` primary intrusion on Fold8, Fold8 Ultra, Pixel 9 Pro Fold inner `2076×2152`, and `360×800` / `411×914` phones in 3:4 photo mode). Only after `previewStart` reaches `0dp` (e.g. `360×576` short cover or `9:16` video on phone/cover) does the remaining excess intrude into the primary control zone (`controlsOverlayPreview = true`).
+2. **Adaptive Rotation Policy (`MainActivity.applyAdaptiveOrientationPolicy`)**:
+   - Traditional phones and folded cover screens (`smallestScreenWidthDp < 600`) keep a fixed portrait window layout (`SCREEN_ORIENTATION_PORTRAIT`). Holding the device sideways keeps the layout in place; horizontal strips (`ModalityPill`, `VideoRecordingPill`) remain horizontal in place without rotating; only square/circular icons (`Settings`, `Bundles`, `Flash`/`Mic`, `Flip camera`, `Zoom` labels) counter-rotate in place via `OrientationEventListener`.
+   - Unfolded inner screens (`smallestScreenWidthDp >= 600`) unlock `SCREEN_ORIENTATION_UNSPECIFIED` and reflow between Design C `InnerUpright` (`QueueAxis.Vertical` in the right rail) and `InnerCW90` (`QueueAxis.Horizontal` in the bottom band).
+3. **Single CameraX Session Owner & Capture-Ratio `ViewPort`**:
+   - `CaptureController` (implementing `CameraSessionContract`, owned by `AppContainer`) binds `Preview + ImageCapture + VideoCapture<Recorder>` inside a `UseCaseGroup` with a `ViewPort` built from the selected capture aspect ratio (`AspectRatio.RATIO_4_3` for `PHOTO`, `AspectRatio.RATIO_16_9` for `VIDEO`) and matching `Recorder.Builder().setAspectRatio(plan.aspectRatio)`, rather than reading `PreviewView.getViewPort()` (which previously coupled sensor cropping to UI view dimensions).
+4. **Verification Summary (2026-11-05)**:
+   - `./gradlew :app:testDebugUnitTest`: **156/156** JVM unit tests pass (`CaptureTakeCoordinatorTest`, `HostEventClassifierTest`, `CaptureGeometryTest`, `QueueGestureArbitrationTest`, `ShutterSoundPolicyTest`, `BundleRowSwipeTest`, `BundleSelectionLogicTest`, etc.).
+   - `./gradlew :app:connectedDebugAndroidTest`: **8/8** Compose and instrumentation tests (`CaptureScreenComposeTest`, `BundlePreviewComposeTest`, `CaptureActivityRotationAndBindingTest`) pass on both `recon-api36` and `recon-fold-api36` simulators.
+   - Physical foldable hardware ergonomics and optical four-corner target verification remain open for held-device testing.

@@ -2,13 +2,13 @@
 
 **设计 C 是当前折叠屏静态方案.** A/B layouts are archived. Fold8 and Fold8 Ultra use the C pose-driven queue/control composition; the [C matrices](prototypes/recon-capture-fold8-c.svg) and generated [C geometry reference](prototypes/foldable-c-geometry.json) are current static outputs. The hand-authored [C geometry source](prototypes/foldable-c-geometry-source.json) is the numeric source of truth; do not edit the generated JSON directly. Runtime WindowMetrics, insets, hinge bounds, gesture arbitration and device acceptance remain pending; there is no fixed 400dp product threshold. The [measurement reference](prototypes/recon-capture-display-metrics.svg) remains calibration evidence.
 
-Updated 2026-11-03. Keep the existing Android implementation separate from the adaptive capture design until native acceptance is complete.
+Updated 2026-11-05. The Android codebase implements the single-owner CameraX session (`CameraSessionContract`), unified take coordinator (`CaptureTakeCoordinator` with `finalizeOnce(TakeId)`), `HostEventClassifier`, pure `CaptureGeometry` engine (with universal preview maximization and utility-first intrusion), `QueueAxis`-driven `QueueStrip`, and Bundle UI contract, verified across 156 JVM unit tests and 8 connected Compose/instrumentation tests on both `recon-api36` and `recon-fold-api36` simulators. Physical foldable hardware ergonomics and optical target verification remain separate from simulator evidence.
 
 | Purpose | Authoritative entry point |
 | --- | --- |
 | Existing app, architecture and build | [Repository README](../README.md), [product baseline](../recon-mvp-designs.md), [release runbook](../RELEASE.md) |
 | Current Android capture design | [Prototype index](prototypes/README.md), [component contract](prototypes/COMPONENT-CONTRACT.md), current C matrices/gesture guide, display measurements and [C geometry](prototypes/foldable-c-geometry.json) |
-| Active adaptive implementation | [Implementation plan](adaptive-foldable-capture-plan.md), [camera guidance and runtime backlog](prototypes/camera-layout-implementation.md) |
+| Active adaptive implementation | [Engineering rebuild plan](engineering/foldable-capture-rebuild-plan.md), [adaptive plan](adaptive-foldable-capture-plan.md), [camera guidance and runtime backlog](prototypes/camera-layout-implementation.md) |
 | Static artifact review history | [Design audit](prototypes/DESIGN-AUDIT.md), [review](prototypes/REVIEW.md), [render manifest](prototypes/review/manifest.json) and [bounded raster exception](prototypes/review/rasterization/README.md) |
 | Proposed Android Setup, Settings, Bundles and LocalSend | [SVG index](prototypes-app-ui/README.md), [interaction contract](prototypes-app-ui/INTERACTIONS.md), [baseline](prototypes-app-ui/BASELINE.md) and [review](prototypes-app-ui/REVIEW.md) |
 | Original visual evidence | [Camera references](references/README.md) |
