@@ -130,8 +130,11 @@
 
 - `01a1a639-441c-70c0-bb14-2a582b44b774`：REVISE。指出宿主旋转、finalize-once、CameraX capability、QueueAxis、WindowManager、androidTest 与 crash consistency 缺口。
 - `01a1a63f-a0ec-7ab0-8013-e1f5e22c55b0`：APPROVED。确认上述 blocking gaps 已进入计划；批准进入 Milestone 0。该批准只针对计划，不代表实现或设备验收完成。
-- `2026-11-05` 实施与模拟器验证记录：
+- `2026-11-05` 实施与模拟器/真机验证记录：
   - **静态原型与几何契约校验**：`layout-screens.mjs --check`、`build-standalone.mjs --check`、`foldable-c-geometry.mjs --check`、`foldable-c-study.py --check`、`ultra-c-study.py --check`、`ultra-c-cw90-study.py --check`、`prototypes-app-ui/build.py --check` 全部通过。
   - **纯 JVM 单元测试（`./gradlew :app:testDebugUnitTest`）**：156/156 通过（含 `CaptureTakeCoordinatorTest`、`HostEventClassifierTest`、`CaptureGeometryTest`、`QueueGestureArbitrationTest`、`ShutterSoundPolicyTest`、`BundleRowSwipeTest`、`BundleSelectionLogicTest`）。
   - **Android 模拟器 Compose 与连接测试（`./gradlew :app:connectedDebugAndroidTest`）**：在 `recon-api36`（常规手机 API 36）与 `recon-fold-api36`（折叠屏 API 36）上各执行 8/8 全部通过（`CaptureScreenComposeTest`、`BundlePreviewComposeTest`、`CaptureActivityRotationAndBindingTest`）。
-  - **未验证边界（需实机硬件）**：真实物理折叠屏（如 Galaxy Z Fold8 / Fold8 Ultra 实机）铰链传感器过渡时序、真机单手/双手握持拇指触达与真实光学镜头模组四角标靶比对仍属未验证项。
+  - **折叠屏真机实测与精调记录**：
+    - `3dfd7f5` & `efb6f71`：真机 `CW90 ↔ CCW90` 直接 180° 翻转通过 `DisplayManager.DisplayListener` 同步 `display.rotation`，并在展开内屏开启系统自动旋转时固定 `contentRotation = 0f`，消除传感器早于 `WindowManager` 触发导致的两段式图标预转抖动。
+    - `4856fc6`：真机外屏（Cover）队列遵循 margin-first 容量法则（仅扣除左右安全边距 `safeLeftDp`/`safeRightDp`，移除 `312dp`/`360dp` 硬上限）。
+    - `e57a29b`：队列保存/丢弃滑动动效合并为与缩略图同高（`56dp`/`48dp`）、`8dp` 圆角的单一胶囊渐变层；分割手势热区扩展至 `28dp` 宽（向两侧缩略图各侵入 `11dp`）并在交叉轴上下各扩展 `8dp` 触控余量，在 `PointerEventPass.Initial` 提前于 `3dp` 交叉轴位移锁定手势。
