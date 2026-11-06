@@ -239,8 +239,11 @@ class CaptureGeometryTest {
                 modality = Modality.PHOTO,
             ),
         )
+        val expectedMarginPx = 24f * (390f / 160f)
         assertEquals(0f, pixelFoldCover.previewBounds.x, 0.5f)
         assertEquals(1080f, pixelFoldCover.previewBounds.width, 0.5f)
+        assertEquals(expectedMarginPx, pixelFoldCover.queueStripBounds.x, 0.5f)
+        assertEquals(1080f - 2f * expectedMarginPx, pixelFoldCover.queueStripBounds.width, 0.5f)
         assertEquals(QueueAxis.Horizontal, pixelFoldCover.queueAxis)
     }
 

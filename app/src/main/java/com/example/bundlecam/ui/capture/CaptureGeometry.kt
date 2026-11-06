@@ -809,14 +809,18 @@ object CaptureGeometryCalculator {
         val queueGapDp = profile.shutterToQueueGapDp
         val travelDp = if (isSideDock) 48f else 24f
 
-        val candidateQueueWidthDp = if (wDp <= 380f || useCompact48) {
-            (wDp - safeLeftDp - safeRightDp).coerceIn(200f, 312f)
+        // Margin-first queue capacity contract (`COMPONENT-CONTRACT.md` § Geometry):
+        // On portrait phones and foldable covers, reserve only the left/right safe
+        // operating margins (`safeLeftDp` and `safeRightDp`, >= 24dp for OS Back gesture
+        // clearance) and let the queue span the full remaining width `L = wDp - M_s - M_e`.
+        val candidateQueueWidthDp = if (isPortraitPhoneOrCover) {
+            (wDp - safeLeftDp - safeRightDp).coerceAtLeast(160f)
         } else {
-            min(360f, (wDp - safeLeftDp - safeRightDp).coerceAtLeast(200f))
+            min(360f, (wDp - safeLeftDp - safeRightDp).coerceAtLeast(160f))
         }
 
         val queueX = when {
-            isPortraitPhoneOrCover -> (wDp - candidateQueueWidthDp) / 2f
+            isPortraitPhoneOrCover -> safeLeftDp
             dockSide == DockSide.Right -> wDp - safeRightDp - candidateQueueWidthDp
             dockSide == DockSide.Left -> safeLeftDp
             else -> (wDp - candidateQueueWidthDp) / 2f
