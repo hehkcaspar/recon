@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.hardware.display.DisplayManager
 import android.media.MediaActionSound
 import android.os.Build
+import android.provider.Settings
 import android.view.HapticFeedbackConstants
 import android.view.Surface
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -294,11 +295,6 @@ fun CaptureScreenShell(
 
     val isRecording = uiState.busy == BusyState.Recording
     val isRecordingOrCapturing = uiState.busy != BusyState.Idle
-    val contentRotation = rememberContentRotation(
-        deviceOrientation = deviceOrientation,
-        fallbackSurfaceRotation = cameraState.activeSurfaceRotation,
-        injectedSurfaceRotation = windowObservation?.displayRotation?.takeIf { !renderCameraPreview },
-    )
 
     DisposableEffect(isRecording) {
         view.keepScreenOn = isRecording
@@ -412,6 +408,25 @@ fun CaptureScreenShell(
         LaunchedEffect(geometry.dockSide) {
             settledDockSide = geometry.dockSide
         }
+
+        // First-principles rotation ownership:
+        // - When the window is rotation-locked (traditional phone/cover locked to portrait,
+        //   or unfolded inner screen when the user has system Auto-rotate turned OFF), the
+        //   window will not rotate, so square/circular icons counter-rotate in place (`contentRotation`).
+        // - When the unfolded inner screen has Auto-rotate ON (`InnerUpright` / `InnerCW90`),
+        //   the window ITSELF rotates/reflows with the device; keeping `contentRotation = 0f`
+        //   prevents raw accelerometer events (~300ms ahead of WindowManager) from pre-spinning
+        //   the icons before the window flips.
+        val context = LocalContext.current
+        val isInnerReflowPose = geometry.pose == CapturePose.InnerUpright ||
+            geometry.pose == CapturePose.InnerCW90
+        val isWindowRotationLocked = !isInnerReflowPose || !isSystemAutoRotateEnabled(context)
+        val rawContentRotation = rememberContentRotation(
+            deviceOrientation = deviceOrientation,
+            fallbackSurfaceRotation = cameraState.activeSurfaceRotation,
+            injectedSurfaceRotation = windowObservation?.displayRotation?.takeIf { !renderCameraPreview },
+        )
+        val contentRotation = if (isWindowRotationLocked) rawContentRotation else 0f
 
         val swipeThresholdDp = 64f
         val swipeVelocityThresholdDpPerSec = 300f
@@ -982,6 +997,15 @@ private fun rememberContentRotation(
     )
     return animated
 }
+
+private fun isSystemAutoRotateEnabled(context: Context): Boolean =
+    runCatching {
+        Settings.System.getInt(
+            context.contentResolver,
+            Settings.System.ACCELEROMETER_ROTATION,
+            1,
+        ) == 1
+    }.getOrDefault(true)
 
 private fun flashIconFor(mode: FlashMode) = when (mode) {
     FlashMode.Off -> Icons.Filled.FlashOff
