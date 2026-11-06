@@ -830,11 +830,22 @@ fun CaptureScreenShell(
             }
         }
 
-        // 10. Media Queue Strip (Vertical in C Upright, Horizontal in C CW90 & Phone/Cover)
+        // 10. Media Queue Strip (Vertical in C Upright, Horizontal in C CW90 & Phone/Cover).
+        // Expand cross-axis touch bounds by 8dp on each side of `queueStripBounds` (giving
+        // 16dp of touch runway above and below the 56dp/48dp thumbnails) so divider split/join
+        // gestures can start slightly above or below the thumbnail row while keeping all
+        // visual elements centered on the exact same centerline.
+        val crossOverslopPx = with(density) { 8.dp.toPx() }
         val queueHostRect = if (geometry.queueAxis == QueueAxis.Vertical) {
-            geometry.queueBounds
+            geometry.queueStripBounds.copy(
+                x = geometry.queueStripBounds.x - crossOverslopPx,
+                width = geometry.queueStripBounds.width + 2f * crossOverslopPx,
+            )
         } else {
-            geometry.queueStripBounds
+            geometry.queueStripBounds.copy(
+                y = geometry.queueStripBounds.y - crossOverslopPx,
+                height = geometry.queueStripBounds.height + 2f * crossOverslopPx,
+            )
         }
         Box(
             modifier = Modifier.placeInWindow(queueHostRect, density),

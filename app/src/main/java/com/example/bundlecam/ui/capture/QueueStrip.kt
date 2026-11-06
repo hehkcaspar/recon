@@ -97,7 +97,11 @@ internal object QueueMetrics {
     val ThumbSize = 56.dp
     val ThumbGap = 6.dp
     val OuterPadding = 8.dp
-    val DividerHitWidth = 24.dp
+    // 28dp hit span across a 6dp gap intrudes 11dp into each adjacent thumbnail, leaving
+    // 34dp of un-overlapped center width on each 56dp thumbnail while making the gap easy
+    // to hit with a thumb.
+    val DividerHitWidth = 28.dp
+    val DividerExpandedGap = 24.dp
     val DividerVisualThickness = 4.dp
     val SlotSize = ThumbSize + ThumbGap
 }
@@ -319,14 +323,19 @@ fun QueueStrip(
 
     val gatePx = with(density) { QueueGestureMath.EDGE_COMMIT_DISCARD_GATE_DP.dp.toPx() }
     val targetDp = profile.edgeTargetDp.dp
+    // Add 8dp cross-axis touch overslop on each side of `stripCrossDp` (giving 16dp of
+    // touch runway above and below the 56dp/48dp thumbnails) so divider split/unsplit
+    // gestures can start slightly outside the thumbnail edge while keeping all visual
+    // elements centered on the exact same centerline.
+    val touchStripCrossDp = (profile.stripCrossDp + 16f).dp
 
     val sizeModifier = if (axis == QueueAxis.Horizontal) {
         modifier
             .fillMaxWidth()
-            .height(profile.stripCrossDp.dp)
+            .height(touchStripCrossDp)
     } else {
         modifier
-            .width(profile.stripCrossDp.dp)
+            .width(touchStripCrossDp)
             .fillMaxHeight()
     }
 
@@ -370,6 +379,7 @@ fun QueueStrip(
                     profile = profile,
                     locked = locked,
                     gesture = gesture,
+                    flashAction = flashAction,
                     tideProgress = animatedProgress,
                     tiltDeg = tiltDeg,
                     onTapItem = { item ->
@@ -655,35 +665,16 @@ private fun EdgeZone(
         contentAlignment = Alignment.Center,
     ) {
         if (swiperAlpha > 0.01f) {
-            // Colored swiper replacing the initiating handle and fading inward in the
-            // direction of travel (`commitSwipeFade` / `discardSwipeFade` in SVG).
-            val outerColor = swiperBaseColor.copy(alpha = swiperMaxOpacity * swiperAlpha)
-            val fadeBrush = when (axis) {
-                QueueAxis.Horizontal -> if (endpoint == HandleEndpoint.Start) {
-                    Brush.horizontalGradient(listOf(outerColor, Color.Transparent))
-                } else {
-                    Brush.horizontalGradient(listOf(Color.Transparent, outerColor))
-                }
-                QueueAxis.Vertical -> if (endpoint == HandleEndpoint.Start) {
-                    Brush.verticalGradient(listOf(outerColor, Color.Transparent))
-                } else {
-                    Brush.verticalGradient(listOf(Color.Transparent, outerColor))
-                }
-            }
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(fadeBrush),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = swiperIcon,
-                    contentDescription = null,
-                    tint = Color.White.copy(alpha = swiperAlpha),
-                    modifier = Modifier.size(24.dp),
-                )
-            }
+            // The unified 56dp/48dp rounded swiper pill background is drawn in `QueueTray`
+            // so there is only ONE visual layer matching the thumbnail height and 8dp corner
+            // radius. `EdgeZone` renders the crisp white Check / Close glyph centered in the
+            // initiating handle target.
+            Icon(
+                imageVector = swiperIcon,
+                contentDescription = null,
+                tint = Color.White.copy(alpha = swiperAlpha),
+                modifier = Modifier.size(24.dp),
+            )
         } else {
             // Stationary handle pill (`queueEdgeHandleStandard` 6×36 / `queueEdgeHandle` 6×28,
             // rx=3, fill=#fff, fill-opacity=0.48 when enabled, 0.24 when empty/locked).
@@ -708,6 +699,7 @@ private fun QueueTray(
     profile: QueueProfileToken,
     locked: Boolean,
     gesture: GestureState,
+    flashAction: EdgeAction?,
     tideProgress: Float,
     tiltDeg: Float,
     onTapItem: (StagedItem) -> Unit,
@@ -721,7 +713,13 @@ private fun QueueTray(
     modifier: Modifier = Modifier,
 ) {
     val activeEdge = gesture as? GestureState.ActiveEdge
-    val tideColor = when (activeEdge?.action) {
+    val effectiveAction = activeEdge?.action ?: flashAction
+    val effectiveEndpoint = activeEdge?.endpoint ?: when (flashAction) {
+        EdgeAction.Commit -> if (axis == QueueAxis.Horizontal) HandleEndpoint.Start else HandleEndpoint.End
+        EdgeAction.Discard -> if (axis == QueueAxis.Horizontal) HandleEndpoint.End else HandleEndpoint.Start
+        else -> null
+    }
+    val tideColor = when (effectiveAction) {
         EdgeAction.Commit -> CommitGreen
         EdgeAction.Discard -> DiscardAmber
         else -> Color.Transparent
@@ -742,58 +740,72 @@ private fun QueueTray(
     val density = LocalDensity.current
     val fadeOuterPx = with(density) { 24.dp.toPx() }
     val fadeInnerPx = with(density) { profile.edgeTargetDp.dp.toPx() }
+    val mediaCrossPx = with(density) { profile.mediaDp.dp.toPx() }
+    val cornerRadiusPx = with(density) { 8.dp.toPx() }
 
     BoxWithConstraints(modifier = modifier) {
         val primaryLengthPx = with(density) {
             if (axis == QueueAxis.Horizontal) maxWidth.toPx() else maxHeight.toPx()
         }
-        val inwardFillPx = if (activeEdge != null) {
-            QueueGestureMath.inwardDisplacementPx(activeEdge.endpoint, activeEdge.netPrimaryDeltaPx)
-                .coerceAtMost(primaryLengthPx)
-        } else {
-            0f
+        val inwardFillPx = when {
+            activeEdge != null -> {
+                QueueGestureMath.inwardDisplacementPx(activeEdge.endpoint, activeEdge.netPrimaryDeltaPx)
+                    .coerceIn(fadeInnerPx, primaryLengthPx)
+            }
+            flashAction != null -> primaryLengthPx
+            else -> 0f
         }
 
-        if (activeEdge != null && inwardFillPx > 0f) {
-            // Matches `commitSwipeFade` / `discardSwipeFade` in `recon-capture-design-system.svg`:
-            // starts at the initiating handle edge and fades to transparent in the direction of travel.
-            val originAlpha = (0.35f + tideProgress * 0.45f).coerceIn(0f, 0.82f)
+        if (effectiveEndpoint != null && inwardFillPx > 0f && tideColor != Color.Transparent) {
+            // Single unified rounded swiper pill matching the exact 56dp/48dp thumbnail
+            // cross-axis thickness and 8dp corner radius (eliminating the double-layer
+            // 72dp unrounded + 56dp rounded mismatch).
+            val originAlpha = if (flashAction != null) {
+                0.85f
+            } else {
+                (0.55f + tideProgress * 0.30f).coerceIn(0f, 0.85f)
+            }
+            val leadingAlpha = if (flashAction != null) 0.25f else 0.08f
             Canvas(modifier = Modifier.fillMaxSize()) {
                 if (axis == QueueAxis.Horizontal) {
-                    val fromStart = activeEdge.endpoint == HandleEndpoint.Start
-                    val startX = if (fromStart) 0f else size.width - inwardFillPx
-                    val endX = if (fromStart) inwardFillPx else size.width
+                    val crossTop = ((size.height - mediaCrossPx) / 2f).coerceAtLeast(0f)
+                    val fromStart = effectiveEndpoint == HandleEndpoint.Start
+                    val startX = if (fromStart) 0f else (size.width - inwardFillPx).coerceAtLeast(0f)
+                    val endX = if (fromStart) inwardFillPx.coerceAtMost(size.width) else size.width
                     val brush = Brush.horizontalGradient(
                         colors = if (fromStart) {
-                            listOf(tideColor.copy(alpha = originAlpha), Color.Transparent)
+                            listOf(tideColor.copy(alpha = originAlpha), tideColor.copy(alpha = leadingAlpha))
                         } else {
-                            listOf(Color.Transparent, tideColor.copy(alpha = originAlpha))
+                            listOf(tideColor.copy(alpha = leadingAlpha), tideColor.copy(alpha = originAlpha))
                         },
                         startX = startX,
-                        endX = endX,
+                        endX = endX.coerceAtLeast(startX + 1f),
                     )
-                    drawRect(
+                    drawRoundRect(
                         brush = brush,
-                        topLeft = Offset(startX, 0f),
-                        size = Size(endX - startX, size.height),
+                        topLeft = Offset(startX, crossTop),
+                        size = Size((endX - startX).coerceAtLeast(1f), mediaCrossPx),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerRadiusPx, cornerRadiusPx),
                     )
                 } else {
-                    val fromStart = activeEdge.endpoint == HandleEndpoint.Start
-                    val startY = if (fromStart) 0f else size.height - inwardFillPx
-                    val endY = if (fromStart) inwardFillPx else size.height
+                    val crossLeft = ((size.width - mediaCrossPx) / 2f).coerceAtLeast(0f)
+                    val fromStart = effectiveEndpoint == HandleEndpoint.Start
+                    val startY = if (fromStart) 0f else (size.height - inwardFillPx).coerceAtLeast(0f)
+                    val endY = if (fromStart) inwardFillPx.coerceAtMost(size.height) else size.height
                     val brush = Brush.verticalGradient(
                         colors = if (fromStart) {
-                            listOf(tideColor.copy(alpha = originAlpha), Color.Transparent)
+                            listOf(tideColor.copy(alpha = originAlpha), tideColor.copy(alpha = leadingAlpha))
                         } else {
-                            listOf(Color.Transparent, tideColor.copy(alpha = originAlpha))
+                            listOf(tideColor.copy(alpha = leadingAlpha), tideColor.copy(alpha = originAlpha))
                         },
                         startY = startY,
-                        endY = endY,
+                        endY = endY.coerceAtLeast(startY + 1f),
                     )
-                    drawRect(
+                    drawRoundRect(
                         brush = brush,
-                        topLeft = Offset(0f, startY),
-                        size = Size(size.width, endY - startY),
+                        topLeft = Offset(crossLeft, startY),
+                        size = Size(mediaCrossPx, (endY - startY).coerceAtLeast(1f)),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerRadiusPx, cornerRadiusPx),
                     )
                 }
             }
@@ -887,7 +899,7 @@ private fun QueueContent(
     val density = LocalDensity.current
     val thumbPx = with(density) { profile.mediaDp.dp.roundToPx() }
     val baseGapPx = with(density) { profile.gapDp.dp.roundToPx() }
-    val expandedGapPx = with(density) { QueueMetrics.DividerHitWidth.roundToPx() }
+    val expandedGapPx = with(density) { QueueMetrics.DividerExpandedGap.roundToPx() }
     val edgeTargetPx = with(density) { profile.edgeTargetDp.dp.roundToPx() }
     val dividerHitSpanPx = with(density) { QueueMetrics.DividerHitWidth.roundToPx() }
     val extraGapPx = (expandedGapPx - baseGapPx).coerceAtLeast(0)
@@ -942,6 +954,7 @@ private fun QueueContent(
                     DividerZone(
                         gapIndex = i,
                         axis = axis,
+                        profile = profile,
                         hasDivider = dividers.contains(i),
                         locked = locked,
                         onInsert = { onInsertDivider(i) },
@@ -1026,6 +1039,7 @@ private class SlotCentersHolder(@Volatile var centers: FloatArray = FloatArray(0
 private fun DividerZone(
     gapIndex: Int,
     axis: QueueAxis,
+    profile: QueueProfileToken,
     hasDivider: Boolean,
     locked: Boolean,
     onInsert: () -> Unit,
@@ -1033,7 +1047,8 @@ private fun DividerZone(
 ) {
     val density = LocalDensity.current
     val thresholdPx = with(density) { QueueGestureMath.DIVIDER_GATE_DP.dp.toPx() }
-    val slopPx = with(density) { 8.dp.toPx() }
+    val claimSlopPx = with(density) { 3.dp.toPx() }
+    val rejectScrollSlopPx = with(density) { 10.dp.toPx() }
     val view = LocalView.current
 
     var dragCrossPx by remember(gapIndex, axis, hasDivider) { mutableFloatStateOf(0f) }
@@ -1075,9 +1090,14 @@ private fun DividerZone(
             .pointerInput(hasDivider, axis, locked) {
                 if (locked) return@pointerInput
                 awaitEachGesture {
-                    val down = awaitFirstDown(pass = PointerEventPass.Initial)
+                    val down = awaitFirstDown(
+                        requireUnconsumed = false,
+                        pass = PointerEventPass.Initial,
+                    )
                     dragCrossPx = 0f
+                    var totalPrimaryPx = 0f
                     var claimed = false
+                    var rejectedForPrimaryScroll = false
                     var cancelled = false
                     while (true) {
                         val event = awaitPointerEvent(pass = PointerEventPass.Initial)
@@ -1090,31 +1110,48 @@ private fun DividerZone(
                             break
                         }
                         if (change.changedToUp()) {
-                            if (QueueGestureMath.shouldCommitDividerToggle(
-                                    netCrossPx = dragCrossPx,
-                                    hasDivider = hasDivider,
-                                    dividerGatePx = thresholdPx,
-                                    isCancelled = cancelled,
-                                    isLocked = locked,
-                                )
-                            ) {
-                                val haptic = if (hasDivider) {
-                                    HapticFeedbackConstants.CLOCK_TICK
-                                } else {
-                                    HapticFeedbackConstants.CONTEXT_CLICK
+                            if (claimed) {
+                                change.consume()
+                                if (QueueGestureMath.shouldCommitDividerToggle(
+                                        netCrossPx = dragCrossPx,
+                                        hasDivider = hasDivider,
+                                        dividerGatePx = thresholdPx,
+                                        isCancelled = cancelled,
+                                        isLocked = locked,
+                                    )
+                                ) {
+                                    val haptic = if (hasDivider) {
+                                        HapticFeedbackConstants.CLOCK_TICK
+                                    } else {
+                                        HapticFeedbackConstants.CONTEXT_CLICK
+                                    }
+                                    view.performHapticFeedback(haptic)
+                                    if (hasDivider) onRemove() else onInsert()
                                 }
-                                view.performHapticFeedback(haptic)
-                                if (hasDivider) onRemove() else onInsert()
                             }
                             dragCrossPx = 0f
                             break
                         }
                         val delta = change.positionChange()
+                        val dPrimary = if (axis == QueueAxis.Horizontal) delta.x else delta.y
                         val dCross = if (axis == QueueAxis.Horizontal) delta.y else delta.x
+                        totalPrimaryPx += dPrimary
                         dragCrossPx += dCross
-                        if (!claimed && dragCrossPx * activeSign >= slopPx) {
-                            claimed = true
-                            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+
+                        if (!claimed && !rejectedForPrimaryScroll) {
+                            if (abs(totalPrimaryPx) >= rejectScrollSlopPx &&
+                                abs(totalPrimaryPx) > abs(dragCrossPx)
+                            ) {
+                                rejectedForPrimaryScroll = true
+                            } else if (dragCrossPx * activeSign >= claimSlopPx &&
+                                abs(dragCrossPx) >= abs(totalPrimaryPx) * 0.8f
+                            ) {
+                                // Claim cross-axis motion in PointerEventPass.Initial at 3dp
+                                // so `QueueThumbnail` in PointerEventPass.Main never steals a
+                                // split/unsplit gesture starting in the 11dp tile overlap zone.
+                                claimed = true
+                                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                            }
                         }
                         if (claimed) change.consume()
                     }
@@ -1127,11 +1164,11 @@ private fun DividerZone(
             val barModifier = if (axis == QueueAxis.Horizontal) {
                 Modifier
                     .width(QueueMetrics.DividerVisualThickness)
-                    .fillMaxHeight(0.75f)
+                    .height(profile.mediaDp.dp)
             } else {
                 Modifier
                     .height(QueueMetrics.DividerVisualThickness)
-                    .fillMaxWidth(0.75f)
+                    .width(profile.mediaDp.dp)
             }
             Box(
                 modifier = barModifier
