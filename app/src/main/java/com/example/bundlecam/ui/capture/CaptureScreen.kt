@@ -329,17 +329,6 @@ fun CaptureScreenShell(
         onDiscardQueue()
     }
 
-    var deleteProgress by remember { mutableFloatStateOf(0f) }
-    var deleteHotspotInRoot by remember { mutableFloatStateOf(0f) }
-    val animatedDeleteProgress by animateFloatAsState(
-        targetValue = deleteProgress,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessHigh,
-        ),
-        label = "delete-glow",
-    )
-
     var settledDockSide by remember { mutableStateOf<DockSide?>(null) }
 
     BoxWithConstraints(
@@ -831,20 +820,22 @@ fun CaptureScreenShell(
         }
 
         // 10. Media Queue Strip (Vertical in C Upright, Horizontal in C CW90 & Phone/Cover).
-        // Expand cross-axis touch bounds by 8dp on each side of `queueStripBounds` (giving
-        // 16dp of touch runway above and below the 56dp/48dp thumbnails) so divider split/join
-        // gestures can start slightly above or below the thumbnail row while keeping all
-        // visual elements centered on the exact same centerline.
-        val crossOverslopPx = with(density) { 8.dp.toPx() }
+        // Expand cross-axis bounds by 8dp inward (`InwardOverslop`, giving 16dp of touch
+        // runway before the thumbnail edge for divider split/join starts) and 24dp outward
+        // (`OutwardDeleteCorridor`, matching the 24dp delete corridor so a 32dp-dragged
+        // thumbnail and the 24dp Gaussian delete glow stay 100% inside `QueueStrip` without
+        // clipping, while keeping all resting elements at their exact `queueBounds` coordinates).
+        val inwardOverslopPx = with(density) { QueueMetrics.InwardOverslop.toPx() }
+        val outwardCorridorPx = with(density) { QueueMetrics.OutwardDeleteCorridor.toPx() }
         val queueHostRect = if (geometry.queueAxis == QueueAxis.Vertical) {
             geometry.queueStripBounds.copy(
-                x = geometry.queueStripBounds.x - crossOverslopPx,
-                width = geometry.queueStripBounds.width + 2f * crossOverslopPx,
+                x = geometry.queueStripBounds.x - inwardOverslopPx,
+                width = geometry.queueStripBounds.width + inwardOverslopPx + outwardCorridorPx,
             )
         } else {
             geometry.queueStripBounds.copy(
-                y = geometry.queueStripBounds.y - crossOverslopPx,
-                height = geometry.queueStripBounds.height + 2f * crossOverslopPx,
+                y = geometry.queueStripBounds.y - inwardOverslopPx,
+                height = geometry.queueStripBounds.height + inwardOverslopPx + outwardCorridorPx,
             )
         }
         Box(
@@ -863,10 +854,6 @@ fun CaptureScreenShell(
                 onReorder = onReorder,
                 onInsertDivider = onInsertDivider,
                 onRemoveDivider = onRemoveDivider,
-                onDeleteProgress = { progress, hotspot ->
-                    deleteProgress = progress
-                    if (progress > 0f) deleteHotspotInRoot = hotspot
-                },
                 modifier = Modifier.fillMaxSize(),
             )
         }
@@ -906,19 +893,7 @@ fun CaptureScreenShell(
             }
         }
 
-        // 12. Delete Glow inside the safe corridor
-        if (animatedDeleteProgress > 0.01f) {
-            DeleteGlow(
-                progress = animatedDeleteProgress,
-                hotspotXInRoot = deleteHotspotInRoot,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .height(12.dp),
-            )
-        }
-
-        // 13. Top-level Gesture Tutorial Overlay (anchored to CaptureGeometry)
+        // 12. Top-level Gesture Tutorial Overlay (anchored to CaptureGeometry)
         GestureTutorial(
             seenStepIds = settings.seenTutorialSteps,
             onDismiss = onDismissTutorial,

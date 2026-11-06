@@ -191,4 +191,45 @@ class QueueGestureArbitrationTest {
             ),
         )
     }
+
+    @Test
+    fun delete_glow_bulge_peaks_at_hotspot_scales_with_progress_and_tapers_at_endpoints() {
+        val laneLen = 360f
+        val mediaPx = 56f
+        val featherPx = 24f
+        val hotspot = 180f
+
+        // Peak at hotspot is 1.0f
+        assertEquals(
+            1f,
+            QueueGestureMath.deleteGlowBulgeFactor(hotspot, hotspot, laneLen, mediaPx, featherPx),
+            0.001f,
+        )
+        // At +/- 28dp (thumbnail edges), bulge remains prominent (> 0.78f)
+        val atThumbEdge = QueueGestureMath.deleteGlowBulgeFactor(
+            hotspot + 28f,
+            hotspot,
+            laneLen,
+            mediaPx,
+            featherPx,
+        )
+        assertTrue("Expected > 0.78f at thumbnail edge, got $atThumbEdge", atThumbEdge > 0.78f)
+
+        // Endpoints (0f and laneLen) always taper cleanly to 0f even when dragging the first item (x = 84f)
+        assertEquals(
+            0f,
+            QueueGestureMath.deleteGlowBulgeFactor(0f, 84f, laneLen, mediaPx, featherPx),
+            0.0001f,
+        )
+        assertEquals(
+            0f,
+            QueueGestureMath.deleteGlowBulgeFactor(laneLen, laneLen - 84f, laneLen, mediaPx, featherPx),
+            0.0001f,
+        )
+
+        // Peak extent scales across the 24dp delete corridor with progress
+        assertEquals(0f, QueueGestureMath.deleteGlowPeakExtentPx(0f, 24f), 0.001f)
+        assertEquals(16.2f, QueueGestureMath.deleteGlowPeakExtentPx(0.5f, 24f), 0.001f)
+        assertEquals(24f, QueueGestureMath.deleteGlowPeakExtentPx(1f, 24f), 0.001f)
+    }
 }

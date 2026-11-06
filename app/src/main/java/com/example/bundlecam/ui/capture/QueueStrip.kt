@@ -66,6 +66,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalViewConfiguration
@@ -91,12 +94,21 @@ private val CommitGreen = CaptureColors.CommitGreen
 private val DiscardAmber = CaptureColors.DiscardAmber
 private const val EXIT_ANIMATION_MS = 350
 private const val FLASH_DURATION_MS = 220L
-private const val MAX_GLOW_ALPHA = 0.7f
 
 internal object QueueMetrics {
     val ThumbSize = 56.dp
     val ThumbGap = 6.dp
     val OuterPadding = 8.dp
+    // 8dp inward cross-axis touch overslop (giving 16dp runway before the thumbnail edge
+    // for divider split/join starts) and 24dp outward delete corridor (so a 32dp-dragged
+    // thumbnail and the 24dp Gaussian delete glow stay 100% inside QueueStrip's bounds
+    // without ever being clipped by an offscreen layer or scroll container).
+    const val InwardOverslopDp = 8f
+    const val OutwardDeleteCorridorDp = 24f
+    val InwardOverslop = 8.dp
+    val OutwardDeleteCorridor = 24.dp
+    val DeleteBulgeMaxCrossDp = 24.dp
+    val DeleteGlowEndpointFeatherDp = 24.dp
     // 28dp hit span across a 6dp gap intrudes 11dp into each adjacent thumbnail, leaving
     // 34dp of un-overlapped center width on each 56dp thumbnail while making the gap easy
     // to hit with a thumb.
@@ -205,6 +217,52 @@ object QueueGestureMath {
         return (1f - 0.6f * (clampedVisualPx / maxVisualPx)).coerceIn(0.4f, 1f)
     }
 
+    /**
+     * Normalized `[0f, 1f]` Gaussian bulge height factor at primary-axis coordinate
+     * [primaryPx] relative to [hotspotPrimaryPx] inside a queue lane of length
+     * [primaryLengthPx]. Uses `sigma = 0.90 * mediaPx` for a wide, organic bell curve
+     * and a smoothstep endpoint feather over [endpointFeatherPx] (`24dp`) so the curve
+     * tapers cleanly to `0f` at both ends of the queue even when dragging the first or
+     * last visible item.
+     */
+    fun deleteGlowBulgeFactor(
+        primaryPx: Float,
+        hotspotPrimaryPx: Float,
+        primaryLengthPx: Float,
+        mediaPx: Float,
+        endpointFeatherPx: Float,
+    ): Float {
+        if (primaryLengthPx <= 0f || mediaPx <= 0f) return 0f
+        val sigma = 0.90f * mediaPx
+        val dist = primaryPx - hotspotPrimaryPx
+        val raw = exp(-(dist * dist) / (2f * sigma * sigma))
+        val trimmed = ((raw - 0.006f) / 0.994f).coerceIn(0f, 1f)
+        val dEdge = minOf(primaryPx, primaryLengthPx - primaryPx)
+        val taper = when {
+            dEdge <= 0f -> 0f
+            endpointFeatherPx <= 0f || dEdge >= endpointFeatherPx -> 1f
+            else -> {
+                val t = (dEdge / endpointFeatherPx).coerceIn(0f, 1f)
+                t * t * (3f - 2f * t)
+            }
+        }
+        return (trimmed * taper).coerceIn(0f, 1f)
+    }
+
+    /**
+     * Effective cross-axis bulge height in pixels for a given [progress] (`0f..1f`) and
+     * [maxBulgePx] (`24dp`), scaling both height (`35%..100%` of [maxBulgePx]) and opacity
+     * with [progress] so the red bulge visibly rises as the user pulls the tile outward.
+     */
+    fun deleteGlowPeakExtentPx(
+        progress: Float,
+        maxBulgePx: Float,
+    ): Float {
+        val p = progress.coerceIn(0f, 1f)
+        if (p <= 0f || maxBulgePx <= 0f) return 0f
+        return maxBulgePx * (0.35f + 0.65f * p)
+    }
+
     fun shouldCommitDividerToggle(
         netCrossPx: Float,
         hasDivider: Boolean,
@@ -270,7 +328,7 @@ fun QueueStrip(
     onReorder: (Int, Int) -> Unit,
     onInsertDivider: (Int) -> Unit,
     onRemoveDivider: (Int) -> Unit,
-    onDeleteProgress: (progress: Float, hotspotXInRoot: Float) -> Unit,
+    onDeleteProgress: (progress: Float, hotspotXInRoot: Float) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
     axis: QueueAxis = QueueAxis.Horizontal,
     profile: QueueProfileToken = QueueProfileToken.Standard56,
@@ -284,11 +342,25 @@ fun QueueStrip(
     var exiting by remember { mutableStateOf<ExitingSnapshot?>(null) }
     var flashAction by remember { mutableStateOf<EdgeAction?>(null) }
     var selectedMenuItemId by remember { mutableStateOf<String?>(null) }
+    var deleteProgress by remember(axis, profile) { mutableFloatStateOf(0f) }
+    var deleteHotspotInRoot by remember(axis, profile) { mutableFloatStateOf(0f) }
+    var stripCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    var stripOriginInRootPrimary by remember { mutableFloatStateOf(0f) }
+
+    val animatedDeleteProgress by animateFloatAsState(
+        targetValue = deleteProgress,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessHigh,
+        ),
+        label = "queue-delete-glow",
+    )
 
     // Cancel any active gesture or open action menu if locked or queue becomes empty.
     LaunchedEffect(locked, queue.isEmpty(), axis, profile) {
         if (locked || queue.isEmpty()) {
             gesture = GestureState.Idle
+            deleteProgress = 0f
         }
         if (locked) {
             selectedMenuItemId = null
@@ -323,26 +395,39 @@ fun QueueStrip(
 
     val gatePx = with(density) { QueueGestureMath.EDGE_COMMIT_DISCARD_GATE_DP.dp.toPx() }
     val targetDp = profile.edgeTargetDp.dp
-    // Add 8dp cross-axis touch overslop on each side of `stripCrossDp` (giving 16dp of
-    // touch runway above and below the 56dp/48dp thumbnails) so divider split/unsplit
-    // gestures can start slightly outside the thumbnail edge while keeping all visual
-    // elements centered on the exact same centerline.
-    val touchStripCrossDp = (profile.stripCrossDp + 16f).dp
+    // Cross-axis allocation:
+    // - 8dp inward overslop (giving 16dp runway before the thumbnail edge for divider starts)
+    // - `stripCrossDp` (72dp Standard56 / 64dp Compact48)
+    // - 24dp outward delete corridor (`OutwardDeleteCorridorDp`) so a 32dp-dragged thumbnail
+    //   (`16 + 56 + 32 = 104dp` or `16 + 48 + 32 = 96dp`) and the 24dp Gaussian delete glow
+    //   stay 100% inside `QueueStrip`'s layout bounds without ever being clipped.
+    val totalStripCrossDp = (
+        QueueMetrics.InwardOverslopDp +
+            profile.stripCrossDp +
+            QueueMetrics.OutwardDeleteCorridorDp
+        ).dp
+    val mediaCrossOffsetDp = (QueueMetrics.InwardOverslopDp + profile.verticalPaddingDp).dp
 
     val sizeModifier = if (axis == QueueAxis.Horizontal) {
         modifier
             .fillMaxWidth()
-            .height(touchStripCrossDp)
+            .height(totalStripCrossDp)
     } else {
         modifier
-            .width(touchStripCrossDp)
+            .width(totalStripCrossDp)
             .fillMaxHeight()
     }
 
     BoxWithConstraints(
-        modifier = sizeModifier.graphicsLayer {
-            this.alpha = if (locked) 0.35f else 1f
-        },
+        modifier = sizeModifier
+            .onGloballyPositioned { coords ->
+                stripCoords = coords
+                val pos = coords.positionInRoot()
+                stripOriginInRootPrimary = if (axis == QueueAxis.Horizontal) pos.x else pos.y
+            }
+            .graphicsLayer {
+                this.alpha = if (locked) 0.35f else 1f
+            },
     ) {
         val activeEdge = gesture as? GestureState.ActiveEdge
         val rawProgress = if (activeEdge != null) {
@@ -369,6 +454,11 @@ fun QueueStrip(
             label = "queue-tilt",
         )
 
+        val liveStripOrigin = stripCoords?.takeIf { it.isAttached }?.positionInRoot()?.let { pos ->
+            if (axis == QueueAxis.Horizontal) pos.x else pos.y
+        } ?: stripOriginInRootPrimary
+        val localDeleteHotspotPx = deleteHotspotInRoot - liveStripOrigin
+
         Box(modifier = Modifier.fillMaxSize()) {
             val snapshot = exiting
             if (snapshot == null) {
@@ -382,6 +472,8 @@ fun QueueStrip(
                     flashAction = flashAction,
                     tideProgress = animatedProgress,
                     tiltDeg = tiltDeg,
+                    deleteProgress = animatedDeleteProgress,
+                    deleteHotspotPrimaryPx = localDeleteHotspotPx,
                     onTapItem = { item ->
                         if (!locked) selectedMenuItemId = item.id
                     },
@@ -391,7 +483,13 @@ fun QueueStrip(
                     onRemoveDivider = onRemoveDivider,
                     onCommitQueue = commitWithAnimation,
                     onDiscardQueue = discardWithAnimation,
-                    onDeleteProgress = onDeleteProgress,
+                    onDeleteProgress = { progress, hotspotInRoot ->
+                        deleteProgress = progress
+                        if (progress > 0f) {
+                            deleteHotspotInRoot = hotspotInRoot
+                        }
+                        onDeleteProgress(progress, hotspotInRoot)
+                    },
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {
@@ -405,8 +503,28 @@ fun QueueStrip(
             val startAction = QueueGestureMath.expectedEdgeActionForHandle(axis, HandleEndpoint.Start)
             val endAction = QueueGestureMath.expectedEdgeActionForHandle(axis, HandleEndpoint.End)
 
-            val startAlignment = if (axis == QueueAxis.Horizontal) Alignment.CenterStart else Alignment.TopCenter
-            val endAlignment = if (axis == QueueAxis.Horizontal) Alignment.CenterEnd else Alignment.BottomCenter
+            val startHandleModifier = if (axis == QueueAxis.Horizontal) {
+                Modifier
+                    .align(Alignment.TopStart)
+                    .padding(top = mediaCrossOffsetDp)
+                    .size(targetDp)
+            } else {
+                Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = mediaCrossOffsetDp)
+                    .size(targetDp)
+            }
+            val endHandleModifier = if (axis == QueueAxis.Horizontal) {
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = mediaCrossOffsetDp)
+                    .size(targetDp)
+            } else {
+                Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = mediaCrossOffsetDp)
+                    .size(targetDp)
+            }
 
             EdgeZone(
                 endpoint = HandleEndpoint.Start,
@@ -456,9 +574,7 @@ fun QueueStrip(
                         }
                     }
                 },
-                modifier = Modifier
-                    .align(startAlignment)
-                    .size(targetDp),
+                modifier = startHandleModifier,
             )
 
             EdgeZone(
@@ -509,9 +625,7 @@ fun QueueStrip(
                         }
                     }
                 },
-                modifier = Modifier
-                    .align(endAlignment)
-                    .size(targetDp),
+                modifier = endHandleModifier,
             )
         }
     }
@@ -702,6 +816,8 @@ private fun QueueTray(
     flashAction: EdgeAction?,
     tideProgress: Float,
     tiltDeg: Float,
+    deleteProgress: Float,
+    deleteHotspotPrimaryPx: Float,
     onTapItem: (StagedItem) -> Unit,
     onDelete: (String) -> Unit,
     onReorder: (Int, Int) -> Unit,
@@ -741,6 +857,9 @@ private fun QueueTray(
     val fadeOuterPx = with(density) { 24.dp.toPx() }
     val fadeInnerPx = with(density) { profile.edgeTargetDp.dp.toPx() }
     val mediaCrossPx = with(density) { profile.mediaDp.dp.toPx() }
+    val mediaCrossOffsetPx = with(density) {
+        (QueueMetrics.InwardOverslopDp + profile.verticalPaddingDp).dp.toPx()
+    }
     val cornerRadiusPx = with(density) { 8.dp.toPx() }
 
     BoxWithConstraints(modifier = modifier) {
@@ -756,6 +875,20 @@ private fun QueueTray(
             else -> 0f
         }
 
+        // Layer 0 (behind all media, `COMPONENT-CONTRACT.md` § Input, release and cancellation):
+        // Gaussian red delete glow anchored to the outer edge of the queue's 24dp delete corridor,
+        // oriented along `axis` (`Horizontal` bottom edge bulging upward; `Vertical` right edge
+        // bulging leftward).
+        if (deleteProgress > 0.01f) {
+            DeleteGlow(
+                progress = deleteProgress,
+                hotspotPrimaryPx = deleteHotspotPrimaryPx,
+                axis = axis,
+                profile = profile,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+
         if (effectiveEndpoint != null && inwardFillPx > 0f && tideColor != Color.Transparent) {
             // Single unified rounded swiper pill matching the exact 56dp/48dp thumbnail
             // cross-axis thickness and 8dp corner radius (eliminating the double-layer
@@ -768,7 +901,7 @@ private fun QueueTray(
             val leadingAlpha = if (flashAction != null) 0.25f else 0.08f
             Canvas(modifier = Modifier.fillMaxSize()) {
                 if (axis == QueueAxis.Horizontal) {
-                    val crossTop = ((size.height - mediaCrossPx) / 2f).coerceAtLeast(0f)
+                    val crossTop = mediaCrossOffsetPx
                     val fromStart = effectiveEndpoint == HandleEndpoint.Start
                     val startX = if (fromStart) 0f else (size.width - inwardFillPx).coerceAtLeast(0f)
                     val endX = if (fromStart) inwardFillPx.coerceAtMost(size.width) else size.width
@@ -788,7 +921,7 @@ private fun QueueTray(
                         cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerRadiusPx, cornerRadiusPx),
                     )
                 } else {
-                    val crossLeft = ((size.width - mediaCrossPx) / 2f).coerceAtLeast(0f)
+                    val crossLeft = mediaCrossOffsetPx
                     val fromStart = effectiveEndpoint == HandleEndpoint.Start
                     val startY = if (fromStart) 0f else (size.height - inwardFillPx).coerceAtLeast(0f)
                     val endY = if (fromStart) inwardFillPx.coerceAtMost(size.height) else size.height
@@ -815,17 +948,22 @@ private fun QueueTray(
         // transparent from outer edge to 24dp, ramp to fully opaque at 56dp/48dp).
         val canScrollBackward = scrollState.value > 0
         val canScrollForward = scrollState.value < scrollState.maxValue
+        val needsOverflowMask = canScrollBackward || canScrollForward
 
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-                    compositingStrategy = CompositingStrategy.Offscreen
+                    compositingStrategy = if (needsOverflowMask) {
+                        CompositingStrategy.Offscreen
+                    } else {
+                        CompositingStrategy.Auto
+                    }
                 }
                 .drawWithContent {
                     drawContent()
                     val len = if (axis == QueueAxis.Horizontal) size.width else size.height
-                    if (len > fadeInnerPx * 2f && (canScrollBackward || canScrollForward)) {
+                    if (len > fadeInnerPx * 2f && needsOverflowMask) {
                         val f0 = (fadeOuterPx / len).coerceIn(0f, 0.45f)
                         val f1 = (fadeInnerPx / len).coerceIn(f0 + 0.01f, 0.49f)
                         val stops = buildList {
@@ -902,6 +1040,12 @@ private fun QueueContent(
     val expandedGapPx = with(density) { QueueMetrics.DividerExpandedGap.roundToPx() }
     val edgeTargetPx = with(density) { profile.edgeTargetDp.dp.roundToPx() }
     val dividerHitSpanPx = with(density) { QueueMetrics.DividerHitWidth.roundToPx() }
+    val crossOffsetPx = with(density) {
+        (QueueMetrics.InwardOverslopDp + profile.verticalPaddingDp).dp.roundToPx()
+    }
+    val dividerCrossSpanPx = with(density) {
+        (profile.stripCrossDp + QueueMetrics.InwardOverslopDp * 2f).dp.roundToPx()
+    }
     val extraGapPx = (expandedGapPx - baseGapPx).coerceAtLeast(0)
 
     val dividerCount = (queue.size - 1).coerceAtLeast(0)
@@ -975,11 +1119,12 @@ private fun QueueContent(
         val thumbPlaceables = List(thumbCount) { i ->
             measurables[i].measure(Constraints.fixed(thumbPx, thumbPx))
         }
+        val divCross = dividerCrossSpanPx.coerceAtMost(crossBound)
         val dividerPlaceables = List(dividerCount) { i ->
             val divConstraints = if (axis == QueueAxis.Horizontal) {
-                Constraints.fixed(dividerHitSpanPx, crossBound)
+                Constraints.fixed(dividerHitSpanPx, divCross)
             } else {
-                Constraints.fixed(crossBound, dividerHitSpanPx)
+                Constraints.fixed(divCross, dividerHitSpanPx)
             }
             measurables[thumbCount + i].measure(divConstraints)
         }
@@ -1006,7 +1151,7 @@ private fun QueueContent(
 
         layout(layoutW, layoutH) {
             var cursorPrimary = startOffsetPx
-            val crossOffset = ((crossBound - thumbPx) / 2).coerceAtLeast(0)
+            val crossOffset = crossOffsetPx.coerceAtMost((crossBound - thumbPx).coerceAtLeast(0))
             val centers = FloatArray(thumbCount)
 
             for (i in 0 until thumbCount) {
@@ -1352,11 +1497,13 @@ private fun FlyingQueue(
         scaleY = scale.value
     }
 
+    val mediaCrossOffsetDp = (QueueMetrics.InwardOverslopDp + profile.verticalPaddingDp).dp
+
     if (snapshot.axis == QueueAxis.Horizontal) {
         Row(
-            modifier = layerMod.padding(horizontal = 8.dp),
+            modifier = layerMod.padding(start = 8.dp, end = 8.dp, top = mediaCrossOffsetDp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalAlignment = Alignment.Top,
         ) {
             snapshot.thumbnails.forEach { thumb ->
                 FlyingThumbBox(thumb, profile)
@@ -1364,9 +1511,9 @@ private fun FlyingQueue(
         }
     } else {
         Column(
-            modifier = layerMod.padding(vertical = 8.dp),
+            modifier = layerMod.padding(top = 8.dp, bottom = 8.dp, start = mediaCrossOffsetDp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+            horizontalAlignment = Alignment.Start,
         ) {
             snapshot.thumbnails.forEach { thumb ->
                 FlyingThumbBox(thumb, profile)
@@ -1396,48 +1543,98 @@ private fun FlyingThumbBox(
 }
 
 /**
- * Red glow along the delete edge of the queue corridor (`COMPONENT-CONTRACT.md`:
- * painted behind media, stays within the last 12dp of the corridor, Gaussian peak at
- * [hotspotXInRoot]).
+ * Red Gaussian bulge along the outer delete edge of the queue corridor (`COMPONENT-CONTRACT.md`
+ * § Input, release and cancellation):
+ * - Painted behind all media inside `QueueTray`
+ * - Parameterized by [axis] (`QueueAxis.Horizontal`: along the bottom edge of the corridor,
+ *   bulging upward with peak at `x = [hotspotPrimaryPx]`; `QueueAxis.Vertical`: along the right
+ *   edge of the corridor, bulging leftward with peak at `y = [hotspotPrimaryPx]`)
+ * - Peak extent scales with [progress] across `QueueMetrics.DeleteBulgeMaxCrossDp` (`24dp`)
+ *   and uses a multi-stop red gradient so the upper body of the Gaussian hill remains vividly
+ *   visible behind the dragged thumbnail while feathering cleanly at its tip and queue endpoints.
  */
 @Composable
 fun DeleteGlow(
     progress: Float,
-    hotspotXInRoot: Float,
+    hotspotPrimaryPx: Float,
     modifier: Modifier = Modifier,
+    axis: QueueAxis = QueueAxis.Horizontal,
+    profile: QueueProfileToken = QueueProfileToken.Standard56,
 ) {
-    val sigmaPx = with(LocalDensity.current) { QueueMetrics.ThumbSize.toPx() }
-    val stepPx = with(LocalDensity.current) { 2.dp.toPx() }
+    val density = LocalDensity.current
+    val mediaPx = with(density) { profile.mediaDp.dp.toPx() }
+    val maxBulgePx = with(density) { QueueMetrics.DeleteBulgeMaxCrossDp.toPx() }
+    val featherPx = with(density) { QueueMetrics.DeleteGlowEndpointFeatherDp.toPx() }
+    val stepPx = with(density) { 2.dp.toPx() }
+    val p = progress.coerceIn(0f, 1f)
+
     Spacer(
         modifier = modifier.drawWithCache {
             val width = size.width
             val height = size.height
+            val peakExtentPx = QueueGestureMath.deleteGlowPeakExtentPx(p, maxBulgePx)
             val path = Path().apply {
-                if (width > 0f && height > 0f) {
-                    moveTo(0f, height)
-                    var x = 0f
-                    while (x <= width) {
-                        val dx = x - hotspotXInRoot
-                        val factor = exp(-(dx * dx) / (2f * sigmaPx * sigmaPx))
-                        lineTo(x, height - height * factor)
-                        x += stepPx
+                if (width > 0f && height > 0f && peakExtentPx > 0.5f) {
+                    if (axis == QueueAxis.Horizontal) {
+                        moveTo(0f, height)
+                        var x = 0f
+                        while (x < width) {
+                            val factor = QueueGestureMath.deleteGlowBulgeFactor(
+                                primaryPx = x,
+                                hotspotPrimaryPx = hotspotPrimaryPx,
+                                primaryLengthPx = width,
+                                mediaPx = mediaPx,
+                                endpointFeatherPx = featherPx,
+                            )
+                            lineTo(x, height - peakExtentPx * factor)
+                            x += stepPx
+                        }
+                        lineTo(width, height)
+                        close()
+                    } else {
+                        moveTo(width, 0f)
+                        var y = 0f
+                        while (y < height) {
+                            val factor = QueueGestureMath.deleteGlowBulgeFactor(
+                                primaryPx = y,
+                                hotspotPrimaryPx = hotspotPrimaryPx,
+                                primaryLengthPx = height,
+                                mediaPx = mediaPx,
+                                endpointFeatherPx = featherPx,
+                            )
+                            lineTo(width - peakExtentPx * factor, y)
+                            y += stepPx
+                        }
+                        lineTo(width, height)
+                        close()
                     }
-                    lineTo(width, height)
-                    close()
                 }
             }
-            onDrawBehind {
-                drawPath(
-                    path = path,
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            CaptureColors.DeleteRed.copy(alpha = progress * MAX_GLOW_ALPHA),
-                        ),
-                        startY = 0f,
-                        endY = height,
-                    ),
+            val colorStops = arrayOf(
+                0.00f to Color.Transparent,
+                0.25f to CaptureColors.DeleteRed.copy(alpha = 0.52f * p),
+                0.65f to CaptureColors.DeleteRed.copy(alpha = 0.78f * p),
+                1.00f to CaptureColors.DeleteRed.copy(alpha = 0.88f * p),
+            )
+            val brush = if (axis == QueueAxis.Horizontal) {
+                val startY = (height - peakExtentPx).coerceAtLeast(0f)
+                Brush.verticalGradient(
+                    colorStops = colorStops,
+                    startY = startY,
+                    endY = height.coerceAtLeast(startY + 1f),
                 )
+            } else {
+                val startX = (width - peakExtentPx).coerceAtLeast(0f)
+                Brush.horizontalGradient(
+                    colorStops = colorStops,
+                    startX = startX,
+                    endX = width.coerceAtLeast(startX + 1f),
+                )
+            }
+            onDrawBehind {
+                if (peakExtentPx > 0.5f) {
+                    drawPath(path = path, brush = brush)
+                }
             }
         },
     )

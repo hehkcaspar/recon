@@ -35,6 +35,7 @@ import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
@@ -79,7 +80,18 @@ fun QueueThumbnail(
     var crossDragPx by remember(item.id, axis, profile) { mutableFloatStateOf(0f) }
     var reorderPrimaryOffsetPx by remember(item.id, axis, profile) { mutableFloatStateOf(0f) }
     var isReordering by remember(item.id, axis, profile) { mutableStateOf(false) }
+    var thumbCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
     var centerInRootPrimary by remember { mutableFloatStateOf(0f) }
+
+    fun liveCenterInRootPrimary(): Float {
+        val coords = thumbCoords?.takeIf { it.isAttached } ?: return centerInRootPrimary
+        val pos = coords.positionInRoot()
+        return if (axis == QueueAxis.Horizontal) {
+            pos.x + coords.size.width / 2f
+        } else {
+            pos.y + coords.size.height / 2f
+        }
+    }
 
     val density = LocalDensity.current
     val viewConfig = LocalViewConfiguration.current
@@ -111,6 +123,7 @@ fun QueueThumbnail(
     Box(
         modifier = modifier
             .onGloballyPositioned { coords ->
+                thumbCoords = coords
                 val pos = coords.positionInRoot()
                 centerInRootPrimary = if (axis == QueueAxis.Horizontal) {
                     pos.x + coords.size.width / 2f
@@ -228,15 +241,17 @@ fun QueueThumbnail(
                         if (ownedCrossDelete) {
                             change.consume()
                             crossDragPx = totalCross.coerceAtLeast(0f)
+                            val liveHotspot = liveCenterInRootPrimary()
+                            centerInRootPrimary = liveHotspot
                             onDeleteProgress(
                                 QueueGestureMath.deleteProgress(crossDragPx, deleteGatePx),
-                                centerInRootPrimary,
+                                liveHotspot,
                             )
                         }
                     }
 
                     crossDragPx = 0f
-                    onDeleteProgress(0f, centerInRootPrimary)
+                    onDeleteProgress(0f, liveCenterInRootPrimary())
                 }
             }
             .pointerInput(item.id, axis, profile, locked) {
