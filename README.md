@@ -7,6 +7,7 @@ Native Android **multimodal** camera app for capturing **bundles** of photos, vi
 **Other docs:**
 
 - [`docs/README.md`](docs/README.md) — documentation map, current design authority and archived evidence.
+- [`docs/capture-source-protocol.md`](docs/capture-source-protocol.md) — target-neutral offline capture protocol, durable outbox, deferred authorization, destination connectors and the Recon integration plan.
 - [`docs/prototypes/README.md`](docs/prototypes/README.md) — Android capture SVG references, the current Fold8/Fold8 Ultra C matrices and geometry fixtures; A/B is archived.
 - [`docs/adaptive-foldable-capture-plan.md`](docs/adaptive-foldable-capture-plan.md) — implementation plan for the C pose-driven foldable composition; native work and simulator acceptance are in progress. Physical phone/foldable testing is outside the current goal.
 - [`recon-mvp-designs.md`](./recon-mvp-designs.md) — existing product, UX and architecture baseline; adaptive capture proposals are documented separately.

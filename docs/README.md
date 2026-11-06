@@ -7,6 +7,7 @@ Updated 2026-11-05. The Android codebase implements the single-owner CameraX ses
 | Purpose | Authoritative entry point |
 | --- | --- |
 | Existing app, architecture and build | [Repository README](../README.md), [product baseline](../recon-mvp-designs.md), [release runbook](../RELEASE.md) |
+| Target-neutral offline capture and memory integration | [Capture Source Protocol](capture-source-protocol.md) — source envelope, durable outbox, deferred authorization, destination connectors and Recon implementation plan |
 | Current Android capture design | [Prototype index](prototypes/README.md), [component contract](prototypes/COMPONENT-CONTRACT.md), current C matrices/gesture guide, display measurements and [C geometry](prototypes/foldable-c-geometry.json) |
 | Active adaptive implementation | [Engineering rebuild plan](engineering/foldable-capture-rebuild-plan.md), [adaptive plan](adaptive-foldable-capture-plan.md), [camera guidance and runtime backlog](prototypes/camera-layout-implementation.md) |
 | Static artifact review history | [Design audit](prototypes/DESIGN-AUDIT.md), [review](prototypes/REVIEW.md), [render manifest](prototypes/review/manifest.json) and [bounded raster exception](prototypes/review/rasterization/README.md) |
