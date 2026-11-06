@@ -3,6 +3,7 @@ package com.example.bundlecam
 import android.content.Context
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
+import android.hardware.display.DisplayManager
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -57,10 +58,27 @@ class MainActivity : ComponentActivity() {
     @Volatile
     var allowOrientationOverrideForTest: Boolean = false
 
+    private val displayListener = object : DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) = Unit
+        override fun onDisplayRemoved(displayId: Int) = Unit
+        override fun onDisplayChanged(displayId: Int) {
+            // A 180° flip between CW90 (ROTATION_90) and CCW90 (ROTATION_270) keeps width,
+            // height, and orientation identical, so Android does NOT call onConfigurationChanged.
+            // Observing DisplayListener ensures WindowObservation.displayRotation and CameraX
+            // targetRotation update immediately on direct 180° landscape flips.
+            val container = (application as? ReconApp)?.container ?: return
+            val obs = buildCurrentObservation()
+            lifecycleScope.launch {
+                container.captureTakeCoordinator.onHostEvent(RawHostEvent.WindowChanged(obs))
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         applyAdaptiveOrientationPolicy(resources.configuration)
+        getSystemService(DisplayManager::class.java)?.registerDisplayListener(displayListener, null)
         val container = (application as ReconApp).container
 
         val initialObs = buildCurrentObservation()
@@ -156,6 +174,11 @@ class MainActivity : ComponentActivity() {
                 RawHostEvent.ActivityStopped(isChangingConfigurations = changingConfig),
             )
         }
+    }
+
+    override fun onDestroy() {
+        getSystemService(DisplayManager::class.java)?.unregisterDisplayListener(displayListener)
+        super.onDestroy()
     }
 
     fun injectWindowObservationForTest(observation: WindowObservation) {

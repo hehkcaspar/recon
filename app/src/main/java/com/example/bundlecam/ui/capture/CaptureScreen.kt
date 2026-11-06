@@ -1,7 +1,9 @@
 package com.example.bundlecam.ui.capture
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
+import android.hardware.display.DisplayManager
 import android.media.MediaActionSound
 import android.os.Build
 import android.view.HapticFeedbackConstants
@@ -92,6 +94,7 @@ import com.example.bundlecam.ui.capture.window.InsetsPx
 import com.example.bundlecam.ui.capture.window.SurfaceRole
 import com.example.bundlecam.ui.capture.window.WindowObservation
 import com.example.bundlecam.ui.common.ActionBanner
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -293,7 +296,8 @@ fun CaptureScreenShell(
     val isRecordingOrCapturing = uiState.busy != BusyState.Idle
     val contentRotation = rememberContentRotation(
         deviceOrientation = deviceOrientation,
-        activeSurfaceRotation = windowObservation?.displayRotation ?: cameraState.activeSurfaceRotation,
+        fallbackSurfaceRotation = cameraState.activeSurfaceRotation,
+        injectedSurfaceRotation = windowObservation?.displayRotation?.takeIf { !renderCameraPreview },
     )
 
     DisposableEffect(isRecording) {
@@ -912,8 +916,51 @@ private fun Modifier.placeInWindow(
 @Composable
 private fun rememberContentRotation(
     deviceOrientation: Int,
-    activeSurfaceRotation: Int,
+    fallbackSurfaceRotation: Int,
+    injectedSurfaceRotation: Int? = null,
 ): Float {
+    val context = LocalContext.current
+    val view = LocalView.current
+    var liveDisplayRotation by remember {
+        mutableStateOf(view.display?.rotation ?: fallbackSurfaceRotation)
+    }
+
+    // Observe DisplayManager directly so a 180° CW90 ↔ CCW90 flip (which does not change
+    // window width/height or fire onConfigurationChanged) immediately updates the display
+    // rotation basis and triggers recomposition.
+    DisposableEffect(context, view) {
+        liveDisplayRotation = view.display?.rotation ?: fallbackSurfaceRotation
+        val dm = context.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager
+        val listener = object : DisplayManager.DisplayListener {
+            override fun onDisplayAdded(displayId: Int) = Unit
+            override fun onDisplayRemoved(displayId: Int) = Unit
+            override fun onDisplayChanged(displayId: Int) {
+                val rot = view.display?.rotation
+                if (rot != null) {
+                    liveDisplayRotation = rot
+                }
+            }
+        }
+        dm?.registerDisplayListener(listener, null)
+        onDispose {
+            dm?.unregisterDisplayListener(listener)
+        }
+    }
+
+    // Also re-sample `view.display.rotation` when `deviceOrientation` or `fallbackSurfaceRotation`
+    // changes (including after 120ms/280ms to cover devices where OrientationEventListener fires
+    // slightly before SurfaceFlinger finishes a 180° seamless rotation).
+    LaunchedEffect(deviceOrientation, fallbackSurfaceRotation) {
+        liveDisplayRotation = view.display?.rotation ?: fallbackSurfaceRotation
+        delay(120)
+        liveDisplayRotation = view.display?.rotation ?: fallbackSurfaceRotation
+        delay(160)
+        liveDisplayRotation = view.display?.rotation ?: fallbackSurfaceRotation
+    }
+
+    // Read `liveDisplayRotation` (Compose State) directly so changes always recompose.
+    val activeSurfaceRotation = injectedSurfaceRotation ?: liveDisplayRotation
+
     val displayDegrees = when (activeSurfaceRotation) {
         Surface.ROTATION_90 -> 270
         Surface.ROTATION_180 -> 180
