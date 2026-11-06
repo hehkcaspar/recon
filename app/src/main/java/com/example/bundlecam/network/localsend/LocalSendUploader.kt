@@ -10,26 +10,28 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.encodeToString
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import okhttp3.Protocol
 import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okio.BufferedSink
 import java.io.IOException
-import java.security.SecureRandom
+import java.net.Proxy
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
-import javax.net.ssl.SSLContext
-import javax.net.ssl.TrustManager
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -86,6 +88,7 @@ data class UploadItem(
 class LocalSendUploader(
     private val baseClient: OkHttpClient,
     private val resolver: ContentResolver,
+    private val certManager: LocalSendCertManager? = null,
 ) {
     /**
      * Send all [items] to [peer] in a single LocalSend session: one prepare-upload
@@ -213,7 +216,11 @@ class LocalSendUploader(
                 }.awaitAll()
             }
         } catch (ce: CancellationException) {
-            sendCancelBestEffort(client, peer, sessionId)
+            withContext(NonCancellable) {
+                withTimeoutOrNull(1_500L) {
+                    sendCancelBestEffort(client, peer, sessionId)
+                }
+            }
             throw ce
         } catch (e: HttpStatusException) {
             sendCancelBestEffort(client, peer, sessionId)
@@ -231,11 +238,19 @@ class LocalSendUploader(
     }
 
     private fun buildPeerClient(expectedFingerprint: String): OkHttpClient {
-        val tm = FingerprintPinningTrustManager(expectedFingerprint)
-        val sslContext = SSLContext.getInstance("TLS").apply {
-            init(null, arrayOf<TrustManager>(tm), SecureRandom())
-        }
+        val (sslContext, tm) = buildLocalSendSslContext(
+            heldCertificate = certManager?.getOrCreate(),
+            expectedFingerprintHex = expectedFingerprint,
+        )
         return baseClient.newBuilder()
+            .proxy(Proxy.NO_PROXY)
+            .protocols(listOf(Protocol.HTTP_1_1))
+            .connectTimeout(10, TimeUnit.SECONDS)
+            // prepare-upload blocks until the user clicks Accept on the receiving
+            // device, so OkHttp's 10 s default readTimeout would abort while the
+            // prompt is still open on screen.
+            .readTimeout(5, TimeUnit.MINUTES)
+            .writeTimeout(1, TimeUnit.MINUTES)
             .sslSocketFactory(sslContext.socketFactory, tm)
             .hostnameVerifier(LocalSendHostnameVerifier)
             .build()
@@ -380,7 +395,7 @@ private class StreamingSafBody(
 }
 
 /** Coroutine-friendly Call.execute that propagates cancellation back to OkHttp. */
-private suspend fun Call.awaitResponse(): Response = suspendCancellableCoroutine { cont ->
+internal suspend fun Call.awaitResponse(): Response = suspendCancellableCoroutine { cont ->
     cont.invokeOnCancellation { runCatching { cancel() } }
     enqueue(object : Callback {
         override fun onResponse(call: Call, response: Response) {

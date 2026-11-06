@@ -1,14 +1,22 @@
 package com.example.bundlecam
 
 import com.example.bundlecam.network.localsend.Announce
+import com.example.bundlecam.network.localsend.LocalSendCertManager
 import com.example.bundlecam.network.localsend.LocalSendDiscovery
 import com.example.bundlecam.network.localsend.LocalSendJson
+import com.example.bundlecam.network.localsend.LocalSendKeyManager
+import com.example.bundlecam.network.localsend.RegisterRequest
+import com.example.bundlecam.network.localsend.RegisterResponse
 import kotlinx.serialization.encodeToString
+import okhttp3.tls.HeldCertificate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.ByteArrayInputStream
+import javax.security.auth.x500.X500Principal
 
 class LocalSendDiscoveryFilterTest {
 
@@ -56,6 +64,15 @@ class LocalSendDiscoveryFilterTest {
     }
 
     @Test
+    fun v2_2_announce_without_announce_boolean_defaults_to_true() {
+        val v22 = """{"alias":"Peer","version":"2.2","fingerprint":"peerFp","port":53317,"protocol":"https"}"""
+            .toByteArray()
+        val parsed = LocalSendDiscovery.parseAnnounce(v22, v22.size, ownFp)
+        assertNotNull(parsed)
+        assertTrue(parsed!!.announce)
+    }
+
+    @Test
     fun malformed_json_returns_null() {
         val garbage = "not even json".toByteArray()
         assertNull(LocalSendDiscovery.parseAnnounce(garbage, garbage.size, ownFp))
@@ -63,7 +80,7 @@ class LocalSendDiscoveryFilterTest {
 
     @Test
     fun missing_required_fields_returns_null() {
-        // Missing fingerprint AND announce — both required.
+        // Missing fingerprint — required.
         val partial = """{"alias":"Half","port":53317}""".toByteArray()
         assertNull(LocalSendDiscovery.parseAnnounce(partial, partial.size, ownFp))
     }
@@ -150,5 +167,146 @@ class LocalSendDiscoveryFilterTest {
         )
         val peer = LocalSendDiscovery.announceToPeer(a, "10.0.0.5")
         assertEquals("https://10.0.0.5:53317", peer.baseUrl())
+    }
+
+    @Test
+    fun parse_register_request_accepts_matching_mtls_cert() {
+        val req = RegisterRequest(
+            alias = "Special Mango",
+            version = "2.2",
+            deviceModel = "macOS",
+            deviceType = "desktop",
+            fingerprint = "C15BBB1A",
+            port = 53317,
+            protocol = "https",
+        )
+        val body = LocalSendJson.encodeToString(req).toByteArray(Charsets.UTF_8)
+        val peer = LocalSendDiscovery.parseRegisterRequest(
+            body = body,
+            ip = "192.168.8.151",
+            ownFingerprint = ownFp,
+            tlsClientCertFingerprint = "c15bbb1a",
+        )
+        assertNotNull(peer)
+        assertEquals("Special Mango", peer?.alias)
+        assertEquals("192.168.8.151", peer?.ip)
+        assertEquals(53317, peer?.port)
+        assertEquals("c15bbb1a", peer?.fingerprint)
+    }
+
+    @Test
+    fun parse_register_request_rejects_mismatched_mtls_fingerprint() {
+        val req = RegisterRequest(
+            alias = "Spoofer",
+            fingerprint = "claimedFp",
+            port = 53317,
+            protocol = "https",
+        )
+        val body = LocalSendJson.encodeToString(req).toByteArray(Charsets.UTF_8)
+        val peer = LocalSendDiscovery.parseRegisterRequest(
+            body = body,
+            ip = "192.168.8.99",
+            ownFingerprint = ownFp,
+            tlsClientCertFingerprint = "actualCertFp",
+        )
+        assertNull(peer)
+    }
+
+    @Test
+    fun parse_register_request_rejects_self_echo() {
+        val req = RegisterRequest(
+            alias = "Us",
+            fingerprint = ownFp.uppercase(),
+            port = 53317,
+            protocol = "https",
+        )
+        val body = LocalSendJson.encodeToString(req).toByteArray(Charsets.UTF_8)
+        assertNull(
+            LocalSendDiscovery.parseRegisterRequest(
+                body = body,
+                ip = "192.168.8.10",
+                ownFingerprint = ownFp,
+                tlsClientCertFingerprint = ownFp,
+            )
+        )
+    }
+
+    @Test
+    fun parse_register_response_prefers_tls_server_cert_fingerprint() {
+        // Per LocalSend v2.1/v2.2 spec, RegisterResponse.fingerprint is ignored in HTTPS
+        // mode and the server's TLS certificate hash is authoritative.
+        val resp = RegisterResponse(
+            alias = "Special Mango",
+            version = "2.2",
+            deviceModel = "macOS",
+            deviceType = "desktop",
+            fingerprint = "ignoredBodyToken",
+        )
+        val body = LocalSendJson.encodeToString(resp).toByteArray(Charsets.UTF_8)
+        val peer = LocalSendDiscovery.parseRegisterResponse(
+            body = body,
+            ip = "192.168.8.151",
+            port = 53317,
+            ownFingerprint = ownFp,
+            tlsServerCertFingerprint = "verifiedCertSha256",
+        )
+        assertNotNull(peer)
+        assertEquals("verifiedCertSha256", peer?.fingerprint)
+        assertEquals("Special Mango", peer?.alias)
+    }
+
+    @Test
+    fun subnet_candidates_generates_253_rfc1918_hosts_excluding_self() {
+        val candidates = LocalSendDiscovery.subnetCandidatesFor("192.168.8.105")
+        assertEquals(253, candidates.size)
+        assertFalse(candidates.contains("192.168.8.105"))
+        assertFalse(candidates.contains("192.168.8.0"))
+        assertFalse(candidates.contains("192.168.8.255"))
+        assertTrue(candidates.contains("192.168.8.1"))
+        assertTrue(candidates.contains("192.168.8.151"))
+        assertTrue(candidates.contains("192.168.8.254"))
+    }
+
+    @Test
+    fun subnet_candidates_skips_non_private_and_cgnat_addresses() {
+        // 100.64.0.0/10 is carrier-grade NAT (cellular WAN), must never be subnet-scanned.
+        assertTrue(LocalSendDiscovery.subnetCandidatesFor("100.64.1.2").isEmpty())
+        assertTrue(LocalSendDiscovery.subnetCandidatesFor("127.0.0.1").isEmpty())
+        assertTrue(LocalSendDiscovery.subnetCandidatesFor("172.32.0.1").isEmpty())
+        assertEquals(253, LocalSendDiscovery.subnetCandidatesFor("172.16.0.5").size)
+        assertEquals(253, LocalSendDiscovery.subnetCandidatesFor("10.0.0.5").size)
+    }
+
+    @Test
+    fun read_http_request_parses_post_register_with_body() {
+        val json = """{"alias":"Special Mango","fingerprint":"abc","port":53317,"protocol":"https"}"""
+        val raw = "POST /api/localsend/v2/register HTTP/1.1\r\n" +
+            "Host: 192.168.8.105:53317\r\n" +
+            "Content-Type: application/json\r\n" +
+            "Content-Length: ${json.toByteArray().size}\r\n\r\n" +
+            json
+        val parsed = LocalSendDiscovery.readHttpRequest(ByteArrayInputStream(raw.toByteArray()))
+        assertNotNull(parsed)
+        assertEquals("POST", parsed!!.method)
+        assertEquals("/api/localsend/v2/register", parsed.path)
+        assertEquals(json, String(parsed.body, Charsets.UTF_8))
+    }
+
+    @Test
+    fun key_manager_ignores_foreign_issuer_hints_in_mtls() {
+        val held = HeldCertificate.Builder()
+            .commonName("Recon")
+            .organizationalUnit("Recon")
+            .build()
+        val km = LocalSendKeyManager(held)
+        val foreignIssuer = arrayOf(X500Principal("CN=LocalSend User"))
+        val alias = km.chooseClientAlias(arrayOf("EC", "RSA"), foreignIssuer, null)
+        assertNotNull("Client alias must be returned despite foreign issuer hint", alias)
+        assertEquals(1, km.getCertificateChain(alias)?.size)
+        assertNotNull(km.getPrivateKey(alias))
+        assertEquals(
+            64,
+            LocalSendCertManager.computeFingerprintHex(km.getCertificateChain(alias)!![0].encoded).length,
+        )
     }
 }

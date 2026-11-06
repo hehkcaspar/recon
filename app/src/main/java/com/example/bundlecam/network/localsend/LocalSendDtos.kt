@@ -37,7 +37,7 @@ data class Announce(
     val port: Int = LOCALSEND_PORT,
     val protocol: String = "https",
     val download: Boolean = false,
-    val announce: Boolean,
+    val announce: Boolean = true,
 )
 
 /**

@@ -615,9 +615,13 @@ When ≥1 bundle is selected, the contextual app bar swaps in: close-X left, "N 
 
 ### Discovery
 
-Tap Send → modal bottom sheet → UDP multicast discovery on `224.0.0.167:53317`. The sheet emits one announce on every non-loopback IPv4 NIC, then surfaces inbound announces (peer-initiated or `announce:false` replies) as `Peer` rows showing alias, deviceModel, and the first 8 hex chars of fingerprint (a trust-on-first-use cue). Spinner while empty; after 12 s with no peers, swap to "No peers found" + `Try again` / `Close`.
+Tap Send → modal bottom sheet → multi-path LocalSend v2.1/v2.2 discovery:
 
-Recon does **not** run an inbound HTTP server. Most peers reply via multicast UDP and surface fine; a peer that *only* responds via HTTP `POST /api/localsend/v2/register` won't appear (rare in practice).
+1. **Embedded HTTPS `/api/localsend/v2/register` listener**: LocalSend 1.18+ peers never reply to UDP multicast announcements over UDP — they only answer by sending an HTTPS `POST /api/localsend/v2/register` request to the announcer's IP and port. While the send sheet is open, Recon binds an HTTPS listener on port `53317` (falling back to an OS-assigned ephemeral port if `53317` is already occupied, e.g. when the official LocalSend app is running on the same phone) and advertises that bound port in its outbound `Announce`.
+2. **UDP multicast announcement burst + listener (`224.0.0.167:53317`)**: emits an announce burst (immediate, +500 ms, +2000 ms) on every non-loopback IPv4 NIC, and listens for peer-initiated UDP announcements.
+3. **Active HTTPS `/api/localsend/v2/register` subnet scan**: concurrently probes the local `/24` RFC 1918 LAN subnet on port `53317` (concurrency 50, short timeouts) so peers surface within ~1 s even on networks that filter IPv4 multicast or after a VPN toggle.
+
+Discovered peers surface as `Peer` rows showing alias, deviceModel, and the first 8 hex chars of fingerprint (deduplicated case-insensitively by fingerprint). Spinner while empty; after 12 s with no peers, swap to "No peers found" + `Try again` / `Close`.
 
 ### Single session for all selected bundles
 

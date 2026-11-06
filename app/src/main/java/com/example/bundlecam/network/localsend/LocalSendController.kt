@@ -10,18 +10,16 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import java.net.Proxy
 
 /**
- * Top-level coordinator for LocalSend peer-to-peer transfer. Owns the multicast
- * discovery socket and a base OkHttp client; per-peer SSL configuration (fingerprint-
- * pinning trust manager) is layered on by the uploader via `client.newBuilder()` so the
- * connection pool / dispatcher / timeouts are shared while each peer's TLS identity is
- * verified during its own handshake.
- *
- * Sender-only — does NOT run an HTTP server. Per the v2.1 spec, peers can also reply
- * via UDP multicast (`announce: false`), so single-socket discovery still surfaces most
- * peers. If a peer ONLY responds via HTTP `/register`, we won't see them — acceptable
- * trade-off for the MVP scope.
+ * Top-level coordinator for LocalSend peer-to-peer transfer. Owns the discovery
+ * engine (UDP multicast + embedded HTTPS `/register` responder + HTTP `/24` subnet
+ * probe) and a base OkHttp client; per-peer SSL configuration (mTLS client cert +
+ * fingerprint-pinning trust manager) is layered on via `client.newBuilder()` so the
+ * connection pool / dispatcher are shared while each peer's TLS identity is verified
+ * during its own handshake.
  */
 class LocalSendController(
     context: Context,
@@ -31,12 +29,20 @@ class LocalSendController(
 ) {
     private val appContext: Context = context.applicationContext
 
-    // Base client with no SSL config — the uploader newBuilder()s a peer-specific
-    // client per send so the trust manager carries that peer's expected fingerprint.
-    private val baseClient: OkHttpClient by lazy { OkHttpClient.Builder().build() }
+    // Base client with Proxy.NO_PROXY (so LAN peer traffic never routes through a
+    // system HTTP/SOCKS proxy like FlClash) and HTTP/1.1 (matching LocalSend's Rust
+    // client/server). Discovery and uploader layer their TLS config via newBuilder().
+    private val baseClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .proxy(Proxy.NO_PROXY)
+            .protocols(listOf(Protocol.HTTP_1_1))
+            .build()
+    }
 
-    private val discovery = LocalSendDiscovery(appContext)
-    private val uploader by lazy { LocalSendUploader(baseClient, appContext.contentResolver) }
+    private val discovery = LocalSendDiscovery(appContext, certManager, baseClient)
+    private val uploader by lazy {
+        LocalSendUploader(baseClient, appContext.contentResolver, certManager)
+    }
 
     // The local Info (alias + deviceModel + fingerprint) is stable per-install; cache
     // it so discover/send don't each hit DataStore (mutex-guarded suspend) and
@@ -76,9 +82,15 @@ class LocalSendController(
         bundles: List<CompletedBundle>,
         onProgress: (SendProgress) -> Unit = {},
     ): SendBundleResult {
-        val items = bundles.flatMap { bundle ->
-            bundleLibrary.listBundleFiles(bundle).map { file ->
-                UploadItem(source = file, wireName = LocalSendUploader.wireNameFor(bundle.id, file))
+        val items = buildList {
+            bundles.forEach { bundle ->
+                val files = bundleLibrary.listBundleFiles(bundle)
+                if (files.isEmpty()) {
+                    return SendBundleResult.Failed("Bundle ${bundle.id} has no readable files")
+                }
+                files.forEach { file ->
+                    add(UploadItem(source = file, wireName = LocalSendUploader.wireNameFor(bundle.id, file)))
+                }
             }
         }
         if (items.isEmpty()) return SendBundleResult.Failed("Selection has no shippable files")
